@@ -1,41 +1,56 @@
 import { NextRequest, NextResponse } from "next/server";
-import { prisma } from "@/lib/prisma";
-import { refreshAccessToken } from "@/lib/truelayer/client";
 import { addDays } from "date-fns";
+import { eq, and, lte, inArray } from "drizzle-orm";
 
-// Called by Vercel Cron every 6 hours (set in vercel.json)
+import { db } from "@/db";
+import { bankConnections } from "@/db/schema/bankConnection";
+import { refreshAccessToken } from "@/lib/truelayer/client";
+
+// Called by Vercel Cron every 6 hours
 export async function GET(request: NextRequest) {
   const authHeader = request.headers.get("authorization");
+
   if (authHeader !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
   }
 
-  // Find tokens expiring in the next 12 hours
-  const expiringSoon = await prisma.bankConnection.findMany({
-    where: {
-      status: "ACTIVE",
-      accessTokenExpiry: { lte: addDays(new Date(), 0.5) },
-    },
-  });
+  const expiryCutoff = addDays(new Date(), 0.5);
+
+  const expiringSoon = await db
+    .select()
+    .from(bankConnections)
+    .where(
+      and(
+        eq(bankConnections.status, "ACTIVE"),
+        lte(bankConnections.accessTokenExpiry, expiryCutoff)
+      )
+    );
 
   const results = await Promise.allSettled(
-    expiringSoon.map((c) => refreshAccessToken(c))
+    expiringSoon.map((connection) => refreshAccessToken(connection))
   );
 
-  const failed = results
-    .map((r, i) => ({ id: expiringSoon[i].id, result: r }))
-    .filter((r) => r.result.status === "rejected");
+  const failedIds = results
+    .map((result, index) => ({
+      id: expiringSoon[index].id,
+      result,
+    }))
+    .filter((item) => item.result.status === "rejected")
+    .map((item) => item.id);
 
-  // Mark failed connections
-  if (failed.length > 0) {
-    await prisma.bankConnection.updateMany({
-      where: { id: { in: failed.map((f) => f.id) } },
-      data: { status: "ERROR" },
-    });
+  if (failedIds.length > 0) {
+    await db
+      .update(bankConnections)
+      .set({
+        status: "ERROR",
+        updatedAt: new Date(),
+      })
+      .where(inArray(bankConnections.id, failedIds));
   }
 
   return NextResponse.json({
-    refreshed: results.filter((r) => r.status === "fulfilled").length,
-    failed: failed.length,
+    checked: expiringSoon.length,
+    refreshed: results.filter((result) => result.status === "fulfilled").length,
+    failed: failedIds.length,
   });
 }

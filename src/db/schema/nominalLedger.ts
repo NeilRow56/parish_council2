@@ -8,8 +8,8 @@ import { parishCouncils } from "./authSchema";
 
 
 export const userRoleEnum = pgEnum("user_role", ["CLERK", "RFO", "COUNCILLOR"]);
-export const connectionStatusEnum = pgEnum("connection_status", ["ACTIVE", "EXPIRED", "REVOKED", "ERROR"]);
-export const txStatusEnum = pgEnum("tx_status", ["PENDING", "CODED", "POSTED", "EXCLUDED"]);
+
+
 export const accountTypeEnum = pgEnum("account_type", ["INCOME", "EXPENDITURE", "BALANCE_SHEET"]);
 export const journalSourceEnum = pgEnum("journal_source", ["BANK_FEED", "MANUAL", "YEAR_END", "OPENING_BALANCE"]);
 

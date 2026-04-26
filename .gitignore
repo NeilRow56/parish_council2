@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+.env.local
 
 # vercel
 .vercel
@@ -39,3 +40,22 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# Database
+DATABASE_URL="postgresql://..."
+
+# NextAuth
+NEXTAUTH_SECRET="..."
+NEXTAUTH_URL="http://localhost:3000"
+
+# TrueLayer
+TRUELAYER_CLIENT_ID="..."
+TRUELAYER_CLIENT_SECRET="..."
+TRUELAYER_REDIRECT_URI="http://localhost:3000/api/bank/callback"
+# Use sandbox for development:
+TRUELAYER_AUTH_URL="https://auth.truelayer-sandbox.com"
+TRUELAYER_API_URL="https://api.truelayer-sandbox.com"
+# Production:
+# TRUELAYER_AUTH_URL="https://auth.truelayer.com"
+# TRUELAYER_API_URL="https://api.truelayer.com"
+TRUELAYER_WEBHOOK_SECRET="..."

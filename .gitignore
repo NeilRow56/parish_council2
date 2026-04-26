@@ -59,3 +59,4 @@ TRUELAYER_API_URL="https://api.truelayer-sandbox.com"
 # TRUELAYER_AUTH_URL="https://auth.truelayer.com"
 # TRUELAYER_API_URL="https://api.truelayer.com"
 TRUELAYER_WEBHOOK_SECRET="..."
+.env*.local

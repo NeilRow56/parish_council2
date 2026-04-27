@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
-import { syncAllConnections } from "@/lib/truelayer/sync";
+import { syncAllConnections, syncConnection } from "@/lib/truelayer/sync";
+import { bankConnections } from "@/db/schema";
+import { db } from "@/db";
+import { and, eq } from "drizzle-orm";
 
 export async function POST(request: NextRequest) {
   const session = await auth.api.getSession({
@@ -10,12 +13,6 @@ export async function POST(request: NextRequest) {
 
   if (!session) {
     return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
-  }
-
-  const role = session.user.role as string;
-
-  if (!["RFO", "CLERK"].includes(role)) {
-    return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
   const parishCouncilId = session.user.parishCouncilId;
@@ -27,6 +24,47 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  // ✅ THIS is where it goes
+  const formData = await request.formData();
+  const connectionId = formData.get("connectionId") as string | null;
+
+  // ------------------------------------------------------------------
+  // If a specific connection is provided → sync ONE
+  // ------------------------------------------------------------------
+  if (connectionId) {
+    const [connection] = await db
+      .select()
+      .from(bankConnections)
+      .where(
+        and(
+          eq(bankConnections.id, connectionId),
+          eq(bankConnections.parishCouncilId, parishCouncilId)
+        )
+      )
+      .limit(1);
+
+    if (!connection) {
+      return NextResponse.json(
+        { error: "Connection not found" },
+        { status: 404 }
+      );
+    }
+
+    const result = await syncConnection({
+      connection,
+      parishCouncilId,
+    });
+
+    return NextResponse.json({
+      connectionId,
+      accountName: connection.accountName,
+      result,
+    });
+  }
+
+  // ------------------------------------------------------------------
+  // Otherwise → sync ALL (fallback behaviour)
+  // ------------------------------------------------------------------
   const results = await syncAllConnections({
     parishCouncilId,
   });

@@ -70,16 +70,16 @@ export async function syncConnection({
       tx.normalised_provider_transaction_id ?? tx.transaction_id;
 
     // Idempotent sync, scoped to this parish council.
-    const existing = await db
-      .select({ id: bankTransactions.id })
-      .from(bankTransactions)
-      .where(
-        and(
-          eq(bankTransactions.parishCouncilId, parishCouncilId),
-          eq(bankTransactions.providerTxId, dedupeKey)
-        )
-      )
-      .limit(1);
+   const existing = await db
+  .select({ id: bankTransactions.id })
+  .from(bankTransactions)
+  .where(
+    and(
+      eq(bankTransactions.connectionId, connection.id),
+      eq(bankTransactions.providerTxId, dedupeKey)
+    )
+  )
+  .limit(1);
 
     if (existing.length > 0) {
       skipped++;

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useTransition } from "react";
+import { useState, useEffect, useCallback, useTransition, Fragment } from "react";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -385,9 +385,9 @@ export default function TransactionInbox() {
                   const isExcluded = tx.status === "EXCLUDED";
 
                   return (
-                    <>
+                    <Fragment key={tx.id}>
                       <tr
-                        key={tx.id}
+
                         className={`border-b border-slate-100 hover:bg-slate-50 transition-colors ${
                           isExcluded ? "opacity-50" : ""
                         } ${selected.has(tx.id) ? "bg-blue-50 hover:bg-blue-50" : ""}`}
@@ -523,7 +523,7 @@ export default function TransactionInbox() {
                           </td>
                         </tr>
                       )}
-                    </>
+                    </Fragment>
                   );
                 })}
               </tbody>

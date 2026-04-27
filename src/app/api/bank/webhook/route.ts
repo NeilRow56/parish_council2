@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
   const [connection] = await db
     .select()
     .from(bankConnections)
-    .where(eq(bankConnections.accountId, event.account_id))
+    .where(eq(bankConnections.providerAccountId, event.account_id))
     .limit(1);
 
   if (!connection) {
@@ -123,7 +123,7 @@ export async function POST(request: NextRequest) {
         .where(
           and(
             eq(bankConnections.parishCouncilId, parishCouncilId),
-            eq(bankConnections.accountId, event.account_id)
+            eq(bankConnections.providerAccountId, event.account_id)
           )
         );
 
@@ -145,7 +145,7 @@ export async function POST(request: NextRequest) {
         .where(
           and(
             eq(bankConnections.parishCouncilId, parishCouncilId),
-            eq(bankConnections.accountId, event.account_id)
+            eq(bankConnections.providerAccountId, event.account_id)
           )
         );
 

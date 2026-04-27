@@ -67,7 +67,7 @@ export async function GET(request: NextRequest) {
         .where(
           and(
             eq(bankConnections.parishCouncilId, parishCouncilId),
-            eq(bankConnections.accountId, account.account_id)
+            eq(bankConnections.providerAccountId, account.account_id)
           )
         )
         .limit(1);
@@ -86,31 +86,34 @@ export async function GET(request: NextRequest) {
           .where(
             and(
               eq(bankConnections.parishCouncilId, parishCouncilId),
-              eq(bankConnections.accountId, account.account_id)
+              eq(bankConnections.providerAccountId, account.account_id)
             )
           );
       } else {
         // Insert new connection
         await db.insert(bankConnections).values({
-          parishCouncilId,
+  parishCouncilId,
 
-          providerId: account.provider.provider_id,
-          providerName: account.provider.display_name,
-          accountId: account.account_id,
-          accountName: account.display_name,
-          accountType: account.account_type,
-          sortCode: account.account_number?.sort_code ?? null,
-          accountNumber: account.account_number?.number ?? null,
-          currency: account.currency,
+  providerId: account.provider.provider_id,
+  providerName: "truelayer",
 
-          accessToken: tokens.access_token,
-          refreshToken: tokens.refresh_token,
-          accessTokenExpiry,
-          status: "ACTIVE",
+  providerAccountId: account.account_id,
+  accountName: account.display_name,
+  accountType: account.account_type,
 
-          createdAt: new Date(),
-          updatedAt: new Date(),
-        });
+  sortCode: account.account_number?.sort_code ?? null,
+  accountLast4: account.account_number?.number?.slice(-4) ?? null,
+
+  currency: account.currency,
+
+  accessToken: tokens.access_token,
+  refreshToken: tokens.refresh_token,
+  accessTokenExpiry,
+  status: "ACTIVE",
+
+  createdAt: new Date(),
+  updatedAt: new Date(),
+});
       }
     }
 

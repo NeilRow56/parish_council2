@@ -178,7 +178,7 @@ export async function fetchTransactions(
 
   const { data } = await apiClient(token).get<{
     results: TrueLayerTransaction[];
-  }>(`/data/v1/accounts/${connection.accountId}/transactions`, {
+  }>(`/data/v1/accounts/${connection.providerAccountId}/transactions`, {
     params,
   });
 
@@ -192,7 +192,7 @@ export async function fetchBalance(
 
   const { data } = await apiClient(token).get<{
     results: TrueLayerBalance[];
-  }>(`/data/v1/accounts/${connection.accountId}/balance`);
+  }>(`/data/v1/accounts/${connection.providerAccountId}/balance`);
 
   return data.results[0];
 }

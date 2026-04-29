@@ -20,26 +20,45 @@ export default function RegisterForm() {
 
     const email = String(formData.get("email") ?? "");
     const password = String(formData.get("password") ?? "");
+    const councilName = String(formData.get("councilName") ?? "");
 
     const result = await signUp.email({
       email,
       password,
-      name: email, // simple default
+      name: email,
     });
 
-    setPending(false);
-
     if (result.error) {
+      setPending(false);
       setError(result.error.message ?? "Registration failed.");
       return;
     }
 
-    router.push("/auth/login?registered=1");
+    const onboardRes = await fetch("/api/onboarding/create-parish-council", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ councilName }),
+    });
+
+    setPending(false);
+
+    if (!onboardRes.ok) {
+      const data = await onboardRes.json().catch(() => null);
+      setError(data?.error ?? "Account created, but council setup failed.");
+      return;
+    }
+
+    router.push("/");
   }
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-zinc-50 px-6">
-      <form className="w-full max-w-md rounded-xl bg-white p-8 shadow-sm" onSubmit={handleSubmit}>
+      <form
+        className="w-full max-w-md rounded-xl bg-white p-8 shadow-sm"
+        onSubmit={handleSubmit}
+      >
         <h1 className="text-2xl font-semibold">Create account</h1>
 
         {error && (
@@ -49,14 +68,35 @@ export default function RegisterForm() {
         )}
 
         <div className="mt-6 space-y-4">
-          <input name="email" type="email" required placeholder="Email" className="w-full border px-3 py-2 rounded-md" />
-          <input name="password" type="password" required placeholder="Password" className="w-full border px-3 py-2 rounded-md" />
+          <input
+            name="councilName"
+            type="text"
+            required
+            placeholder="Parish council name"
+            className="w-full rounded-md border px-3 py-2"
+          />
+
+          <input
+            name="email"
+            type="email"
+            required
+            placeholder="Email"
+            className="w-full rounded-md border px-3 py-2"
+          />
+
+          <input
+            name="password"
+            type="password"
+            required
+            placeholder="Password"
+            className="w-full rounded-md border px-3 py-2"
+          />
         </div>
 
         <button
           type="submit"
           disabled={pending}
-          className="mt-6 w-full bg-zinc-950 text-white px-4 py-2 rounded-md"
+          className="mt-6 w-full rounded-md bg-zinc-950 px-4 py-2 text-white"
         >
           {pending ? "Creating..." : "Create account"}
         </button>

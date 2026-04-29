@@ -153,38 +153,42 @@ export async function postTransactionsToLedger(
           .returning();
 
         const lines = isCredit
-          ? [
-              {
-                journalEntryId: entry.id,
-                nominalCodeId: bankCode.id,
-                debit: amount.toFixed(2),
-                credit: "0.00",
-                description: tx.description,
-              },
-              {
-                journalEntryId: entry.id,
-                nominalCodeId: nominalCode.id,
-                debit: "0.00",
-                credit: amount.toFixed(2),
-                description: tx.description,
-              },
-            ]
-          : [
-              {
-                journalEntryId: entry.id,
-                nominalCodeId: nominalCode.id,
-                debit: amount.toFixed(2),
-                credit: "0.00",
-                description: tx.description,
-              },
-              {
-                journalEntryId: entry.id,
-                nominalCodeId: bankCode.id,
-                debit: "0.00",
-                credit: amount.toFixed(2),
-                description: tx.description,
-              },
-            ];
+  ? [
+      {
+        parishCouncilId,
+        journalEntryId: entry.id,
+        nominalCodeId: bankCode.id,
+        debit: amount.toFixed(2),
+        credit: "0.00",
+        description: tx.description,
+      },
+      {
+        parishCouncilId,
+        journalEntryId: entry.id,
+        nominalCodeId: nominalCode.id,
+        debit: "0.00",
+        credit: amount.toFixed(2),
+        description: tx.description,
+      },
+    ]
+  : [
+      {
+        parishCouncilId,
+        journalEntryId: entry.id,
+        nominalCodeId: nominalCode.id,
+        debit: amount.toFixed(2),
+        credit: "0.00",
+        description: tx.description,
+      },
+      {
+        parishCouncilId,
+        journalEntryId: entry.id,
+        nominalCodeId: bankCode.id,
+        debit: "0.00",
+        credit: amount.toFixed(2),
+        description: tx.description,
+      },
+    ];
 
         await trx.insert(journalLines).values(lines);
 

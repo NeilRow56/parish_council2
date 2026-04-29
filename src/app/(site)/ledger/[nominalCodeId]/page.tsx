@@ -11,13 +11,30 @@ import {
   nominalCodes
 } from '@/db/schema/nominalLedger'
 
-function formatCurrency(value: number) {
-  if (value === 0) return '—'
+function formatAmount(value: string | number | null) {
+  const amount = Number(value ?? 0)
+
+  if (amount === 0) return '—'
+
+  return new Intl.NumberFormat('en-GB', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(amount)
+}
+
+function formatCurrency(value: string | number | null) {
+  const amount = Number(value ?? 0)
+
+  if (amount === 0) return '—'
 
   return new Intl.NumberFormat('en-GB', {
     style: 'currency',
     currency: 'GBP'
-  }).format(value)
+  }).format(amount)
+}
+
+function balanceClass(value: number) {
+  return value < 0 ? 'text-red-600' : 'text-slate-900'
 }
 
 function formatDate(value: string) {
@@ -26,10 +43,6 @@ function formatDate(value: string) {
     month: 'short',
     year: 'numeric'
   })
-}
-
-function balanceClass(value: number) {
-  return value < 0 ? 'text-red-600' : 'text-slate-900'
 }
 
 export default async function NominalLedgerPage({
@@ -179,7 +192,9 @@ export default async function NominalLedgerPage({
 
           <div className='rounded-lg border bg-white p-4'>
             <p className='text-sm text-slate-500'>Closing balance</p>
-            <p className='mt-1 text-2xl font-semibold'>
+            <p
+              className={`mt-1 text-2xl font-semibold ${balanceClass(closingBalance)}`}
+            >
               {formatCurrency(closingBalance)}
             </p>
           </div>
@@ -225,11 +240,11 @@ export default async function NominalLedgerPage({
                     </td>
 
                     <td className='px-4 py-3 text-right font-mono whitespace-nowrap'>
-                      {formatCurrency(row.debitAmount)}
+                      {formatAmount(row.debitAmount)}
                     </td>
 
                     <td className='px-4 py-3 text-right font-mono whitespace-nowrap'>
-                      {formatCurrency(row.creditAmount)}
+                      {formatAmount(row.creditAmount)}
                     </td>
 
                     <td
@@ -254,11 +269,11 @@ export default async function NominalLedgerPage({
                   </td>
 
                   <td className='px-4 py-3 text-right font-mono'>
-                    {formatCurrency(totalDebit)}
+                    {formatAmount(totalDebit)}
                   </td>
 
                   <td className='px-4 py-3 text-right font-mono'>
-                    {formatCurrency(totalCredit)}
+                    {formatAmount(totalCredit)}
                   </td>
 
                   <td

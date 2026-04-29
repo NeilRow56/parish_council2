@@ -1,11 +1,11 @@
 'use client'
 
 import {
-  useState,
-  useEffect,
+  Fragment,
   useCallback,
-  useTransition,
-  Fragment
+  useEffect,
+  useState,
+  useTransition
 } from 'react'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -26,7 +26,7 @@ interface StagedTransaction {
   currency: string
   merchantName: string | null
   transactionType: 'CREDIT' | 'DEBIT'
-  status: 'PENDING' | 'CODED' | 'EXCLUDED'
+  status: 'PENDING' | 'CODED' | 'POSTED' | 'EXCLUDED'
   matchingRule: string | null
   notes: string | null
   accountName: string
@@ -52,13 +52,19 @@ type FilterStatus = 'all' | 'PENDING' | 'CODED'
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-function formatAmount(amount: string, type: 'CREDIT' | 'DEBIT') {
-  const n = Math.abs(parseFloat(amount))
+function formatBankAmount(amount: string, type: 'CREDIT' | 'DEBIT') {
+  const value = Math.abs(Number(amount))
+
   const formatted = new Intl.NumberFormat('en-GB', {
     style: 'currency',
     currency: 'GBP'
-  }).format(n)
-  return { formatted, isCredit: type === 'CREDIT' }
+  }).format(value)
+
+  return {
+    formatted,
+    prefix: type === 'CREDIT' ? '+' : '',
+    isCredit: type === 'CREDIT'
+  }
 }
 
 function formatDate(dateStr: string) {
@@ -75,12 +81,15 @@ function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
     PENDING: 'bg-amber-50 text-amber-700 border-amber-200',
     CODED: 'bg-blue-50 text-blue-700 border-blue-200',
-    EXCLUDED: 'bg-gray-100 text-gray-500 border-gray-200',
-    POSTED: 'bg-green-50 text-green-700 border-green-200'
+    POSTED: 'bg-green-50 text-green-700 border-green-200',
+    EXCLUDED: 'bg-gray-100 text-gray-500 border-gray-200'
   }
+
   return (
     <span
-      className={`inline-flex items-center rounded border px-2 py-0.5 text-xs font-medium ${styles[status] ?? 'bg-gray-100 text-gray-600'}`}
+      className={`inline-flex items-center rounded border px-2 py-0.5 text-xs font-medium ${
+        styles[status] ?? 'bg-gray-100 text-gray-600'
+      }`}
     >
       {status}
     </span>
@@ -98,34 +107,41 @@ function NominalPicker({
   onChange: (id: string) => void
   disabled: boolean
 }) {
-  // Group codes by type then category
-  const income = codes.filter(c => c.type === 'INCOME')
-  const expenditure = codes.filter(c => c.type === 'EXPENDITURE')
+  const income = codes.filter(code => code.type === 'INCOME')
+  const expenditure = codes.filter(code => code.type === 'EXPENDITURE')
 
   const renderGroup = (label: string, items: NominalCode[]) => {
     if (!items.length) return null
-    // Sub-group by category
-    const byCategory = items.reduce<Record<string, NominalCode[]>>((acc, c) => {
-      const cat = c.category ?? 'General'
-      if (!acc[cat]) acc[cat] = []
-      acc[cat].push(c)
-      return acc
-    }, {})
+
+    const byCategory = items.reduce<Record<string, NominalCode[]>>(
+      (acc, code) => {
+        const category = code.category ?? 'General'
+
+        if (!acc[category]) {
+          acc[category] = []
+        }
+
+        acc[category].push(code)
+        return acc
+      },
+      {}
+    )
 
     return (
       <optgroup label={label} key={label}>
-        {Object.entries(byCategory).map(([cat, catCodes]) => (
-          <Fragment key={`${label}-${cat}`}>
+        {Object.entries(byCategory).map(([category, categoryCodes]) => (
+          <Fragment key={`${label}-${category}`}>
             <option
               disabled
               value=''
               style={{ fontStyle: 'italic', color: '#999' }}
             >
-              — {cat} —
+              — {category} —
             </option>
-            {catCodes.map(c => (
-              <option key={c.id} value={c.id}>
-                {c.code} · {c.name}
+
+            {categoryCodes.map(code => (
+              <option key={code.id} value={code.id}>
+                {code.code} · {code.name}
               </option>
             ))}
           </Fragment>
@@ -137,7 +153,11 @@ function NominalPicker({
   return (
     <select
       value={value ?? ''}
-      onChange={e => e.target.value && onChange(e.target.value)}
+      onChange={event => {
+        if (event.target.value) {
+          onChange(event.target.value)
+        }
+      }}
       disabled={disabled}
       className='w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:bg-slate-50 disabled:text-slate-400'
     >
@@ -158,6 +178,7 @@ export default function TransactionInbox() {
   const [loading, setLoading] = useState(true)
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all')
   const [search, setSearch] = useState('')
+  const [searchInput, setSearchInput] = useState('')
   const [page, setPage] = useState(1)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [posting, startPosting] = useTransition()
@@ -168,81 +189,81 @@ export default function TransactionInbox() {
     errors: number
   } | null>(null)
 
-  // Fetch nominal codes once
   useEffect(() => {
     fetch('/api/nominal-codes')
-      .then(r => r.json())
-      .then(d => setNominalCodes(d.codes ?? []))
+      .then(response => response.json())
+      .then(data => setNominalCodes(data.codes ?? []))
   }, [])
 
-  // Fetch transactions when filters change
   const fetchTransactions = useCallback(async () => {
     setLoading(true)
+
     const params = new URLSearchParams({
       page: String(page),
       ...(filterStatus !== 'all' && { status: filterStatus }),
       ...(search && { search })
     })
-    const res = await fetch(`/api/transactions/staged?${params}`)
-    const data = await res.json()
+
+    const response = await fetch(`/api/transactions/staged?${params}`)
+    const data = await response.json()
+
     setTransactions(data.transactions ?? [])
     setPagination(data.pagination ?? null)
     setSummary(data.summary ?? [])
+    setSelected(new Set())
     setLoading(false)
-    setSelected(new Set()) // clear selection on filter change
   }, [page, filterStatus, search])
 
   useEffect(() => {
-    fetchTransactions()
+    const timeoutId = window.setTimeout(() => {
+      void fetchTransactions()
+    }, 0)
+
+    return () => window.clearTimeout(timeoutId)
   }, [fetchTransactions])
 
-  // Debounce search
-  const [searchInput, setSearchInput] = useState('')
   useEffect(() => {
-    const t = setTimeout(() => {
+    const timeoutId = window.setTimeout(() => {
       setSearch(searchInput)
       setPage(1)
     }, 350)
-    return () => clearTimeout(t)
+
+    return () => window.clearTimeout(timeoutId)
   }, [searchInput])
 
-  // ── Actions ────────────────────────────────────────────────────────────────
-
   async function assignNominal(txId: string, nominalCodeId: string) {
-    // Clear previous posting result (so UI doesn't show stale "1 posted")
     setPostResult(null)
-
     setUpdatingId(txId)
 
-    const res = await fetch(`/api/transactions/staged/${txId}`, {
+    const response = await fetch(`/api/transactions/staged/${txId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'assign_nominal', nominalCodeId })
     })
 
-    if (!res.ok) {
+    if (!response.ok) {
       setUpdatingId(null)
       return
     }
 
-    const data = await res.json()
+    const data = await response.json()
 
-    setTransactions(prev =>
-      prev.map(tx =>
-        tx.id === txId
+    setTransactions(previous =>
+      previous.map(transaction =>
+        transaction.id === txId
           ? {
-              ...tx,
+              ...transaction,
               status: 'CODED',
               nominalCodeId,
-              nominalCode: data.nominalCode?.code ?? tx.nominalCode,
-              nominalName: data.nominalCode?.name ?? tx.nominalName
+              nominalCode: data.nominalCode?.code ?? transaction.nominalCode,
+              nominalName: data.nominalCode?.name ?? transaction.nominalName
             }
-          : tx
+          : transaction
       )
     )
 
-    setSummary(prev =>
-      prev.map(item => {
+    setSummary(previous =>
+      previous.map(item => {
         if (item.status === 'PENDING') {
           return { ...item, count: Math.max(0, item.count - 1) }
         }
@@ -259,69 +280,96 @@ export default function TransactionInbox() {
   }
 
   async function excludeTransaction(txId: string) {
+    setPostResult(null)
     setUpdatingId(txId)
+
     await fetch(`/api/transactions/staged/${txId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'exclude' })
     })
+
     setUpdatingId(null)
-    fetchTransactions()
+    await fetchTransactions()
+  }
+
+  async function restoreTransaction(txId: string) {
+    setPostResult(null)
+    setUpdatingId(txId)
+
+    await fetch(`/api/transactions/staged/${txId}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ action: 'unexclude' })
+    })
+
+    setUpdatingId(null)
+    await fetchTransactions()
   }
 
   function postSelected() {
     startPosting(async () => {
       const ids = selected.size > 0 ? [...selected] : undefined
-      const res = await fetch('/api/transactions/post', {
+
+      const response = await fetch('/api/transactions/post', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ transactionIds: ids })
       })
-      const data = await res.json()
-      setPostResult({ posted: data.posted, errors: data.errors?.length ?? 0 })
-      fetchTransactions()
+
+      const data = await response.json()
+
+      setPostResult({
+        posted: data.posted,
+        errors: data.errors?.length ?? 0
+      })
+
+      await fetchTransactions()
     })
   }
 
-  // ── Selection helpers ──────────────────────────────────────────────────────
+  const codedTransactions = transactions.filter(
+    transaction => transaction.status === 'CODED'
+  )
 
-  const codedTransactions = transactions.filter(t => t.status === 'CODED')
   const allCodedSelected =
     codedTransactions.length > 0 &&
-    codedTransactions.every(t => selected.has(t.id))
+    codedTransactions.every(transaction => selected.has(transaction.id))
 
   function toggleSelectAll() {
     if (allCodedSelected) {
       setSelected(new Set())
-    } else {
-      setSelected(new Set(codedTransactions.map(t => t.id)))
+      return
     }
+
+    setSelected(new Set(codedTransactions.map(transaction => transaction.id)))
   }
 
   function toggleSelect(id: string) {
-    setSelected(prev => {
-      const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+    setSelected(previous => {
+      const next = new Set(previous)
+
+      if (next.has(id)) {
+        next.delete(id)
+      } else {
+        next.add(id)
+      }
+
       return next
     })
   }
 
-  // ── Summary counts ─────────────────────────────────────────────────────────
-
   const pendingCount =
-    summary.find(s => s.status === 'PENDING')?.count ??
-    transactions.filter(t => t.status === 'PENDING').length
+    summary.find(item => item.status === 'PENDING')?.count ??
+    transactions.filter(transaction => transaction.status === 'PENDING').length
 
   const codedCount = Math.max(
-    summary.find(s => s.status === 'CODED')?.count ?? 0,
-    transactions.filter(t => t.status === 'CODED').length
+    summary.find(item => item.status === 'CODED')?.count ?? 0,
+    transactions.filter(transaction => transaction.status === 'CODED').length
   )
-
-  // ── Render ─────────────────────────────────────────────────────────────────
 
   return (
     <div className='min-h-screen bg-slate-50 font-sans'>
-      {/* ── Header ── */}
       <div className='border-b border-slate-200 bg-white px-6 py-4'>
         <div className='mx-auto flex max-w-6xl items-center justify-between'>
           <div>
@@ -346,6 +394,7 @@ export default function TransactionInbox() {
                 {postResult.errors > 0 && `, ${postResult.errors} error(s)`}
               </span>
             )}
+
             <button
               onClick={postSelected}
               disabled={posting || codedCount === 0}
@@ -372,7 +421,6 @@ export default function TransactionInbox() {
       </div>
 
       <div className='mx-auto max-w-6xl space-y-5 px-6 py-6'>
-        {/* ── Summary pills ── */}
         <div className='flex items-center gap-3'>
           {[
             {
@@ -404,6 +452,7 @@ export default function TransactionInbox() {
               }`}
             >
               {label}
+
               <span
                 className={`rounded-full px-1.5 py-0.5 text-xs ${
                   filterStatus === value ? 'bg-white/20' : 'bg-slate-100'
@@ -419,13 +468,12 @@ export default function TransactionInbox() {
               type='search'
               placeholder='Search transactions…'
               value={searchInput}
-              onChange={e => setSearchInput(e.target.value)}
+              onChange={event => setSearchInput(event.target.value)}
               className='w-56 rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none'
             />
           </div>
         </div>
 
-        {/* ── Table ── */}
         <div className='overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm'>
           {loading ? (
             <div className='flex items-center justify-center py-20 text-sm text-slate-400'>
@@ -446,6 +494,7 @@ export default function TransactionInbox() {
                   d='M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'
                 />
               </svg>
+
               <p className='text-sm font-medium'>No transactions found</p>
               <p className='mt-1 text-xs'>
                 All transactions may already be posted or excluded
@@ -464,93 +513,103 @@ export default function TransactionInbox() {
                       className='rounded border-slate-300'
                     />
                   </th>
+
                   <th className='px-4 py-3 text-left font-medium whitespace-nowrap text-slate-500'>
                     Date
                   </th>
+
                   <th className='px-4 py-3 text-left font-medium text-slate-500'>
                     Description
                   </th>
+
                   <th className='px-4 py-3 text-left font-medium text-slate-500'>
                     Account
                   </th>
+
                   <th className='px-4 py-3 text-right font-medium whitespace-nowrap text-slate-500'>
                     Amount
                   </th>
+
                   <th className='px-4 py-3 text-left font-medium text-slate-500'>
                     Nominal code
                   </th>
+
                   <th className='px-4 py-3 text-left font-medium text-slate-500'>
                     Status
                   </th>
-                  <th className='px-4 py-3 text-left font-medium text-slate-500'></th>
+
+                  <th className='px-4 py-3 text-left font-medium text-slate-500' />
                 </tr>
               </thead>
+
               <tbody>
-                {transactions.map(tx => {
-                  const { formatted, isCredit } = formatAmount(
-                    tx.amount,
-                    tx.transactionType
+                {transactions.map(transaction => {
+                  const { formatted, prefix, isCredit } = formatBankAmount(
+                    transaction.amount,
+                    transaction.transactionType
                   )
-                  const isExpanded = expandedId === tx.id
-                  const isUpdating = updatingId === tx.id
-                  const isExcluded = tx.status === 'EXCLUDED'
+
+                  const isExpanded = expandedId === transaction.id
+                  const isUpdating = updatingId === transaction.id
+                  const isExcluded = transaction.status === 'EXCLUDED'
 
                   return (
-                    <Fragment key={tx.id}>
+                    <Fragment key={transaction.id}>
                       <tr
                         className={`border-b border-slate-100 transition-colors hover:bg-slate-50 ${
                           isExcluded ? 'opacity-50' : ''
-                        } ${selected.has(tx.id) ? 'bg-blue-50 hover:bg-blue-50' : ''}`}
+                        } ${
+                          selected.has(transaction.id)
+                            ? 'bg-blue-50 hover:bg-blue-50'
+                            : ''
+                        }`}
                       >
-                        {/* Checkbox */}
                         <td className='px-4 py-3'>
                           <input
                             type='checkbox'
-                            checked={selected.has(tx.id)}
-                            onChange={() => toggleSelect(tx.id)}
-                            disabled={tx.status !== 'CODED'}
+                            checked={selected.has(transaction.id)}
+                            onChange={() => toggleSelect(transaction.id)}
+                            disabled={transaction.status !== 'CODED'}
                             className='rounded border-slate-300 disabled:opacity-30'
                           />
                         </td>
 
-                        {/* Date */}
                         <td className='px-4 py-3 text-xs whitespace-nowrap text-slate-500'>
-                          {formatDate(tx.date)}
+                          {formatDate(transaction.date)}
                         </td>
 
-                        {/* Description */}
                         <td className='max-w-xs px-4 py-3'>
                           <div className='truncate font-medium text-slate-800'>
-                            {tx.merchantName ?? tx.description}
+                            {transaction.merchantName ??
+                              transaction.description}
                           </div>
-                          {tx.merchantName && (
+
+                          {transaction.merchantName && (
                             <div className='truncate text-xs text-slate-400'>
-                              {tx.description}
+                              {transaction.description}
                             </div>
                           )}
-                          {tx.matchingRule && (
+
+                          {transaction.matchingRule && (
                             <div className='mt-0.5 text-xs text-blue-500'>
-                              Auto-matched: {tx.matchingRule}
+                              Auto-matched: {transaction.matchingRule}
                             </div>
                           )}
                         </td>
 
-                        {/* Account */}
                         <td className='px-4 py-3 text-xs whitespace-nowrap text-slate-500'>
-                          {tx.accountName}
+                          {transaction.accountName}
                         </td>
 
-                        {/* Amount */}
                         <td
                           className={`px-4 py-3 text-right font-mono font-medium whitespace-nowrap ${
                             isCredit ? 'text-green-600' : 'text-slate-800'
                           }`}
                         >
-                          {isCredit ? '+' : '−'}
+                          {prefix}
                           {formatted}
                         </td>
 
-                        {/* Nominal picker */}
                         <td className='min-w-55 px-4 py-3'>
                           {isExcluded ? (
                             <span className='text-xs text-slate-400 italic'>
@@ -559,14 +618,13 @@ export default function TransactionInbox() {
                           ) : (
                             <NominalPicker
                               codes={nominalCodes}
-                              value={tx.nominalCodeId}
-                              onChange={id => assignNominal(tx.id, id)}
+                              value={transaction.nominalCodeId}
+                              onChange={id => assignNominal(transaction.id, id)}
                               disabled={isUpdating || posting}
                             />
                           )}
                         </td>
 
-                        {/* Status */}
                         <td className='px-4 py-3'>
                           {isUpdating ? (
                             <span className='inline-flex items-center gap-1 text-xs text-slate-400'>
@@ -574,16 +632,17 @@ export default function TransactionInbox() {
                               Saving…
                             </span>
                           ) : (
-                            <StatusBadge status={tx.status} />
+                            <StatusBadge status={transaction.status} />
                           )}
                         </td>
 
-                        {/* Actions */}
                         <td className='px-4 py-3'>
                           <div className='flex items-center gap-1'>
                             <button
                               onClick={() =>
-                                setExpandedId(isExpanded ? null : tx.id)
+                                setExpandedId(
+                                  isExpanded ? null : transaction.id
+                                )
                               }
                               title='Notes'
                               className='rounded p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600'
@@ -602,10 +661,13 @@ export default function TransactionInbox() {
                                 />
                               </svg>
                             </button>
+
                             {!isExcluded ? (
                               <button
-                                onClick={() => excludeTransaction(tx.id)}
-                                title='Exclude (transfers, contra entries, etc.)'
+                                onClick={() =>
+                                  excludeTransaction(transaction.id)
+                                }
+                                title='Exclude'
                                 className='rounded p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500'
                               >
                                 <svg
@@ -624,23 +686,9 @@ export default function TransactionInbox() {
                               </button>
                             ) : (
                               <button
-                                onClick={async () => {
-                                  setUpdatingId(tx.id)
-                                  await fetch(
-                                    `/api/transactions/staged/${tx.id}`,
-                                    {
-                                      method: 'PATCH',
-                                      headers: {
-                                        'Content-Type': 'application/json'
-                                      },
-                                      body: JSON.stringify({
-                                        action: 'unexclude'
-                                      })
-                                    }
-                                  )
-                                  setUpdatingId(null)
-                                  fetchTransactions()
-                                }}
+                                onClick={() =>
+                                  restoreTransaction(transaction.id)
+                                }
                                 title='Restore'
                                 className='rounded p-1.5 text-slate-400 transition-colors hover:bg-green-50 hover:text-green-500'
                               >
@@ -663,20 +711,21 @@ export default function TransactionInbox() {
                         </td>
                       </tr>
 
-                      {/* Expanded notes row */}
                       {isExpanded && (
                         <tr
-                          key={`${tx.id}-notes`}
+                          key={`${transaction.id}-notes`}
                           className='border-b border-slate-100 bg-slate-50'
                         >
                           <td colSpan={8} className='px-4 py-3'>
                             <NotesEditor
-                              txId={tx.id}
-                              initialNotes={tx.notes ?? ''}
+                              txId={transaction.id}
+                              initialNotes={transaction.notes ?? ''}
                               onSave={notes => {
-                                setTransactions(prev =>
-                                  prev.map(t =>
-                                    t.id === tx.id ? { ...t, notes } : t
+                                setTransactions(previous =>
+                                  previous.map(item =>
+                                    item.id === transaction.id
+                                      ? { ...item, notes }
+                                      : item
                                   )
                                 )
                               }}
@@ -692,7 +741,6 @@ export default function TransactionInbox() {
           )}
         </div>
 
-        {/* ── Pagination ── */}
         {pagination && pagination.totalPages > 1 && (
           <div className='flex items-center justify-between text-sm text-slate-500'>
             <span>
@@ -703,20 +751,25 @@ export default function TransactionInbox() {
               )}{' '}
               of {pagination.total} transactions
             </span>
+
             <div className='flex items-center gap-2'>
               <button
-                onClick={() => setPage(p => Math.max(1, p - 1))}
+                onClick={() => setPage(current => Math.max(1, current - 1))}
                 disabled={pagination.page <= 1}
                 className='rounded-lg border border-slate-200 px-3 py-1.5 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40'
               >
                 Previous
               </button>
+
               <span>
                 Page {pagination.page} of {pagination.totalPages}
               </span>
+
               <button
                 onClick={() =>
-                  setPage(p => Math.min(pagination.totalPages, p + 1))
+                  setPage(current =>
+                    Math.min(pagination.totalPages, current + 1)
+                  )
                 }
                 disabled={pagination.page >= pagination.totalPages}
                 className='rounded-lg border border-slate-200 px-3 py-1.5 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40'
@@ -748,14 +801,17 @@ function NotesEditor({
 
   async function save() {
     setSaving(true)
+
     await fetch(`/api/transactions/staged/${txId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'update_notes', notes })
     })
+
     setSaving(false)
     setSaved(true)
     onSave(notes)
+
     setTimeout(() => setSaved(false), 2000)
   }
 
@@ -765,10 +821,11 @@ function NotesEditor({
         <label className='mb-1 block text-xs font-medium text-slate-500'>
           Notes / memo
         </label>
+
         <textarea
           value={notes}
-          onChange={e => {
-            setNotes(e.target.value)
+          onChange={event => {
+            setNotes(event.target.value)
             setSaved(false)
           }}
           rows={2}
@@ -776,6 +833,7 @@ function NotesEditor({
           className='w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none'
         />
       </div>
+
       <button
         onClick={save}
         disabled={saving}

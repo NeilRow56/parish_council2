@@ -11,6 +11,17 @@ import {
 } from '@/db/schema/nominalLedger'
 import Link from 'next/link'
 
+function formatAmount(value: string | number | null) {
+  const amount = Number(value ?? 0)
+
+  if (amount === 0) return '—'
+
+  return new Intl.NumberFormat('en-GB', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  }).format(amount)
+}
+
 function formatCurrency(value: string | null) {
   const amount = Number(value ?? '0')
 
@@ -176,11 +187,11 @@ export default async function LedgerPage() {
                     </td>
 
                     <td className='px-4 py-3 text-right font-mono whitespace-nowrap'>
-                      {formatCurrency(row.debit)}
+                      {formatAmount(row.debit)}
                     </td>
 
                     <td className='px-4 py-3 text-right font-mono whitespace-nowrap'>
-                      {formatCurrency(row.credit)}
+                      {formatAmount(row.credit)}
                     </td>
 
                     <td className='px-4 py-3 text-xs whitespace-nowrap text-slate-500'>

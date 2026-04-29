@@ -1,66 +1,66 @@
-import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
+import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@/lib/auth'
+import { headers } from 'next/headers'
 
-import { eq, and, inArray, desc, ilike, between, sql } from "drizzle-orm";
-import { bankTransactions } from "@/db/schema/bankTransactions";
-import { db } from "@/db";
-import { bankConnections } from "@/db/schema/bankConnection";
-import { nominalCodes } from "@/db/schema/nominalLedger";
+import { eq, and, inArray, desc, ilike, between, sql } from 'drizzle-orm'
+import { bankTransactions } from '@/db/schema/bankTransactions'
+import { db } from '@/db'
+import { bankConnections } from '@/db/schema/bankConnection'
+import { nominalCodes } from '@/db/schema/nominalLedger'
 
 // GET /api/transactions/staged
 // Returns staged (PENDING + CODED) transactions for the clerk review inbox.
 
 export async function GET(request: NextRequest) {
   const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+    headers: await headers()
+  })
 
   if (!session) {
-    return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
+    return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
   }
 
-  const parishCouncilId = session.user.parishCouncilId;
+  const parishCouncilId = session.user.parishCouncilId
 
   if (!parishCouncilId) {
     return NextResponse.json(
-      { error: "User is not linked to a parish council" },
+      { error: 'User is not linked to a parish council' },
       { status: 403 }
-    );
+    )
   }
 
-  const { searchParams } = new URL(request.url);
+  const { searchParams } = new URL(request.url)
 
-  const status = searchParams.get("status");
-  const connectionId = searchParams.get("connectionId");
-  const from = searchParams.get("from");
-  const to = searchParams.get("to");
-  const search = searchParams.get("search");
-  const page = Math.max(1, parseInt(searchParams.get("page") ?? "1"));
-  const pageSize = 50;
+  const status = searchParams.get('status')
+  const connectionId = searchParams.get('connectionId')
+  const from = searchParams.get('from')
+  const to = searchParams.get('to')
+  const search = searchParams.get('search')
+  const page = Math.max(1, parseInt(searchParams.get('page') ?? '1'))
+  const pageSize = 50
 
   const conditions = [
     eq(bankTransactions.parishCouncilId, parishCouncilId),
-    inArray(bankTransactions.status, ["PENDING", "CODED"]),
-  ];
+    inArray(bankTransactions.status, ['PENDING', 'CODED'])
+  ]
 
-  if (status && status !== "all" && ["PENDING", "CODED"].includes(status)) {
-    conditions.push(eq(bankTransactions.status, status as "PENDING" | "CODED"));
+  if (status && status !== 'all' && ['PENDING', 'CODED'].includes(status)) {
+    conditions.push(eq(bankTransactions.status, status as 'PENDING' | 'CODED'))
   }
 
   if (connectionId) {
-    conditions.push(eq(bankTransactions.connectionId, connectionId));
+    conditions.push(eq(bankTransactions.connectionId, connectionId))
   }
 
   if (from && to) {
-    conditions.push(between(bankTransactions.date, from, to));
+    conditions.push(between(bankTransactions.date, from, to))
   }
 
   if (search) {
-    conditions.push(ilike(bankTransactions.description, `%${search}%`));
+    conditions.push(ilike(bankTransactions.description, `%${search}%`))
   }
 
-  const where = and(...conditions);
+  const where = and(...conditions)
 
   const rows = await db
     .select({
@@ -83,7 +83,7 @@ export async function GET(request: NextRequest) {
       nominalCodeId: bankTransactions.nominalCodeId,
       nominalCode: nominalCodes.code,
       nominalName: nominalCodes.name,
-      nominalType: nominalCodes.type,
+      nominalType: nominalCodes.type
     })
     .from(bankTransactions)
     .leftJoin(
@@ -103,27 +103,27 @@ export async function GET(request: NextRequest) {
     .where(where)
     .orderBy(desc(bankTransactions.date))
     .limit(pageSize)
-    .offset((page - 1) * pageSize);
+    .offset((page - 1) * pageSize)
 
   const [{ count }] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(bankTransactions)
-    .where(where);
+    .where(where)
 
   const summary = await db
     .select({
       status: bankTransactions.status,
       count: sql<number>`count(*)::int`,
-      total: sql<string>`sum(amount)::text`,
+      total: sql<string>`sum(amount)::text`
     })
     .from(bankTransactions)
     .where(
       and(
         eq(bankTransactions.parishCouncilId, parishCouncilId),
-        inArray(bankTransactions.status, ["PENDING", "CODED"])
+        inArray(bankTransactions.status, ['PENDING', 'CODED'])
       )
     )
-    .groupBy(bankTransactions.status);
+    .groupBy(bankTransactions.status)
 
   return NextResponse.json({
     transactions: rows,
@@ -131,8 +131,8 @@ export async function GET(request: NextRequest) {
       page,
       pageSize,
       total: count,
-      totalPages: Math.ceil(count / pageSize),
+      totalPages: Math.ceil(count / pageSize)
     },
-    summary,
-  });
+    summary
+  })
 }

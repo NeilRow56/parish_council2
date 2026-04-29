@@ -1,38 +1,38 @@
 // src/app/api/transactions/post/route.ts
 
-import { NextRequest, NextResponse } from "next/server";
-import { headers } from "next/headers";
-import { and, eq, gte, inArray, isNull, lte } from "drizzle-orm";
+import { NextRequest, NextResponse } from 'next/server'
+import { headers } from 'next/headers'
+import { and, eq, gte, inArray, isNull, lte } from 'drizzle-orm'
 
-import { auth } from "@/lib/auth";
-import { db } from "@/db";
-import { bankTransactions } from "@/db/schema/bankTransactions";
+import { auth } from '@/lib/auth'
+import { db } from '@/db'
+import { bankTransactions } from '@/db/schema/bankTransactions'
 import {
   financialYears,
   journalEntries,
   journalLines,
-  nominalCodes,
-} from "@/db/schema/nominalLedger";
+  nominalCodes
+} from '@/db/schema/nominalLedger'
 
 export async function POST(request: NextRequest) {
   const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+    headers: await headers()
+  })
 
   if (!session?.user?.parishCouncilId) {
-    return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
+    return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
   }
 
-  const parishCouncilId = session.user.parishCouncilId;
-  const userId = session.user.id;
+  const parishCouncilId = session.user.parishCouncilId
+  const userId = session.user.id
 
   const body = (await request.json().catch(() => ({}))) as {
-    transactionIds?: string[];
-  };
+    transactionIds?: string[]
+  }
 
-  const selectedIds = body.transactionIds;
+  const selectedIds = body.transactionIds
 
-  const today = new Date().toISOString().split("T")[0];
+  const today = new Date().toISOString().split('T')[0]
 
   const [financialYear] = await db
     .select()
@@ -45,13 +45,13 @@ export async function POST(request: NextRequest) {
         eq(financialYears.isClosed, false)
       )
     )
-    .limit(1);
+    .limit(1)
 
   if (!financialYear) {
     return NextResponse.json(
-      { error: "No open financial year found" },
+      { error: 'No open financial year found' },
       { status: 400 }
-    );
+    )
   }
 
   const [bankCode] = await db
@@ -65,13 +65,13 @@ export async function POST(request: NextRequest) {
         eq(nominalCodes.isActive, true)
       )
     )
-    .limit(1);
+    .limit(1)
 
   if (!bankCode) {
     return NextResponse.json(
-      { error: "No active bank nominal code found for this financial year" },
+      { error: 'No active bank nominal code found for this financial year' },
       { status: 400 }
-    );
+    )
   }
 
   const codedTransactions = await db
@@ -80,38 +80,38 @@ export async function POST(request: NextRequest) {
     .where(
       and(
         eq(bankTransactions.parishCouncilId, parishCouncilId),
-        eq(bankTransactions.status, "CODED"),
+        eq(bankTransactions.status, 'CODED'),
         isNull(bankTransactions.journalEntryId),
         selectedIds && selectedIds.length > 0
           ? inArray(bankTransactions.id, selectedIds)
           : undefined
       )
-    );
+    )
 
-  let posted = 0;
-  const errors: Array<{ transactionId: string; error: string }> = [];
+  let posted = 0
+  const errors: Array<{ transactionId: string; error: string }> = []
 
   for (const tx of codedTransactions) {
-    const nominalCodeId = tx.nominalCodeId;
+    const nominalCodeId = tx.nominalCodeId
 
     if (!nominalCodeId) {
       errors.push({
         transactionId: tx.id,
-        error: "Missing nominal code",
-      });
-      continue;
+        error: 'Missing nominal code'
+      })
+      continue
     }
 
     try {
-      await db.transaction(async (trx) => {
-        const amount = Number(tx.amount);
+      await db.transaction(async trx => {
+        const amount = Number(tx.amount)
 
         if (!Number.isFinite(amount) || amount === 0) {
-          throw new Error("Invalid transaction amount");
+          throw new Error('Invalid transaction amount')
         }
 
-        const absoluteAmount = Math.abs(amount).toFixed(2);
-        const reference = `BNK-${tx.date}-${tx.id.slice(-6).toUpperCase()}`;
+        const absoluteAmount = Math.abs(amount).toFixed(2)
+        const reference = `BNK-${tx.date}-${tx.id.slice(-6).toUpperCase()}`
 
         const [entry] = await trx
           .insert(journalEntries)
@@ -121,11 +121,11 @@ export async function POST(request: NextRequest) {
             reference,
             date: tx.date,
             description: tx.description,
-            source: "BANK_FEED",
+            source: 'BANK_FEED',
             sourceId: tx.id,
-            postedById: userId,
+            postedById: userId
           })
-          .returning();
+          .returning()
 
         if (amount > 0) {
           await trx.insert(journalLines).values([
@@ -134,18 +134,18 @@ export async function POST(request: NextRequest) {
               journalEntryId: entry.id,
               nominalCodeId: bankCode.id,
               debit: absoluteAmount,
-              credit: "0.00",
-              description: tx.description,
+              credit: '0.00',
+              description: tx.description
             },
             {
               parishCouncilId,
               journalEntryId: entry.id,
               nominalCodeId,
-              debit: "0.00",
+              debit: '0.00',
               credit: absoluteAmount,
-              description: tx.description,
-            },
-          ]);
+              description: tx.description
+            }
+          ])
         } else {
           await trx.insert(journalLines).values([
             {
@@ -153,46 +153,46 @@ export async function POST(request: NextRequest) {
               journalEntryId: entry.id,
               nominalCodeId,
               debit: absoluteAmount,
-              credit: "0.00",
-              description: tx.description,
+              credit: '0.00',
+              description: tx.description
             },
             {
               parishCouncilId,
               journalEntryId: entry.id,
               nominalCodeId: bankCode.id,
-              debit: "0.00",
+              debit: '0.00',
               credit: absoluteAmount,
-              description: tx.description,
-            },
-          ]);
+              description: tx.description
+            }
+          ])
         }
 
         await trx
           .update(bankTransactions)
           .set({
-            status: "POSTED",
+            status: 'POSTED',
             journalEntryId: entry.id,
-            postedAt: new Date(),
+            postedAt: new Date()
           })
           .where(
             and(
               eq(bankTransactions.id, tx.id),
               eq(bankTransactions.parishCouncilId, parishCouncilId)
             )
-          );
-      });
+          )
+      })
 
-      posted++;
+      posted++
     } catch (err) {
       errors.push({
         transactionId: tx.id,
-        error: err instanceof Error ? err.message : "Unknown error",
-      });
+        error: err instanceof Error ? err.message : 'Unknown error'
+      })
     }
   }
 
   return NextResponse.json({
     posted,
-    errors,
-  });
+    errors
+  })
 }

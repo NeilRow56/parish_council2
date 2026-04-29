@@ -1,21 +1,21 @@
-import { eq, and, lte, gte, desc } from "drizzle-orm";
-import type { TrueLayerTransaction } from "./types";
+import { eq, and, lte, gte, desc } from 'drizzle-orm'
+import type { TrueLayerTransaction } from './types'
 import {
   financialYears,
   matchingRules,
-  nominalCodes,
-} from "@/db/schema/nominalLedger";
-import { db } from "@/db";
+  nominalCodes
+} from '@/db/schema/nominalLedger'
+import { db } from '@/db'
 
 export interface MatchResult {
-  nominalCodeId: string;
-  nominalCode: string;
-  nominalName: string;
-  ruleName: string;
-  ruleId: string;
+  nominalCodeId: string
+  nominalCode: string
+  nominalName: string
+  ruleName: string
+  ruleId: string
 }
 
-type MatchingRule = typeof matchingRules.$inferSelect;
+type MatchingRule = typeof matchingRules.$inferSelect
 
 export async function applyMatchingRules(
   tx: TrueLayerTransaction,
@@ -23,9 +23,9 @@ export async function applyMatchingRules(
   financialYearId?: string
 ): Promise<MatchResult | null> {
   const yearId =
-    financialYearId ?? (await getCurrentFinancialYearId(parishCouncilId));
+    financialYearId ?? (await getCurrentFinancialYearId(parishCouncilId))
 
-  if (!yearId) return null;
+  if (!yearId) return null
 
   const rules = await db
     .select()
@@ -36,7 +36,7 @@ export async function applyMatchingRules(
         eq(matchingRules.isActive, true)
       )
     )
-    .orderBy(desc(matchingRules.priority));
+    .orderBy(desc(matchingRules.priority))
 
   for (const rule of rules) {
     if (ruleMatches(rule, tx)) {
@@ -44,7 +44,7 @@ export async function applyMatchingRules(
         rule.nominalCodeCode,
         parishCouncilId,
         yearId
-      );
+      )
 
       if (nominalCode) {
         return {
@@ -52,13 +52,13 @@ export async function applyMatchingRules(
           nominalCode: nominalCode.code,
           nominalName: nominalCode.name,
           ruleName: rule.name,
-          ruleId: rule.id,
-        };
+          ruleId: rule.id
+        }
       }
     }
   }
 
-  return null;
+  return null
 }
 
 export async function applyMatchingRulesBatch(
@@ -66,14 +66,14 @@ export async function applyMatchingRulesBatch(
   parishCouncilId: string,
   financialYearId?: string
 ): Promise<Map<string, MatchResult>> {
-  const results = new Map<string, MatchResult>();
+  const results = new Map<string, MatchResult>()
 
-  if (transactions.length === 0) return results;
+  if (transactions.length === 0) return results
 
   const yearId =
-    financialYearId ?? (await getCurrentFinancialYearId(parishCouncilId));
+    financialYearId ?? (await getCurrentFinancialYearId(parishCouncilId))
 
-  if (!yearId) return results;
+  if (!yearId) return results
 
   const rules = await db
     .select()
@@ -84,9 +84,9 @@ export async function applyMatchingRulesBatch(
         eq(matchingRules.isActive, true)
       )
     )
-    .orderBy(desc(matchingRules.priority));
+    .orderBy(desc(matchingRules.priority))
 
-  if (rules.length === 0) return results;
+  if (rules.length === 0) return results
 
   const codes = await db
     .select()
@@ -97,17 +97,17 @@ export async function applyMatchingRulesBatch(
         eq(nominalCodes.financialYearId, yearId),
         eq(nominalCodes.isActive, true)
       )
-    );
+    )
 
-  const codesByCode = new Map(codes.map((code) => [code.code, code]));
+  const codesByCode = new Map(codes.map(code => [code.code, code]))
 
   for (const tx of transactions) {
-    const txKey = tx.normalised_provider_transaction_id ?? tx.transaction_id;
+    const txKey = tx.normalised_provider_transaction_id ?? tx.transaction_id
 
     for (const rule of rules) {
-      if (!ruleMatches(rule, tx)) continue;
+      if (!ruleMatches(rule, tx)) continue
 
-      const nominalCode = codesByCode.get(rule.nominalCodeCode);
+      const nominalCode = codesByCode.get(rule.nominalCodeCode)
 
       if (nominalCode) {
         results.set(txKey, {
@@ -115,73 +115,73 @@ export async function applyMatchingRulesBatch(
           nominalCode: nominalCode.code,
           nominalName: nominalCode.name,
           ruleName: rule.name,
-          ruleId: rule.id,
-        });
+          ruleId: rule.id
+        })
 
-        break;
+        break
       }
     }
   }
 
-  return results;
+  return results
 }
 
 export async function testRule(
-  rule: Pick<MatchingRule, "matchField" | "matchType" | "matchValue">,
+  rule: Pick<MatchingRule, 'matchField' | 'matchType' | 'matchValue'>,
   tx: TrueLayerTransaction
 ): Promise<boolean> {
-  return ruleMatches(rule as MatchingRule, tx);
+  return ruleMatches(rule as MatchingRule, tx)
 }
 
 function ruleMatches(rule: MatchingRule, tx: TrueLayerTransaction): boolean {
-  if (rule.matchType === "amount_gt" || rule.matchType === "amount_lt") {
-    const threshold = parseFloat(rule.matchValue);
+  if (rule.matchType === 'amount_gt' || rule.matchType === 'amount_lt') {
+    const threshold = parseFloat(rule.matchValue)
 
-    if (Number.isNaN(threshold)) return false;
+    if (Number.isNaN(threshold)) return false
 
-    const absAmount = Math.abs(tx.amount);
+    const absAmount = Math.abs(tx.amount)
 
-    return rule.matchType === "amount_gt"
+    return rule.matchType === 'amount_gt'
       ? absAmount > threshold
-      : absAmount < threshold;
+      : absAmount < threshold
   }
 
-  const fieldValue = getTxField(tx, rule.matchField);
+  const fieldValue = getTxField(tx, rule.matchField)
 
-  if (fieldValue === undefined || fieldValue === null) return false;
+  if (fieldValue === undefined || fieldValue === null) return false
 
-  const haystack = fieldValue.toLowerCase().trim();
-  const needle = rule.matchValue.toLowerCase().trim();
+  const haystack = fieldValue.toLowerCase().trim()
+  const needle = rule.matchValue.toLowerCase().trim()
 
   switch (rule.matchType) {
-    case "contains":
-      return haystack.includes(needle);
+    case 'contains':
+      return haystack.includes(needle)
 
-    case "equals":
-      return haystack === needle;
+    case 'equals':
+      return haystack === needle
 
-    case "starts_with":
-      return haystack.startsWith(needle);
+    case 'starts_with':
+      return haystack.startsWith(needle)
 
-    case "ends_with":
-      return haystack.endsWith(needle);
+    case 'ends_with':
+      return haystack.endsWith(needle)
 
-    case "regex": {
+    case 'regex': {
       try {
-        return new RegExp(rule.matchValue, "i").test(fieldValue);
+        return new RegExp(rule.matchValue, 'i').test(fieldValue)
       } catch {
         console.warn(
           `[Matcher] Invalid regex in rule "${rule.name}": ${rule.matchValue}`
-        );
-        return false;
+        )
+        return false
       }
     }
 
     default:
       console.warn(
         `[Matcher] Unknown match type "${rule.matchType}" in rule "${rule.name}"`
-      );
-      return false;
+      )
+      return false
   }
 }
 
@@ -190,21 +190,21 @@ function getTxField(
   field: string
 ): string | undefined {
   switch (field) {
-    case "description":
-      return tx.description;
+    case 'description':
+      return tx.description
 
-    case "merchant_name":
-      return tx.merchant_name;
+    case 'merchant_name':
+      return tx.merchant_name
 
-    case "category":
-      return tx.transaction_category;
+    case 'category':
+      return tx.transaction_category
 
-    case "transaction_type":
-      return tx.transaction_type;
+    case 'transaction_type':
+      return tx.transaction_type
 
     default:
-      console.warn(`[Matcher] Unknown match field "${field}"`);
-      return undefined;
+      console.warn(`[Matcher] Unknown match field "${field}"`)
+      return undefined
   }
 }
 
@@ -224,15 +224,15 @@ async function resolveNominalCode(
         eq(nominalCodes.isActive, true)
       )
     )
-    .limit(1);
+    .limit(1)
 
-  return row ?? null;
+  return row ?? null
 }
 
 async function getCurrentFinancialYearId(
   parishCouncilId: string
 ): Promise<string | null> {
-  const today = new Date().toISOString().split("T")[0];
+  const today = new Date().toISOString().split('T')[0]
 
   const [year] = await db
     .select({ id: financialYears.id })
@@ -245,7 +245,7 @@ async function getCurrentFinancialYearId(
         eq(financialYears.isClosed, false)
       )
     )
-    .limit(1);
+    .limit(1)
 
-  return year?.id ?? null;
+  return year?.id ?? null
 }

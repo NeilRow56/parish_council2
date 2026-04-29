@@ -1,15 +1,15 @@
-import axios from "axios";
+import axios from 'axios'
 
-import { and, eq } from "drizzle-orm";
+import { and, eq } from 'drizzle-orm'
 import type {
   BankConnection,
   TrueLayerAccount,
   TrueLayerBalance,
   TrueLayerTokenResponse,
-  TrueLayerTransaction,
-} from "./types";
-import { bankConnections } from "@/db/schema/bankConnection";
-import { db } from "@/db";
+  TrueLayerTransaction
+} from './types'
+import { bankConnections } from '@/db/schema/bankConnection'
+import { db } from '@/db'
 
 // Re-export types so callers can import from one place
 export type {
@@ -17,24 +17,24 @@ export type {
   TrueLayerAccount,
   TrueLayerBalance,
   TrueLayerTokenResponse,
-  TrueLayerTransaction,
-};
-
-function requiredEnv(name: string): string {
-  const value = process.env[name];
-
-  if (!value) {
-    throw new Error(`${name} is not set`);
-  }
-
-  return value;
+  TrueLayerTransaction
 }
 
-const AUTH_URL = requiredEnv("TRUELAYER_AUTH_URL");
-const API_URL = requiredEnv("TRUELAYER_API_URL");
-const CLIENT_ID = requiredEnv("TRUELAYER_CLIENT_ID");
-const CLIENT_SECRET = requiredEnv("TRUELAYER_CLIENT_SECRET");
-const REDIRECT_URI = requiredEnv("TRUELAYER_REDIRECT_URI");
+function requiredEnv(name: string): string {
+  const value = process.env[name]
+
+  if (!value) {
+    throw new Error(`${name} is not set`)
+  }
+
+  return value
+}
+
+const AUTH_URL = requiredEnv('TRUELAYER_AUTH_URL')
+const API_URL = requiredEnv('TRUELAYER_API_URL')
+const CLIENT_ID = requiredEnv('TRUELAYER_CLIENT_ID')
+const CLIENT_SECRET = requiredEnv('TRUELAYER_CLIENT_SECRET')
+const REDIRECT_URI = requiredEnv('TRUELAYER_REDIRECT_URI')
 
 // ---------------------------------------------------------------------------
 // OAuth helpers
@@ -42,20 +42,20 @@ const REDIRECT_URI = requiredEnv("TRUELAYER_REDIRECT_URI");
 
 export function buildAuthUrl(): string {
   const params = new URLSearchParams({
-    response_type: "code",
+    response_type: 'code',
     client_id: CLIENT_ID,
     redirect_uri: REDIRECT_URI,
     scope: [
-      "info",
-      "accounts",
-      "balance",
-      "transactions",
-      "offline_access",
-    ].join(" "),
-    providers: "uk-ob-all uk-oauth-all",
-  });
+      'info',
+      'accounts',
+      'balance',
+      'transactions',
+      'offline_access'
+    ].join(' '),
+    providers: 'uk-ob-all uk-oauth-all'
+  })
 
-  return `${AUTH_URL}/?${params.toString()}`;
+  return `${AUTH_URL}/?${params.toString()}`
 }
 
 export async function exchangeCode(
@@ -64,20 +64,20 @@ export async function exchangeCode(
   const { data } = await axios.post<TrueLayerTokenResponse>(
     `${AUTH_URL}/connect/token`,
     new URLSearchParams({
-      grant_type: "authorization_code",
+      grant_type: 'authorization_code',
       client_id: CLIENT_ID,
       client_secret: CLIENT_SECRET,
       redirect_uri: REDIRECT_URI,
-      code,
+      code
     }),
     {
       headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
     }
-  );
+  )
 
-  return data;
+  return data
 }
 
 export async function refreshAccessToken(
@@ -86,19 +86,19 @@ export async function refreshAccessToken(
   const { data } = await axios.post<TrueLayerTokenResponse>(
     `${AUTH_URL}/connect/token`,
     new URLSearchParams({
-      grant_type: "refresh_token",
+      grant_type: 'refresh_token',
       client_id: CLIENT_ID,
       client_secret: CLIENT_SECRET,
-      refresh_token: connection.refreshToken,
+      refresh_token: connection.refreshToken
     }),
     {
       headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
+        'Content-Type': 'application/x-www-form-urlencoded'
+      }
     }
-  );
+  )
 
-  const expiry = new Date(Date.now() + data.expires_in * 1000);
+  const expiry = new Date(Date.now() + data.expires_in * 1000)
 
   await db
     .update(bankConnections)
@@ -106,16 +106,16 @@ export async function refreshAccessToken(
       accessToken: data.access_token,
       refreshToken: data.refresh_token,
       accessTokenExpiry: expiry,
-      updatedAt: new Date(),
+      updatedAt: new Date()
     })
     .where(
       and(
         eq(bankConnections.id, connection.id),
         eq(bankConnections.parishCouncilId, connection.parishCouncilId)
       )
-    );
+    )
 
-  return data.access_token;
+  return data.access_token
 }
 
 // ---------------------------------------------------------------------------
@@ -123,22 +123,22 @@ export async function refreshAccessToken(
 // ---------------------------------------------------------------------------
 
 async function getValidToken(connection: BankConnection): Promise<string> {
-  const bufferMs = 5 * 60 * 1000;
+  const bufferMs = 5 * 60 * 1000
 
   if (connection.accessTokenExpiry.getTime() - Date.now() < bufferMs) {
-    return refreshAccessToken(connection);
+    return refreshAccessToken(connection)
   }
 
-  return connection.accessToken;
+  return connection.accessToken
 }
 
 function apiClient(token: string) {
   return axios.create({
     baseURL: API_URL,
     headers: {
-      Authorization: `Bearer ${token}`,
-    },
-  });
+      Authorization: `Bearer ${token}`
+    }
+  })
 }
 
 // ---------------------------------------------------------------------------
@@ -148,20 +148,20 @@ function apiClient(token: string) {
 export async function fetchAccounts(
   connection: Pick<
     BankConnection,
-    "accessToken" | "refreshToken" | "accessTokenExpiry"
+    'accessToken' | 'refreshToken' | 'accessTokenExpiry'
   > &
-    Partial<Pick<BankConnection, "id" | "parishCouncilId">>
+    Partial<Pick<BankConnection, 'id' | 'parishCouncilId'>>
 ): Promise<TrueLayerAccount[]> {
   const token =
     connection.id && connection.parishCouncilId
       ? await getValidToken(connection as BankConnection)
-      : connection.accessToken;
+      : connection.accessToken
 
   const { data } = await apiClient(token).get<{
-    results: TrueLayerAccount[];
-  }>("/data/v1/accounts");
+    results: TrueLayerAccount[]
+  }>('/data/v1/accounts')
 
-  return data.results;
+  return data.results
 }
 
 export async function fetchTransactions(
@@ -169,30 +169,30 @@ export async function fetchTransactions(
   from: Date,
   to: Date
 ): Promise<TrueLayerTransaction[]> {
-  const token = await getValidToken(connection);
+  const token = await getValidToken(connection)
 
   const params = {
-    from: from.toISOString().split("T")[0],
-    to: to.toISOString().split("T")[0],
-  };
+    from: from.toISOString().split('T')[0],
+    to: to.toISOString().split('T')[0]
+  }
 
   const { data } = await apiClient(token).get<{
-    results: TrueLayerTransaction[];
+    results: TrueLayerTransaction[]
   }>(`/data/v1/accounts/${connection.providerAccountId}/transactions`, {
-    params,
-  });
+    params
+  })
 
-  return data.results;
+  return data.results
 }
 
 export async function fetchBalance(
   connection: BankConnection
 ): Promise<TrueLayerBalance> {
-  const token = await getValidToken(connection);
+  const token = await getValidToken(connection)
 
   const { data } = await apiClient(token).get<{
-    results: TrueLayerBalance[];
-  }>(`/data/v1/accounts/${connection.providerAccountId}/balance`);
+    results: TrueLayerBalance[]
+  }>(`/data/v1/accounts/${connection.providerAccountId}/balance`)
 
-  return data.results[0];
+  return data.results[0]
 }

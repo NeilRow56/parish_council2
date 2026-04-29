@@ -1,13 +1,12 @@
 // src/app/auth/login/page.tsx
 
-import { Suspense } from "react";
-import LoginForm from "./_components/login-form";
-
+import { Suspense } from 'react'
+import LoginForm from './_components/login-form'
 
 export default function LoginPage() {
   return (
     <Suspense fallback={null}>
       <LoginForm />
     </Suspense>
-  );
+  )
 }

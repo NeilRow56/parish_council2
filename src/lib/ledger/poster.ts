@@ -1,28 +1,28 @@
-import { eq, and, inArray, lte, gte, isNotNull } from "drizzle-orm";
-import { bankTransactions } from "@/db/schema/bankTransactions";
-import { db } from "@/db";
+import { eq, and, inArray, lte, gte, isNotNull } from 'drizzle-orm'
+import { bankTransactions } from '@/db/schema/bankTransactions'
+import { db } from '@/db'
 import {
   financialYears,
   journalEntries,
   journalLines,
-  nominalCodes,
-} from "@/db/schema/nominalLedger";
+  nominalCodes
+} from '@/db/schema/nominalLedger'
 
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
 export interface PostResult {
-  posted: number;
-  skipped: number;
-  errors: Array<{ transactionId: string; reason: string }>;
-  journalEntryIds: string[];
+  posted: number
+  skipped: number
+  errors: Array<{ transactionId: string; reason: string }>
+  journalEntryIds: string[]
 }
 
 interface PostOptions {
-  parishCouncilId: string;
-  transactionIds?: string[];
-  postedById: string;
+  parishCouncilId: string
+  transactionIds?: string[]
+  postedById: string
 }
 
 // ---------------------------------------------------------------------------
@@ -32,37 +32,37 @@ interface PostOptions {
 export async function postTransactionsToLedger(
   options: PostOptions
 ): Promise<PostResult> {
-  const { parishCouncilId, postedById } = options;
+  const { parishCouncilId, postedById } = options
 
   const result: PostResult = {
     posted: 0,
     skipped: 0,
     errors: [],
-    journalEntryIds: [],
-  };
+    journalEntryIds: []
+  }
 
   const conditions = [
     eq(bankTransactions.parishCouncilId, parishCouncilId),
-    eq(bankTransactions.status, "CODED"),
-    isNotNull(bankTransactions.nominalCodeId),
-  ];
+    eq(bankTransactions.status, 'CODED'),
+    isNotNull(bankTransactions.nominalCodeId)
+  ]
 
   if (options.transactionIds?.length) {
-    conditions.push(inArray(bankTransactions.id, options.transactionIds));
+    conditions.push(inArray(bankTransactions.id, options.transactionIds))
   }
 
   const transactions = await db
     .select()
     .from(bankTransactions)
-    .where(and(...conditions));
+    .where(and(...conditions))
 
   if (transactions.length === 0) {
-    return result;
+    return result
   }
 
-  const yearCache = new Map<string, typeof financialYears.$inferSelect>();
+  const yearCache = new Map<string, typeof financialYears.$inferSelect>()
 
-  let refCounter = await getNextReferenceNumber(parishCouncilId);
+  let refCounter = await getNextReferenceNumber(parishCouncilId)
 
   for (const tx of transactions) {
     try {
@@ -70,24 +70,24 @@ export async function postTransactionsToLedger(
         parishCouncilId,
         tx.date as string,
         yearCache
-      );
+      )
 
       if (!year) {
         result.errors.push({
           transactionId: tx.id,
-          reason: `No open financial year found for date ${tx.date}`,
-        });
-        result.skipped++;
-        continue;
+          reason: `No open financial year found for date ${tx.date}`
+        })
+        result.skipped++
+        continue
       }
 
       if (!tx.nominalCodeId) {
         result.errors.push({
           transactionId: tx.id,
-          reason: "No nominal code assigned",
-        });
-        result.skipped++;
-        continue;
+          reason: 'No nominal code assigned'
+        })
+        result.skipped++
+        continue
       }
 
       const [nominalCode] = await db
@@ -99,15 +99,15 @@ export async function postTransactionsToLedger(
             eq(nominalCodes.id, tx.nominalCodeId)
           )
         )
-        .limit(1);
+        .limit(1)
 
       if (!nominalCode) {
         result.errors.push({
           transactionId: tx.id,
-          reason: `Nominal code ${tx.nominalCodeId} not found`,
-        });
-        result.skipped++;
-        continue;
+          reason: `Nominal code ${tx.nominalCodeId} not found`
+        })
+        result.skipped++
+        continue
       }
 
       const [bankCode] = await db
@@ -121,24 +121,24 @@ export async function postTransactionsToLedger(
             eq(nominalCodes.isActive, true)
           )
         )
-        .limit(1);
+        .limit(1)
 
       if (!bankCode) {
         result.errors.push({
           transactionId: tx.id,
-          reason: `No bank nominal code found for financial year ${year.label}`,
-        });
-        result.skipped++;
-        continue;
+          reason: `No bank nominal code found for financial year ${year.label}`
+        })
+        result.skipped++
+        continue
       }
 
-      const amount = Math.abs(parseFloat(tx.amount as string));
-      const isCredit = parseFloat(tx.amount as string) > 0;
-      const reference = `BNK-${year.label.replace("/", "-")}-${String(
+      const amount = Math.abs(parseFloat(tx.amount as string))
+      const isCredit = parseFloat(tx.amount as string) > 0
+      const reference = `BNK-${year.label.replace('/', '-')}-${String(
         refCounter++
-      ).padStart(4, "0")}`;
+      ).padStart(4, '0')}`
 
-      await db.transaction(async (trx) => {
+      await db.transaction(async trx => {
         const [entry] = await trx
           .insert(journalEntries)
           .values({
@@ -147,82 +147,82 @@ export async function postTransactionsToLedger(
             reference,
             date: tx.date as string,
             description: tx.merchantName ?? tx.description,
-            source: "BANK_FEED",
-            postedById,
+            source: 'BANK_FEED',
+            postedById
           })
-          .returning();
+          .returning()
 
         const lines = isCredit
-  ? [
-      {
-        parishCouncilId,
-        journalEntryId: entry.id,
-        nominalCodeId: bankCode.id,
-        debit: amount.toFixed(2),
-        credit: "0.00",
-        description: tx.description,
-      },
-      {
-        parishCouncilId,
-        journalEntryId: entry.id,
-        nominalCodeId: nominalCode.id,
-        debit: "0.00",
-        credit: amount.toFixed(2),
-        description: tx.description,
-      },
-    ]
-  : [
-      {
-        parishCouncilId,
-        journalEntryId: entry.id,
-        nominalCodeId: nominalCode.id,
-        debit: amount.toFixed(2),
-        credit: "0.00",
-        description: tx.description,
-      },
-      {
-        parishCouncilId,
-        journalEntryId: entry.id,
-        nominalCodeId: bankCode.id,
-        debit: "0.00",
-        credit: amount.toFixed(2),
-        description: tx.description,
-      },
-    ];
+          ? [
+              {
+                parishCouncilId,
+                journalEntryId: entry.id,
+                nominalCodeId: bankCode.id,
+                debit: amount.toFixed(2),
+                credit: '0.00',
+                description: tx.description
+              },
+              {
+                parishCouncilId,
+                journalEntryId: entry.id,
+                nominalCodeId: nominalCode.id,
+                debit: '0.00',
+                credit: amount.toFixed(2),
+                description: tx.description
+              }
+            ]
+          : [
+              {
+                parishCouncilId,
+                journalEntryId: entry.id,
+                nominalCodeId: nominalCode.id,
+                debit: amount.toFixed(2),
+                credit: '0.00',
+                description: tx.description
+              },
+              {
+                parishCouncilId,
+                journalEntryId: entry.id,
+                nominalCodeId: bankCode.id,
+                debit: '0.00',
+                credit: amount.toFixed(2),
+                description: tx.description
+              }
+            ]
 
-        await trx.insert(journalLines).values(lines);
+        await trx.insert(journalLines).values(lines)
 
         await trx
           .update(bankTransactions)
           .set({
-            status: "POSTED",
+            status: 'POSTED',
             journalEntryId: entry.id,
-            postedAt: new Date(),
+            postedAt: new Date()
           })
           .where(
             and(
               eq(bankTransactions.parishCouncilId, parishCouncilId),
               eq(bankTransactions.id, tx.id)
             )
-          );
+          )
 
-        result.journalEntryIds.push(entry.id);
-      });
+        result.journalEntryIds.push(entry.id)
+      })
 
-      result.posted++;
+      result.posted++
     } catch (err) {
-      console.error(`[Poster] Failed to post transaction ${tx.id}:`, err);
+      console.error(`[Poster] Failed to post transaction ${tx.id}:`, err)
 
       result.errors.push({
         transactionId: tx.id,
-        reason: err instanceof Error ? err.message : "Unknown error",
-      });
+        reason: err instanceof Error ? err.message : 'Unknown error'
+      })
 
-      result.skipped++;
+      result.skipped++
     }
   }
 
-  return result;
+  return result
 }
 
 // ---------------------------------------------------------------------------
@@ -234,10 +234,10 @@ async function getFinancialYearForDate(
   dateStr: string,
   cache: Map<string, typeof financialYears.$inferSelect>
 ): Promise<typeof financialYears.$inferSelect | null> {
-  const monthKey = dateStr.substring(0, 7);
+  const monthKey = dateStr.substring(0, 7)
 
-  if (cache.has(dateStr)) return cache.get(dateStr)!;
-  if (cache.has(monthKey)) return cache.get(monthKey)!;
+  if (cache.has(dateStr)) return cache.get(dateStr)!
+  if (cache.has(monthKey)) return cache.get(monthKey)!
 
   const [year] = await db
     .select()
@@ -250,14 +250,14 @@ async function getFinancialYearForDate(
         eq(financialYears.isClosed, false)
       )
     )
-    .limit(1);
+    .limit(1)
 
   if (year) {
-    cache.set(monthKey, year);
-    cache.set(dateStr, year);
+    cache.set(monthKey, year)
+    cache.set(dateStr, year)
   }
 
-  return year ?? null;
+  return year ?? null
 }
 
 async function getNextReferenceNumber(
@@ -269,9 +269,9 @@ async function getNextReferenceNumber(
     .where(
       and(
         eq(journalEntries.parishCouncilId, parishCouncilId),
-        eq(journalEntries.source, "BANK_FEED")
+        eq(journalEntries.source, 'BANK_FEED')
       )
-    );
+    )
 
-  return (count ?? 0) + 1;
+  return (count ?? 0) + 1
 }

@@ -1,16 +1,16 @@
-import { relations } from "drizzle-orm";
+import { relations } from 'drizzle-orm'
 
-import { parishCouncils, user } from "./authSchema";
-import { bankConnections } from "./bankConnection";
-import { bankTransactions } from "./bankTransactions";
+import { parishCouncils, user } from './authSchema'
+import { bankConnections } from './bankConnection'
+import { bankTransactions } from './bankTransactions'
 import {
   budgets,
   financialYears,
   journalEntries,
   journalLines,
   nominalCodes,
-  matchingRules,
-} from "./nominalLedger";
+  matchingRules
+} from './nominalLedger'
 
 export const parishCouncilsRelations = relations(
   parishCouncils,
@@ -22,132 +22,132 @@ export const parishCouncilsRelations = relations(
     budgets: many(budgets),
     matchingRules: many(matchingRules),
     bankConnections: many(bankConnections),
-    bankTransactions: many(bankTransactions),
+    bankTransactions: many(bankTransactions)
   })
-);
+)
 
 export const usersRelations = relations(user, ({ one }) => ({
   parishCouncil: one(parishCouncils, {
     fields: [user.parishCouncilId],
-    references: [parishCouncils.id],
-  }),
-}));
+    references: [parishCouncils.id]
+  })
+}))
 
 export const bankConnectionsRelations = relations(
   bankConnections,
   ({ one, many }) => ({
     parishCouncil: one(parishCouncils, {
       fields: [bankConnections.parishCouncilId],
-      references: [parishCouncils.id],
+      references: [parishCouncils.id]
     }),
 
     nominalCode: one(nominalCodes, {
       fields: [bankConnections.nominalCodeId],
-      references: [nominalCodes.id],
+      references: [nominalCodes.id]
     }),
 
-    transactions: many(bankTransactions),
+    transactions: many(bankTransactions)
   })
-);
+)
 
 export const bankTransactionsRelations = relations(
   bankTransactions,
   ({ one }) => ({
     parishCouncil: one(parishCouncils, {
       fields: [bankTransactions.parishCouncilId],
-      references: [parishCouncils.id],
+      references: [parishCouncils.id]
     }),
     connection: one(bankConnections, {
       fields: [bankTransactions.connectionId],
-      references: [bankConnections.id],
+      references: [bankConnections.id]
     }),
     nominalCode: one(nominalCodes, {
       fields: [bankTransactions.nominalCodeId],
-      references: [nominalCodes.id],
+      references: [nominalCodes.id]
     }),
     journalEntry: one(journalEntries, {
       fields: [bankTransactions.journalEntryId],
-      references: [journalEntries.id],
-    }),
+      references: [journalEntries.id]
+    })
   })
-);
+)
 
 export const financialYearsRelations = relations(
   financialYears,
   ({ one, many }) => ({
     parishCouncil: one(parishCouncils, {
       fields: [financialYears.parishCouncilId],
-      references: [parishCouncils.id],
+      references: [parishCouncils.id]
     }),
     nominalCodes: many(nominalCodes),
     journalEntries: many(journalEntries),
-    budgets: many(budgets),
+    budgets: many(budgets)
   })
-);
+)
 
 export const nominalCodesRelations = relations(
   nominalCodes,
   ({ one, many }) => ({
     parishCouncil: one(parishCouncils, {
       fields: [nominalCodes.parishCouncilId],
-      references: [parishCouncils.id],
+      references: [parishCouncils.id]
     }),
     financialYear: one(financialYears, {
       fields: [nominalCodes.financialYearId],
-      references: [financialYears.id],
+      references: [financialYears.id]
     }),
     journalLines: many(journalLines),
     bankTransactions: many(bankTransactions),
     bankConnections: many(bankConnections),
-    budgets: many(budgets),
+    budgets: many(budgets)
   })
-);
+)
 
 export const journalEntriesRelations = relations(
   journalEntries,
   ({ one, many }) => ({
     parishCouncil: one(parishCouncils, {
       fields: [journalEntries.parishCouncilId],
-      references: [parishCouncils.id],
+      references: [parishCouncils.id]
     }),
     financialYear: one(financialYears, {
       fields: [journalEntries.financialYearId],
-      references: [financialYears.id],
+      references: [financialYears.id]
     }),
     lines: many(journalLines),
-    bankTransactions: many(bankTransactions),
+    bankTransactions: many(bankTransactions)
   })
-);
+)
 
 export const journalLinesRelations = relations(journalLines, ({ one }) => ({
   journalEntry: one(journalEntries, {
     fields: [journalLines.journalEntryId],
-    references: [journalEntries.id],
+    references: [journalEntries.id]
   }),
   nominalCode: one(nominalCodes, {
     fields: [journalLines.nominalCodeId],
-    references: [nominalCodes.id],
-  }),
-}));
+    references: [nominalCodes.id]
+  })
+}))
 
 export const budgetsRelations = relations(budgets, ({ one }) => ({
   parishCouncil: one(parishCouncils, {
     fields: [budgets.parishCouncilId],
-    references: [parishCouncils.id],
+    references: [parishCouncils.id]
   }),
   financialYear: one(financialYears, {
     fields: [budgets.financialYearId],
-    references: [financialYears.id],
+    references: [financialYears.id]
   }),
   nominalCode: one(nominalCodes, {
     fields: [budgets.nominalCodeId],
-    references: [nominalCodes.id],
-  }),
-}));
+    references: [nominalCodes.id]
+  })
+}))
 
 export const matchingRulesRelations = relations(matchingRules, ({ one }) => ({
   parishCouncil: one(parishCouncils, {
     fields: [matchingRules.parishCouncilId],
-    references: [parishCouncils.id],
-  }),
-}));
+    references: [parishCouncils.id]
+  })
+}))

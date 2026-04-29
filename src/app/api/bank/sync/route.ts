@@ -1,32 +1,32 @@
-import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
-import { syncAllConnections, syncConnection } from "@/lib/truelayer/sync";
-import { bankConnections } from "@/db/schema";
-import { db } from "@/db";
-import { and, eq } from "drizzle-orm";
+import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@/lib/auth'
+import { headers } from 'next/headers'
+import { syncAllConnections, syncConnection } from '@/lib/truelayer/sync'
+import { bankConnections } from '@/db/schema'
+import { db } from '@/db'
+import { and, eq } from 'drizzle-orm'
 
 export async function POST(request: NextRequest) {
   const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+    headers: await headers()
+  })
 
   if (!session) {
-    return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
+    return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
   }
 
-  const parishCouncilId = session.user.parishCouncilId;
+  const parishCouncilId = session.user.parishCouncilId
 
   if (!parishCouncilId) {
     return NextResponse.json(
-      { error: "User is not linked to a parish council" },
+      { error: 'User is not linked to a parish council' },
       { status: 403 }
-    );
+    )
   }
 
   // ✅ THIS is where it goes
-  const formData = await request.formData();
-  const connectionId = formData.get("connectionId") as string | null;
+  const formData = await request.formData()
+  const connectionId = formData.get('connectionId') as string | null
 
   // ------------------------------------------------------------------
   // If a specific connection is provided → sync ONE
@@ -41,33 +41,33 @@ export async function POST(request: NextRequest) {
           eq(bankConnections.parishCouncilId, parishCouncilId)
         )
       )
-      .limit(1);
+      .limit(1)
 
     if (!connection) {
       return NextResponse.json(
-        { error: "Connection not found" },
+        { error: 'Connection not found' },
         { status: 404 }
-      );
+      )
     }
 
     const result = await syncConnection({
       connection,
-      parishCouncilId,
-    });
+      parishCouncilId
+    })
 
     return NextResponse.json({
       connectionId,
       accountName: connection.accountName,
-      result,
-    });
+      result
+    })
   }
 
   // ------------------------------------------------------------------
   // Otherwise → sync ALL (fallback behaviour)
   // ------------------------------------------------------------------
   const results = await syncAllConnections({
-    parishCouncilId,
-  });
+    parishCouncilId
+  })
 
-  return NextResponse.json({ results });
+  return NextResponse.json({ results })
 }

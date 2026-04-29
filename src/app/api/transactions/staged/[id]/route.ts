@@ -1,31 +1,31 @@
-import { NextRequest, NextResponse } from "next/server";
-import { auth } from "@/lib/auth";
-import { headers } from "next/headers";
+import { NextRequest, NextResponse } from 'next/server'
+import { auth } from '@/lib/auth'
+import { headers } from 'next/headers'
 
-import { eq, and } from "drizzle-orm";
-import { z } from "zod";
-import { db } from "@/db";
-import { bankTransactions } from "@/db/schema/bankTransactions";
-import { nominalCodes } from "@/db/schema/nominalLedger";
+import { eq, and } from 'drizzle-orm'
+import { z } from 'zod'
+import { db } from '@/db'
+import { bankTransactions } from '@/db/schema/bankTransactions'
+import { nominalCodes } from '@/db/schema/nominalLedger'
 
-const patchSchema = z.discriminatedUnion("action", [
+const patchSchema = z.discriminatedUnion('action', [
   z.object({
-    action: z.literal("assign_nominal"),
+    action: z.literal('assign_nominal'),
     nominalCodeId: z.string().min(1),
-    notes: z.string().optional(),
+    notes: z.string().optional()
   }),
   z.object({
-    action: z.literal("exclude"),
-    notes: z.string().optional(),
+    action: z.literal('exclude'),
+    notes: z.string().optional()
   }),
   z.object({
-    action: z.literal("update_notes"),
-    notes: z.string(),
+    action: z.literal('update_notes'),
+    notes: z.string()
   }),
   z.object({
-    action: z.literal("unexclude"),
-  }),
-]);
+    action: z.literal('unexclude')
+  })
+])
 
 // PATCH /api/transactions/staged/[id]
 export async function PATCH(
@@ -33,31 +33,31 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const session = await auth.api.getSession({
-    headers: await headers(),
-  });
+    headers: await headers()
+  })
 
   if (!session) {
-    return NextResponse.json({ error: "Unauthorised" }, { status: 401 });
+    return NextResponse.json({ error: 'Unauthorised' }, { status: 401 })
   }
 
-  const parishCouncilId = session.user.parishCouncilId;
+  const parishCouncilId = session.user.parishCouncilId
 
   if (!parishCouncilId) {
     return NextResponse.json(
-      { error: "User is not linked to a parish council" },
+      { error: 'User is not linked to a parish council' },
       { status: 403 }
-    );
+    )
   }
 
-  const { id } = await params;
-  const body = await request.json();
-  const parsed = patchSchema.safeParse(body);
+  const { id } = await params
+  const body = await request.json()
+  const parsed = patchSchema.safeParse(body)
 
   if (!parsed.success) {
     return NextResponse.json(
-      { error: "Invalid request", issues: parsed.error.issues },
+      { error: 'Invalid request', issues: parsed.error.issues },
       { status: 400 }
-    );
+    )
   }
 
   const [tx] = await db
@@ -69,32 +69,32 @@ export async function PATCH(
         eq(bankTransactions.parishCouncilId, parishCouncilId)
       )
     )
-    .limit(1);
+    .limit(1)
 
   if (!tx) {
     return NextResponse.json(
-      { error: "Transaction not found" },
+      { error: 'Transaction not found' },
       { status: 404 }
-    );
+    )
   }
 
-  if (tx.status === "POSTED") {
+  if (tx.status === 'POSTED') {
     return NextResponse.json(
-      { error: "Cannot modify a posted transaction" },
+      { error: 'Cannot modify a posted transaction' },
       { status: 409 }
-    );
+    )
   }
 
-  const { action } = parsed.data;
+  const { action } = parsed.data
 
-  if (action === "assign_nominal") {
-    const { nominalCodeId, notes } = parsed.data;
+  if (action === 'assign_nominal') {
+    const { nominalCodeId, notes } = parsed.data
 
     const [code] = await db
       .select({
         id: nominalCodes.id,
         name: nominalCodes.name,
-        code: nominalCodes.code,
+        code: nominalCodes.code
       })
       .from(nominalCodes)
       .where(
@@ -104,21 +104,21 @@ export async function PATCH(
           eq(nominalCodes.isActive, true)
         )
       )
-      .limit(1);
+      .limit(1)
 
     if (!code) {
       return NextResponse.json(
-        { error: "Nominal code not found" },
+        { error: 'Nominal code not found' },
         { status: 404 }
-      );
+      )
     }
 
     const [updated] = await db
       .update(bankTransactions)
       .set({
         nominalCodeId,
-        status: "CODED",
-        ...(notes !== undefined && { notes }),
+        status: 'CODED',
+        ...(notes !== undefined && { notes })
       })
       .where(
         and(
@@ -126,20 +126,20 @@ export async function PATCH(
           eq(bankTransactions.parishCouncilId, parishCouncilId)
         )
       )
-      .returning();
+      .returning()
 
     return NextResponse.json({
       transaction: updated,
-      nominalCode: code,
-    });
+      nominalCode: code
+    })
   }
 
-  if (action === "exclude") {
+  if (action === 'exclude') {
     const [updated] = await db
       .update(bankTransactions)
       .set({
-        status: "EXCLUDED",
-        notes: parsed.data.notes ?? tx.notes,
+        status: 'EXCLUDED',
+        notes: parsed.data.notes ?? tx.notes
       })
       .where(
         and(
@@ -147,13 +147,13 @@ export async function PATCH(
           eq(bankTransactions.parishCouncilId, parishCouncilId)
         )
       )
-      .returning();
+      .returning()
 
-    return NextResponse.json({ transaction: updated });
+    return NextResponse.json({ transaction: updated })
   }
 
-  if (action === "unexclude") {
-    const newStatus = tx.nominalCodeId ? "CODED" : "PENDING";
+  if (action === 'unexclude') {
+    const newStatus = tx.nominalCodeId ? 'CODED' : 'PENDING'
 
     const [updated] = await db
       .update(bankTransactions)
@@ -164,12 +164,12 @@ export async function PATCH(
           eq(bankTransactions.parishCouncilId, parishCouncilId)
         )
       )
-      .returning();
+      .returning()
 
-    return NextResponse.json({ transaction: updated });
+    return NextResponse.json({ transaction: updated })
   }
 
-  if (action === "update_notes") {
+  if (action === 'update_notes') {
     const [updated] = await db
       .update(bankTransactions)
       .set({ notes: parsed.data.notes })
@@ -179,10 +179,10 @@ export async function PATCH(
           eq(bankTransactions.parishCouncilId, parishCouncilId)
         )
       )
-      .returning();
+      .returning()
 
-    return NextResponse.json({ transaction: updated });
+    return NextResponse.json({ transaction: updated })
   }
 
-  return NextResponse.json({ error: "Unsupported action" }, { status: 400 });
+  return NextResponse.json({ error: 'Unsupported action' }, { status: 400 })
 }

@@ -40,6 +40,12 @@ export const bankConnectionsRelations = relations(
       fields: [bankConnections.parishCouncilId],
       references: [parishCouncils.id],
     }),
+
+    nominalCode: one(nominalCodes, {
+      fields: [bankConnections.nominalCodeId],
+      references: [nominalCodes.id],
+    }),
+
     transactions: many(bankTransactions),
   })
 );
@@ -92,6 +98,7 @@ export const nominalCodesRelations = relations(
     }),
     journalLines: many(journalLines),
     bankTransactions: many(bankTransactions),
+    bankConnections: many(bankConnections),
     budgets: many(budgets),
   })
 );

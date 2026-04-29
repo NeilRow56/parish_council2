@@ -6,6 +6,7 @@ import {
 
 import { createId } from "@paralleldrive/cuid2";
 import { parishCouncils } from "./authSchema";
+import { nominalCodes } from "./nominalLedger";
 
 export const connectionStatusEnum = pgEnum("connection_status", ["ACTIVE", "EXPIRED", "REVOKED", "ERROR"]);
 
@@ -27,6 +28,8 @@ export const bankConnections = pgTable(
 
     sortCode: text("sort_code"),
     accountLast4: text("account_last4"),
+
+    nominalCodeId: text("nominal_code_id").references(() => nominalCodes.id),
 
     currency: text("currency").default("GBP").notNull(),
 

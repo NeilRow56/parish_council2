@@ -109,17 +109,17 @@ function NominalPicker({
     return (
       <optgroup label={label} key={label}>
         {Object.entries(byCategory).map(([cat, catCodes]) => (
-          <>
-            <option key={`cat-${cat}`} disabled value="" style={{ fontStyle: "italic", color: "#999" }}>
-              — {cat} —
-            </option>
-            {catCodes.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.code} · {c.name}
-              </option>
-            ))}
-          </>
-        ))}
+  <Fragment key={`${label}-${cat}`}>
+    <option disabled value="" style={{ fontStyle: "italic", color: "#999" }}>
+      — {cat} —
+    </option>
+    {catCodes.map((c) => (
+      <option key={c.id} value={c.id}>
+        {c.code} · {c.name}
+      </option>
+    ))}
+  </Fragment>
+))}
       </optgroup>
     );
   };

@@ -1,15 +1,15 @@
-import { db } from '@/db'
-import { auth } from '@/lib/auth'
+import Link from 'next/link'
 import { headers } from 'next/headers'
 import { and, desc, eq } from 'drizzle-orm'
 
+import { db } from '@/db'
+import { auth } from '@/lib/auth'
 import {
   financialYears,
   journalEntries,
   journalLines,
   nominalCodes
 } from '@/db/schema/nominalLedger'
-import Link from 'next/link'
 
 function formatAmount(value: string | number | null) {
   const amount = Number(value ?? 0)
@@ -22,8 +22,8 @@ function formatAmount(value: string | number | null) {
   }).format(amount)
 }
 
-function formatCurrency(value: string | null) {
-  const amount = Number(value ?? '0')
+function formatCurrency(value: string | number | null) {
+  const amount = Number(value ?? 0)
 
   if (amount === 0) return '—'
 
@@ -128,16 +128,25 @@ export default async function LedgerPage() {
           <div className='rounded-lg border bg-white p-4'>
             <p className='text-sm text-slate-500'>Total debits</p>
             <p className='mt-1 text-2xl font-semibold'>
-              {formatCurrency(totalDebit.toFixed(2))}
+              {formatCurrency(totalDebit)}
             </p>
           </div>
 
           <div className='rounded-lg border bg-white p-4'>
             <p className='text-sm text-slate-500'>Total credits</p>
             <p className='mt-1 text-2xl font-semibold'>
-              {formatCurrency(totalCredit.toFixed(2))}
+              {formatCurrency(totalCredit)}
             </p>
           </div>
+        </div>
+
+        <div className='py-4'>
+          <Link
+            href='/ledger/journals/new'
+            className='rounded-md bg-zinc-950 px-3 py-2 text-sm font-medium text-white'
+          >
+            New manual journal
+          </Link>
         </div>
 
         <div className='overflow-hidden rounded-xl border bg-white shadow-sm'>
@@ -169,12 +178,22 @@ export default async function LedgerPage() {
                       {formatDate(row.date)}
                     </td>
 
-                    <td className='px-4 py-3 font-mono text-xs whitespace-nowrap text-slate-500'>
-                      {row.reference}
+                    <td className='px-4 py-3 font-mono text-xs whitespace-nowrap'>
+                      <Link
+                        href={`/ledger/journals/${row.entryId}`}
+                        className='text-slate-500 hover:text-slate-900 hover:underline'
+                      >
+                        {row.reference}
+                      </Link>
                     </td>
 
                     <td className='px-4 py-3 text-slate-900'>
-                      {row.lineDescription ?? row.description}
+                      <Link
+                        href={`/ledger/journals/${row.entryId}`}
+                        className='block hover:underline'
+                      >
+                        {row.lineDescription ?? row.description}
+                      </Link>
                     </td>
 
                     <td className='px-4 py-3 whitespace-nowrap text-slate-700'>
@@ -207,10 +226,10 @@ export default async function LedgerPage() {
                     Totals
                   </td>
                   <td className='px-4 py-3 text-right font-mono'>
-                    {formatCurrency(totalDebit.toFixed(2))}
+                    {formatCurrency(totalDebit)}
                   </td>
                   <td className='px-4 py-3 text-right font-mono'>
-                    {formatCurrency(totalCredit.toFixed(2))}
+                    {formatCurrency(totalCredit)}
                   </td>
                   <td className='px-4 py-3' />
                 </tr>

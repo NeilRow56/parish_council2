@@ -4,7 +4,8 @@ import {
   text,
   timestamp,
   index,
-  uniqueIndex
+  uniqueIndex,
+  numeric
 } from 'drizzle-orm/pg-core'
 
 import { createId } from '@paralleldrive/cuid2'
@@ -29,8 +30,8 @@ export const bankConnections = pgTable(
       .notNull()
       .references(() => parishCouncils.id, { onDelete: 'cascade' }),
 
-    providerName: text('provider_name').notNull(), // "truelayer"
-    providerId: text('provider_id').notNull(), // "barclays"
+    providerName: text('provider_name').notNull(),
+    providerId: text('provider_id').notNull(),
     providerAccountId: text('provider_account_id').notNull(),
 
     accountName: text('account_name').notNull(),
@@ -42,6 +43,12 @@ export const bankConnections = pgTable(
     nominalCodeId: text('nominal_code_id').references(() => nominalCodes.id),
 
     currency: text('currency').default('GBP').notNull(),
+
+    latestBalance: numeric('latest_balance', {
+      precision: 14,
+      scale: 2
+    }),
+    latestBalanceAt: timestamp('latest_balance_at'),
 
     accessToken: text('access_token').notNull(),
     refreshToken: text('refresh_token').notNull(),

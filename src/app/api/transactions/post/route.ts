@@ -6,6 +6,7 @@ import { and, eq, gte, inArray, isNull, lte } from 'drizzle-orm'
 
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
+import { bankConnections } from '@/db/schema/bankConnection'
 import { bankTransactions } from '@/db/schema/bankTransactions'
 import {
   financialYears,
@@ -31,7 +32,6 @@ export async function POST(request: NextRequest) {
   }
 
   const selectedIds = body.transactionIds
-
   const today = new Date().toISOString().split('T')[0]
 
   const [financialYear] = await db
@@ -50,26 +50,6 @@ export async function POST(request: NextRequest) {
   if (!financialYear) {
     return NextResponse.json(
       { error: 'No open financial year found' },
-      { status: 400 }
-    )
-  }
-
-  const [bankCode] = await db
-    .select()
-    .from(nominalCodes)
-    .where(
-      and(
-        eq(nominalCodes.parishCouncilId, parishCouncilId),
-        eq(nominalCodes.financialYearId, financialYear.id),
-        eq(nominalCodes.isBank, true),
-        eq(nominalCodes.isActive, true)
-      )
-    )
-    .limit(1)
-
-  if (!bankCode) {
-    return NextResponse.json(
-      { error: 'No active bank nominal code found for this financial year' },
       { status: 400 }
     )
   }
@@ -104,6 +84,47 @@ export async function POST(request: NextRequest) {
 
     try {
       await db.transaction(async trx => {
+        const [connection] = await trx
+          .select({
+            nominalCodeId: bankConnections.nominalCodeId
+          })
+          .from(bankConnections)
+          .where(
+            and(
+              eq(bankConnections.id, tx.connectionId),
+              eq(bankConnections.parishCouncilId, parishCouncilId)
+            )
+          )
+          .limit(1)
+
+        if (!connection?.nominalCodeId) {
+          throw new Error(
+            'Bank connection is not linked to a nominal bank code'
+          )
+        }
+
+        const [bankCode] = await trx
+          .select({
+            id: nominalCodes.id
+          })
+          .from(nominalCodes)
+          .where(
+            and(
+              eq(nominalCodes.id, connection.nominalCodeId),
+              eq(nominalCodes.parishCouncilId, parishCouncilId),
+              eq(nominalCodes.financialYearId, financialYear.id),
+              eq(nominalCodes.isBank, true),
+              eq(nominalCodes.isActive, true)
+            )
+          )
+          .limit(1)
+
+        if (!bankCode) {
+          throw new Error(
+            'Linked bank nominal code is inactive, missing, or not valid for this financial year'
+          )
+        }
+
         const amount = Number(tx.amount)
 
         if (!Number.isFinite(amount) || amount === 0) {
@@ -127,7 +148,7 @@ export async function POST(request: NextRequest) {
           })
           .returning()
 
-        if (amount > 0) {
+        if (amount < 0) {
           await trx.insert(journalLines).values([
             {
               parishCouncilId,

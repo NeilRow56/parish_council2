@@ -1,9 +1,11 @@
+// src/app/api/bank-connections/link-ledger-code/route.ts
+
 import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
 import { and, eq } from 'drizzle-orm'
 
-import { auth } from '@/lib/auth'
 import { db } from '@/db'
+import { auth } from '@/lib/auth'
 import { bankConnections } from '@/db/schema/bankConnection'
 import { nominalCodes } from '@/db/schema/nominalLedger'
 
@@ -17,19 +19,37 @@ export async function POST(request: NextRequest) {
   }
 
   const parishCouncilId = session.user.parishCouncilId
-
   const formData = await request.formData()
+
   const connectionId = String(formData.get('connectionId') ?? '')
   const nominalCodeId = String(formData.get('nominalCodeId') ?? '')
 
   if (!connectionId || !nominalCodeId) {
     return NextResponse.json(
-      { error: 'Missing connectionId or nominalCodeId' },
+      { error: 'Connection and nominal code are required' },
       { status: 400 }
     )
   }
 
-  const [code] = await db
+  const [connection] = await db
+    .select({ id: bankConnections.id })
+    .from(bankConnections)
+    .where(
+      and(
+        eq(bankConnections.id, connectionId),
+        eq(bankConnections.parishCouncilId, parishCouncilId)
+      )
+    )
+    .limit(1)
+
+  if (!connection) {
+    return NextResponse.json(
+      { error: 'Bank connection not found' },
+      { status: 404 }
+    )
+  }
+
+  const [nominalCode] = await db
     .select({ id: nominalCodes.id })
     .from(nominalCodes)
     .where(
@@ -42,10 +62,10 @@ export async function POST(request: NextRequest) {
     )
     .limit(1)
 
-  if (!code) {
+  if (!nominalCode) {
     return NextResponse.json(
-      { error: 'Bank nominal code not found' },
-      { status: 404 }
+      { error: 'Invalid bank nominal code' },
+      { status: 400 }
     )
   }
 

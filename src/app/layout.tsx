@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Geist, Geist_Mono } from 'next/font/google'
 import './globals.css'
 import { TooltipProvider } from '@/components/ui/tooltip'
+import { Toaster } from '@/components/ui/sonner'
 
 const geistSans = Geist({
   variable: '--font-geist-sans',
@@ -29,6 +30,27 @@ export default function RootLayout({
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className={`${geistSans.className} h-screen flex-1`}>
+        <Toaster
+          position='bottom-center'
+          toastOptions={{
+            unstyled: true,
+            classNames: {
+              loading:
+                'min-w-[280px] border border-blue-200 bg-blue-50 text-blue-800 rounded-md px-3 py-2 text-sm',
+
+              success:
+                'min-w-[280px] border border-green-200 bg-green-50 text-green-800 rounded-md px-3 py-2 text-sm',
+
+              error:
+                'min-w-[280px] border border-red-200 bg-red-50 text-red-700 rounded-md px-3 py-2 text-sm',
+
+              warning:
+                'min-w-[280px] border border-yellow-200 bg-yellow-50 text-yellow-800 rounded-md px-3 py-2 text-sm',
+
+              info: 'min-w-[280px] border border-blue-200 bg-blue-50 text-blue-800 rounded-md px-3 py-2 text-sm'
+            }
+          }}
+        />
         <TooltipProvider>{children}</TooltipProvider>
       </body>
     </html>

@@ -1,4 +1,4 @@
-import { fetchTransactions } from './client'
+import { fetchTransactions, fetchBalance } from './client'
 import { applyMatchingRulesBatch } from './matcher'
 import { eq, and, lte, gte } from 'drizzle-orm'
 import { subDays } from 'date-fns'
@@ -42,12 +42,15 @@ export async function syncConnection({
 
   const to = new Date()
 
+  const balance = await fetchBalance(connection)
+
   const transactions = await fetchTransactions(connection, from, to)
 
   if (transactions.length === 0) {
     await touchLastSync({
       connectionId: connection.id,
-      parishCouncilId
+      parishCouncilId,
+      latestBalance: balance.current.toFixed(2)
     })
 
     return { imported: 0, skipped: 0 }
@@ -113,7 +116,8 @@ export async function syncConnection({
 
   await touchLastSync({
     connectionId: connection.id,
-    parishCouncilId
+    parishCouncilId,
+    latestBalance: balance.current.toFixed(2)
   })
 
   return { imported, skipped }
@@ -166,14 +170,18 @@ export async function syncAllConnections({
 
 async function touchLastSync({
   connectionId,
-  parishCouncilId
+  parishCouncilId,
+  latestBalance
 }: {
   connectionId: string
   parishCouncilId: string
+  latestBalance?: string
 }): Promise<void> {
   await db
     .update(bankConnections)
     .set({
+      latestBalance,
+      latestBalanceAt: latestBalance ? new Date() : undefined,
       lastSyncAt: new Date(),
       updatedAt: new Date()
     })

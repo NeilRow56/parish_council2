@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { headers } from 'next/headers'
-import { syncAllConnections, syncConnection } from '@/lib/truelayer/sync'
+
 import { bankConnections } from '@/db/schema'
 import { db } from '@/db'
 import { and, eq } from 'drizzle-orm'
@@ -50,24 +50,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const result = await syncConnection({
-      connection,
-      parishCouncilId
-    })
-
-    return NextResponse.json({
-      connectionId,
-      accountName: connection.accountName,
-      result
-    })
+    return NextResponse.redirect(new URL('/bank-connections', request.url))
   }
 
   // ------------------------------------------------------------------
   // Otherwise → sync ALL (fallback behaviour)
   // ------------------------------------------------------------------
-  const results = await syncAllConnections({
-    parishCouncilId
-  })
 
-  return NextResponse.json({ results })
+  return NextResponse.redirect(new URL('/bank-connections', request.url))
 }

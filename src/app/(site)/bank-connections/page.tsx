@@ -6,6 +6,7 @@ import { nominalCodes } from '@/db/schema/nominalLedger'
 import { auth } from '@/lib/auth'
 import { headers } from 'next/headers'
 import { and, asc, eq } from 'drizzle-orm'
+import { SyncBankButton } from './_components/sync-button'
 
 export default async function BankConnectionsPage() {
   const session = await auth.api.getSession({
@@ -88,7 +89,7 @@ export default async function BankConnectionsPage() {
                 </div>
 
                 <form
-                  action='/api/bank-connections/link-ledger-code'
+                  action='/api/bank-connections/ledger-link-code'
                   method='post'
                   className='flex flex-wrap gap-2'
                 >
@@ -120,20 +121,7 @@ export default async function BankConnectionsPage() {
                   </button>
                 </form>
 
-                <form action='/api/bank/sync' method='post'>
-                  <input
-                    type='hidden'
-                    name='connectionId'
-                    value={connection.id}
-                  />
-
-                  <button
-                    type='submit'
-                    className='rounded border px-3 py-1 text-sm'
-                  >
-                    Sync now
-                  </button>
-                </form>
+                <SyncBankButton connectionId={connection.id} />
               </div>
             ))
           )}

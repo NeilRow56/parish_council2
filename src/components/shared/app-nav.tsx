@@ -2,6 +2,7 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
+import { ChevronDown } from 'lucide-react'
 
 import { signOut } from '@/lib/auth-client'
 
@@ -28,6 +29,57 @@ function NavLink({
   )
 }
 
+function NavDropdown({
+  label,
+  active,
+  items
+}: {
+  label: string
+  active: boolean
+  items: Array<{
+    href: string
+    label: string
+  }>
+}) {
+  const pathname = usePathname()
+
+  return (
+    <div className='group relative'>
+      <button
+        type='button'
+        className={`inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
+          active
+            ? 'bg-slate-900 text-white'
+            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+        }`}
+      >
+        {label}
+        <ChevronDown className='h-4 w-4' />
+      </button>
+
+      <div className='invisible absolute top-full left-0 z-50 mt-1 min-w-56 rounded-md border bg-white p-1 opacity-0 shadow-lg transition-all group-hover:visible group-hover:opacity-100'>
+        {items.map(item => {
+          const itemActive = pathname === item.href
+
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              className={`block rounded-md px-3 py-2 text-sm transition-colors ${
+                itemActive
+                  ? 'bg-slate-100 font-medium text-slate-900'
+                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+              }`}
+            >
+              {item.label}
+            </Link>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 export default function AppNav() {
   const pathname = usePathname()
   const router = useRouter()
@@ -40,13 +92,11 @@ export default function AppNav() {
   return (
     <header className='border-b bg-white'>
       <div className='mx-auto flex h-14 max-w-7xl items-center justify-between px-6'>
-        {/* Left: Logo */}
         <div className='flex items-center gap-6'>
           <Link href='/' className='font-semibold text-slate-900'>
             WpAccPac
           </Link>
 
-          {/* Main nav */}
           <nav className='flex items-center gap-1'>
             <NavLink href='/' label='Home' active={pathname === '/'} />
 
@@ -62,17 +112,45 @@ export default function AppNav() {
               active={pathname.startsWith('/transactions')}
             />
 
-            <NavLink
-              href='/ledger'
+            <NavDropdown
               label='Ledger'
               active={pathname.startsWith('/ledger')}
+              items={[
+                {
+                  href: '/ledger',
+                  label: 'Ledger'
+                },
+                {
+                  href: '/ledger/journals/new',
+                  label: 'New manual journal'
+                }
+              ]}
+            />
+
+            <NavDropdown
+              label='Reports'
+              active={pathname.startsWith('/reports')}
+              items={[
+                {
+                  href: '/reports/trial-balance',
+                  label: 'Trial Balance'
+                },
+                {
+                  href: '/reports/income-expenditure',
+                  label: 'Income & Expenditure'
+                },
+                {
+                  href: '/reports/bank-reconciliation',
+                  label: 'Bank Reconciliation'
+                }
+              ]}
             />
           </nav>
         </div>
 
-        {/* Right: Actions */}
         <div className='flex items-center gap-3'>
           <button
+            type='button'
             onClick={handleSignOut}
             className='text-sm text-slate-600 hover:text-slate-900'
           >

@@ -4,13 +4,11 @@ import {
   text,
   timestamp,
   date,
-  boolean,
   decimal,
-  integer,
   uniqueIndex,
   index
 } from 'drizzle-orm/pg-core'
-import { relations } from 'drizzle-orm'
+
 import { createId } from '@paralleldrive/cuid2'
 import { bankConnections } from './bankConnection'
 import { journalEntries, nominalCodes } from './nominalLedger'

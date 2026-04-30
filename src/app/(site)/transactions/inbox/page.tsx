@@ -4,11 +4,10 @@ import {
   Fragment,
   useCallback,
   useEffect,
+  useMemo,
   useState,
   useTransition
 } from 'react'
-
-// ─── Types ────────────────────────────────────────────────────────────────────
 
 interface NominalCode {
   id: string
@@ -20,6 +19,7 @@ interface NominalCode {
 
 interface StagedTransaction {
   id: string
+  connectionId: string
   date: string
   description: string
   amount: string
@@ -50,8 +50,6 @@ interface Summary {
 
 type FilterStatus = 'all' | 'PENDING' | 'CODED'
 
-// ─── Helpers ──────────────────────────────────────────────────────────────────
-
 function formatBankAmount(amount: string, type: 'CREDIT' | 'DEBIT') {
   const value = Math.abs(Number(amount))
 
@@ -74,8 +72,6 @@ function formatDate(dateStr: string) {
     year: 'numeric'
   })
 }
-
-// ─── Sub-components ───────────────────────────────────────────────────────────
 
 function StatusBadge({ status }: { status: string }) {
   const styles: Record<string, string> = {
@@ -116,11 +112,7 @@ function NominalPicker({
     const byCategory = items.reduce<Record<string, NominalCode[]>>(
       (acc, code) => {
         const category = code.category ?? 'General'
-
-        if (!acc[category]) {
-          acc[category] = []
-        }
-
+        acc[category] = acc[category] ?? []
         acc[category].push(code)
         return acc
       },
@@ -131,11 +123,7 @@ function NominalPicker({
       <optgroup label={label} key={label}>
         {Object.entries(byCategory).map(([category, categoryCodes]) => (
           <Fragment key={`${label}-${category}`}>
-            <option
-              disabled
-              value=''
-              style={{ fontStyle: 'italic', color: '#999' }}
-            >
+            <option disabled value='' className='text-slate-400 italic'>
               — {category} —
             </option>
 
@@ -168,22 +156,25 @@ function NominalPicker({
   )
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
-
 export default function TransactionInbox() {
   const [transactions, setTransactions] = useState<StagedTransaction[]>([])
   const [pagination, setPagination] = useState<Pagination | null>(null)
   const [summary, setSummary] = useState<Summary[]>([])
   const [nominalCodes, setNominalCodes] = useState<NominalCode[]>([])
   const [loading, setLoading] = useState(true)
+
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all')
+  const [accountFilter, setAccountFilter] = useState('all')
   const [search, setSearch] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [page, setPage] = useState(1)
+
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [posting, startPosting] = useTransition()
   const [updatingId, setUpdatingId] = useState<string | null>(null)
   const [expandedId, setExpandedId] = useState<string | null>(null)
+  const [bulkNominalCodeId, setBulkNominalCodeId] = useState('')
+  const [bulkUpdating, setBulkUpdating] = useState(false)
   const [postResult, setPostResult] = useState<{
     posted: number
     errors: number
@@ -201,7 +192,8 @@ export default function TransactionInbox() {
     const params = new URLSearchParams({
       page: String(page),
       ...(filterStatus !== 'all' && { status: filterStatus }),
-      ...(search && { search })
+      ...(search && { search }),
+      ...(accountFilter !== 'all' && { connectionId: accountFilter })
     })
 
     const response = await fetch(`/api/transactions/staged?${params}`)
@@ -212,7 +204,7 @@ export default function TransactionInbox() {
     setSummary(data.summary ?? [])
     setSelected(new Set())
     setLoading(false)
-  }, [page, filterStatus, search])
+  }, [page, filterStatus, search, accountFilter])
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
@@ -230,6 +222,22 @@ export default function TransactionInbox() {
 
     return () => window.clearTimeout(timeoutId)
   }, [searchInput])
+
+  const accountOptions = useMemo(
+    () =>
+      Array.from(
+        new Map(
+          transactions.map(transaction => [
+            transaction.connectionId,
+            {
+              id: transaction.connectionId,
+              name: transaction.accountName
+            }
+          ])
+        ).values()
+      ).sort((a, b) => a.name.localeCompare(b.name)),
+    [transactions]
+  )
 
   async function assignNominal(txId: string, nominalCodeId: string) {
     setPostResult(null)
@@ -279,6 +287,31 @@ export default function TransactionInbox() {
     setUpdatingId(null)
   }
 
+  async function bulkAssignNominal() {
+    if (selected.size === 0 || !bulkNominalCodeId) return
+
+    setPostResult(null)
+    setBulkUpdating(true)
+
+    const response = await fetch('/api/transactions/bulk-assign-nominal', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        transactionIds: [...selected],
+        nominalCodeId: bulkNominalCodeId
+      })
+    })
+
+    setBulkUpdating(false)
+
+    if (!response.ok) {
+      return
+    }
+
+    await fetchTransactions()
+    setBulkNominalCodeId('')
+  }
+
   async function excludeTransaction(txId: string) {
     setPostResult(null)
     setUpdatingId(txId)
@@ -309,7 +342,14 @@ export default function TransactionInbox() {
 
   function postSelected() {
     startPosting(async () => {
-      const ids = selected.size > 0 ? [...selected] : undefined
+      const selectedCodedIds = transactions
+        .filter(
+          transaction =>
+            selected.has(transaction.id) && transaction.status === 'CODED'
+        )
+        .map(transaction => transaction.id)
+
+      const ids = selectedCodedIds.length > 0 ? selectedCodedIds : undefined
 
       const response = await fetch('/api/transactions/post', {
         method: 'POST',
@@ -328,21 +368,32 @@ export default function TransactionInbox() {
     })
   }
 
+  const selectableTransactions = transactions.filter(transaction =>
+    ['PENDING', 'CODED'].includes(transaction.status)
+  )
+
   const codedTransactions = transactions.filter(
     transaction => transaction.status === 'CODED'
   )
 
-  const allCodedSelected =
-    codedTransactions.length > 0 &&
-    codedTransactions.every(transaction => selected.has(transaction.id))
+  const selectedCodedCount = transactions.filter(
+    transaction =>
+      selected.has(transaction.id) && transaction.status === 'CODED'
+  ).length
+
+  const allSelectableSelected =
+    selectableTransactions.length > 0 &&
+    selectableTransactions.every(transaction => selected.has(transaction.id))
 
   function toggleSelectAll() {
-    if (allCodedSelected) {
+    if (allSelectableSelected) {
       setSelected(new Set())
       return
     }
 
-    setSelected(new Set(codedTransactions.map(transaction => transaction.id)))
+    setSelected(
+      new Set(selectableTransactions.map(transaction => transaction.id))
+    )
   }
 
   function toggleSelect(id: string) {
@@ -365,7 +416,7 @@ export default function TransactionInbox() {
 
   const codedCount = Math.max(
     summary.find(item => item.status === 'CODED')?.count ?? 0,
-    transactions.filter(transaction => transaction.status === 'CODED').length
+    codedTransactions.length
   )
 
   return (
@@ -408,8 +459,8 @@ export default function TransactionInbox() {
               ) : (
                 <>
                   Post to ledger
-                  {selected.size > 0
-                    ? ` (${selected.size} selected)`
+                  {selectedCodedCount > 0
+                    ? ` (${selectedCodedCount} selected coded)`
                     : codedCount > 0
                       ? ` (${codedCount} coded)`
                       : ''}
@@ -463,7 +514,23 @@ export default function TransactionInbox() {
             </button>
           ))}
 
-          <div className='ml-auto'>
+          <div className='ml-auto flex items-center gap-2'>
+            <select
+              value={accountFilter}
+              onChange={event => {
+                setAccountFilter(event.target.value)
+                setPage(1)
+              }}
+              className='w-56 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none'
+            >
+              <option value='all'>All accounts</option>
+              {accountOptions.map(account => (
+                <option key={account.id} value={account.id}>
+                  {account.name}
+                </option>
+              ))}
+            </select>
+
             <input
               type='search'
               placeholder='Search transactions…'
@@ -474,6 +541,46 @@ export default function TransactionInbox() {
           </div>
         </div>
 
+        {selected.size > 0 && (
+          <div className='flex items-center justify-between rounded-xl border border-blue-100 bg-blue-50 px-4 py-3'>
+            <div className='text-sm text-blue-900'>
+              <span className='font-medium'>{selected.size}</span> transaction
+              {selected.size === 1 ? '' : 's'} selected
+            </div>
+
+            <div className='flex items-center gap-2'>
+              <div className='flex flex-col'>
+                {!bulkNominalCodeId && selected.size > 0 && (
+                  <span className='text-xs text-blue-600'>
+                    Step 1: choose a nominal code → Step 2: apply to selected
+                  </span>
+                )}
+                <select
+                  value={bulkNominalCodeId}
+                  onChange={event => setBulkNominalCodeId(event.target.value)}
+                  className='w-80 rounded-md border border-blue-200 bg-white px-3 py-2 text-sm'
+                >
+                  <option value=''>Assign nominal code...</option>
+
+                  {nominalCodes.map(code => (
+                    <option key={code.id} value={code.id}>
+                      {code.code} · {code.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <button
+                type='button'
+                onClick={bulkAssignNominal}
+                disabled={!bulkNominalCodeId || bulkUpdating}
+                className='rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50'
+              >
+                {bulkUpdating ? 'Assigning...' : 'Apply to selected'}
+              </button>
+            </div>
+          </div>
+        )}
+
         <div className='overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm'>
           {loading ? (
             <div className='flex items-center justify-center py-20 text-sm text-slate-400'>
@@ -481,20 +588,6 @@ export default function TransactionInbox() {
             </div>
           ) : transactions.length === 0 ? (
             <div className='flex flex-col items-center justify-center py-20 text-slate-400'>
-              <svg
-                className='mb-3 h-10 w-10 opacity-30'
-                fill='none'
-                stroke='currentColor'
-                viewBox='0 0 24 24'
-              >
-                <path
-                  strokeLinecap='round'
-                  strokeLinejoin='round'
-                  strokeWidth={1.5}
-                  d='M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z'
-                />
-              </svg>
-
               <p className='text-sm font-medium'>No transactions found</p>
               <p className='mt-1 text-xs'>
                 All transactions may already be posted or excluded
@@ -507,9 +600,9 @@ export default function TransactionInbox() {
                   <th className='w-10 px-4 py-3 text-left'>
                     <input
                       type='checkbox'
-                      checked={allCodedSelected}
+                      checked={allSelectableSelected}
                       onChange={toggleSelectAll}
-                      title='Select all coded'
+                      title='Select all'
                       className='rounded border-slate-300'
                     />
                   </th>
@@ -569,7 +662,7 @@ export default function TransactionInbox() {
                             type='checkbox'
                             checked={selected.has(transaction.id)}
                             onChange={() => toggleSelect(transaction.id)}
-                            disabled={transaction.status !== 'CODED'}
+                            disabled={isExcluded}
                             className='rounded border-slate-300 disabled:opacity-30'
                           />
                         </td>
@@ -597,8 +690,10 @@ export default function TransactionInbox() {
                           )}
                         </td>
 
-                        <td className='px-4 py-3 text-xs whitespace-nowrap text-slate-500'>
-                          {transaction.accountName}
+                        <td className='px-4 py-3 whitespace-nowrap'>
+                          <span className='inline-flex rounded-full bg-slate-100 px-2 py-1 text-xs font-medium text-slate-600'>
+                            {transaction.accountName}
+                          </span>
                         </td>
 
                         <td
@@ -620,7 +715,7 @@ export default function TransactionInbox() {
                               codes={nominalCodes}
                               value={transaction.nominalCodeId}
                               onChange={id => assignNominal(transaction.id, id)}
-                              disabled={isUpdating || posting}
+                              disabled={isUpdating || posting || bulkUpdating}
                             />
                           )}
                         </td>
@@ -647,19 +742,7 @@ export default function TransactionInbox() {
                               title='Notes'
                               className='rounded p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600'
                             >
-                              <svg
-                                className='h-4 w-4'
-                                fill='none'
-                                stroke='currentColor'
-                                viewBox='0 0 24 24'
-                              >
-                                <path
-                                  strokeLinecap='round'
-                                  strokeLinejoin='round'
-                                  strokeWidth={2}
-                                  d='M7 8h10M7 12h4m1 8l-4-4H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-3l-4 4z'
-                                />
-                              </svg>
+                              💬
                             </button>
 
                             {!isExcluded ? (
@@ -670,19 +753,7 @@ export default function TransactionInbox() {
                                 title='Exclude'
                                 className='rounded p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500'
                               >
-                                <svg
-                                  className='h-4 w-4'
-                                  fill='none'
-                                  stroke='currentColor'
-                                  viewBox='0 0 24 24'
-                                >
-                                  <path
-                                    strokeLinecap='round'
-                                    strokeLinejoin='round'
-                                    strokeWidth={2}
-                                    d='M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636'
-                                  />
-                                </svg>
+                                ⊘
                               </button>
                             ) : (
                               <button
@@ -692,19 +763,7 @@ export default function TransactionInbox() {
                                 title='Restore'
                                 className='rounded p-1.5 text-slate-400 transition-colors hover:bg-green-50 hover:text-green-500'
                               >
-                                <svg
-                                  className='h-4 w-4'
-                                  fill='none'
-                                  stroke='currentColor'
-                                  viewBox='0 0 24 24'
-                                >
-                                  <path
-                                    strokeLinecap='round'
-                                    strokeLinejoin='round'
-                                    strokeWidth={2}
-                                    d='M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15'
-                                  />
-                                </svg>
+                                ↻
                               </button>
                             )}
                           </div>
@@ -712,10 +771,7 @@ export default function TransactionInbox() {
                       </tr>
 
                       {isExpanded && (
-                        <tr
-                          key={`${transaction.id}-notes`}
-                          className='border-b border-slate-100 bg-slate-50'
-                        >
+                        <tr className='border-b border-slate-100 bg-slate-50'>
                           <td colSpan={8} className='px-4 py-3'>
                             <NotesEditor
                               txId={transaction.id}
@@ -783,8 +839,6 @@ export default function TransactionInbox() {
     </div>
   )
 }
-
-// ─── Notes editor ─────────────────────────────────────────────────────────────
 
 function NotesEditor({
   txId,

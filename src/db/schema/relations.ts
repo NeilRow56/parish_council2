@@ -11,6 +11,7 @@ import {
   nominalCodes,
   matchingRules
 } from './nominalLedger'
+import { bankOpeningBalances } from './bankOpeningBalances'
 
 export const parishCouncilsRelations = relations(
   parishCouncils,
@@ -22,7 +23,8 @@ export const parishCouncilsRelations = relations(
     budgets: many(budgets),
     matchingRules: many(matchingRules),
     bankConnections: many(bankConnections),
-    bankTransactions: many(bankTransactions)
+    bankTransactions: many(bankTransactions),
+    bankOpeningBalances: many(bankOpeningBalances)
   })
 )
 
@@ -46,7 +48,8 @@ export const bankConnectionsRelations = relations(
       references: [nominalCodes.id]
     }),
 
-    transactions: many(bankTransactions)
+    transactions: many(bankTransactions),
+    bankOpeningBalances: many(bankOpeningBalances)
   })
 )
 
@@ -81,6 +84,7 @@ export const financialYearsRelations = relations(
     }),
     nominalCodes: many(nominalCodes),
     journalEntries: many(journalEntries),
+    bankOpeningBalances: many(bankOpeningBalances),
     budgets: many(budgets)
   })
 )
@@ -99,7 +103,33 @@ export const nominalCodesRelations = relations(
     journalLines: many(journalLines),
     bankTransactions: many(bankTransactions),
     bankConnections: many(bankConnections),
+    bankOpeningBalances: many(bankOpeningBalances),
     budgets: many(budgets)
+  })
+)
+
+export const bankOpeningBalancesRelations = relations(
+  bankOpeningBalances,
+  ({ one }) => ({
+    parishCouncil: one(parishCouncils, {
+      fields: [bankOpeningBalances.parishCouncilId],
+      references: [parishCouncils.id]
+    }),
+
+    financialYear: one(financialYears, {
+      fields: [bankOpeningBalances.financialYearId],
+      references: [financialYears.id]
+    }),
+
+    bankConnection: one(bankConnections, {
+      fields: [bankOpeningBalances.connectionId],
+      references: [bankConnections.id]
+    }),
+
+    nominalCode: one(nominalCodes, {
+      fields: [bankOpeningBalances.nominalCodeId],
+      references: [nominalCodes.id]
+    })
   })
 )
 

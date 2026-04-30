@@ -7,6 +7,7 @@ import { auth } from '@/lib/auth'
 import { headers } from 'next/headers'
 import { and, asc, eq } from 'drizzle-orm'
 import { SyncBankButton } from './_components/sync-button'
+import Link from 'next/link'
 
 export default async function BankConnectionsPage() {
   const session = await auth.api.getSession({
@@ -54,13 +55,21 @@ export default async function BankConnectionsPage() {
     <main className='space-y-6 p-6'>
       <div className='mx-auto max-w-7xl space-y-6'>
         <h1 className='text-2xl font-semibold'>Bank connections</h1>
+        <div className='flex justify-between'>
+          <Link
+            href='/api/bank/connect'
+            className='inline-flex rounded bg-black px-4 py-2 text-white'
+          >
+            Connect bank account
+          </Link>
 
-        <a
-          href='/api/bank/connect'
-          className='inline-flex rounded bg-black px-4 py-2 text-white'
-        >
-          Connect bank account
-        </a>
+          <Link
+            href='/bank-connections/opening-balances'
+            className='inline-flex rounded border px-4 py-2 font-medium'
+          >
+            Opening balances
+          </Link>
+        </div>
 
         <div className='space-y-3'>
           {connections.length === 0 ? (

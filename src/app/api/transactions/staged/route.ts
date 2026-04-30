@@ -1,15 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { auth } from '@/lib/auth'
 import { headers } from 'next/headers'
+import { and, between, desc, eq, ilike, inArray, sql } from 'drizzle-orm'
 
-import { eq, and, inArray, desc, ilike, between, sql } from 'drizzle-orm'
-import { bankTransactions } from '@/db/schema/bankTransactions'
+import { auth } from '@/lib/auth'
 import { db } from '@/db'
+import { bankTransactions } from '@/db/schema/bankTransactions'
 import { bankConnections } from '@/db/schema/bankConnection'
 import { nominalCodes } from '@/db/schema/nominalLedger'
-
-// GET /api/transactions/staged
-// Returns staged (PENDING + CODED) transactions for the clerk review inbox.
 
 export async function GET(request: NextRequest) {
   const session = await auth.api.getSession({
@@ -36,7 +33,7 @@ export async function GET(request: NextRequest) {
   const from = searchParams.get('from')
   const to = searchParams.get('to')
   const search = searchParams.get('search')
-  const page = Math.max(1, parseInt(searchParams.get('page') ?? '1'))
+  const page = Math.max(1, Number(searchParams.get('page') ?? '1'))
   const pageSize = 50
 
   const conditions = [
@@ -48,7 +45,7 @@ export async function GET(request: NextRequest) {
     conditions.push(eq(bankTransactions.status, status as 'PENDING' | 'CODED'))
   }
 
-  if (connectionId) {
+  if (connectionId && connectionId !== 'all') {
     conditions.push(eq(bankTransactions.connectionId, connectionId))
   }
 
@@ -65,6 +62,7 @@ export async function GET(request: NextRequest) {
   const rows = await db
     .select({
       id: bankTransactions.id,
+      connectionId: bankTransactions.connectionId,
       date: bankTransactions.date,
       description: bankTransactions.description,
       amount: bankTransactions.amount,
@@ -77,7 +75,6 @@ export async function GET(request: NextRequest) {
       notes: bankTransactions.notes,
       importedAt: bankTransactions.importedAt,
 
-      connectionId: bankTransactions.connectionId,
       accountName: bankConnections.accountName,
 
       nominalCodeId: bankTransactions.nominalCodeId,
@@ -86,7 +83,7 @@ export async function GET(request: NextRequest) {
       nominalType: nominalCodes.type
     })
     .from(bankTransactions)
-    .leftJoin(
+    .innerJoin(
       bankConnections,
       and(
         eq(bankTransactions.connectionId, bankConnections.id),
@@ -101,28 +98,47 @@ export async function GET(request: NextRequest) {
       )
     )
     .where(where)
-    .orderBy(desc(bankTransactions.date))
+    .orderBy(desc(bankTransactions.date), desc(bankTransactions.importedAt))
     .limit(pageSize)
     .offset((page - 1) * pageSize)
 
   const [{ count }] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(bankTransactions)
+    .innerJoin(
+      bankConnections,
+      and(
+        eq(bankTransactions.connectionId, bankConnections.id),
+        eq(bankConnections.parishCouncilId, parishCouncilId)
+      )
+    )
     .where(where)
+
+  const summaryConditions = [
+    eq(bankTransactions.parishCouncilId, parishCouncilId),
+    inArray(bankTransactions.status, ['PENDING', 'CODED'])
+  ]
+
+  if (connectionId && connectionId !== 'all') {
+    summaryConditions.push(eq(bankTransactions.connectionId, connectionId))
+  }
+
+  if (from && to) {
+    summaryConditions.push(between(bankTransactions.date, from, to))
+  }
+
+  if (search) {
+    summaryConditions.push(ilike(bankTransactions.description, `%${search}%`))
+  }
 
   const summary = await db
     .select({
       status: bankTransactions.status,
       count: sql<number>`count(*)::int`,
-      total: sql<string>`sum(amount)::text`
+      total: sql<string>`coalesce(sum(${bankTransactions.amount}), 0)::text`
     })
     .from(bankTransactions)
-    .where(
-      and(
-        eq(bankTransactions.parishCouncilId, parishCouncilId),
-        inArray(bankTransactions.status, ['PENDING', 'CODED'])
-      )
-    )
+    .where(and(...summaryConditions))
     .groupBy(bankTransactions.status)
 
   return NextResponse.json({

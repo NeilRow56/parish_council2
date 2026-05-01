@@ -156,11 +156,11 @@ export default function AppNav() {
                 {
                   href: '/settings/nominal-codes',
                   label: 'Nominal codes'
+                },
+                {
+                  href: '/onboarding/council-details',
+                  label: 'Parish council details'
                 }
-                // {
-                //   href: '/settings/income-expenditure',
-                //   label: 'Income & Expenditure'
-                // },
                 // {
                 //   href: '/settings/bank-reconciliation',
                 //   label: 'Bank Reconciliation'

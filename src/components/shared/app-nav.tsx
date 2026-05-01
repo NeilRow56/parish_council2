@@ -121,6 +121,10 @@ export default function AppNav() {
                   label: 'Ledger'
                 },
                 {
+                  href: '/ledger/bank-entry/new',
+                  label: 'New payment or receipt'
+                },
+                {
                   href: '/ledger/journals/new',
                   label: 'New manual journal'
                 }

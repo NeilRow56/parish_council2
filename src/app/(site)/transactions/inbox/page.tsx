@@ -175,6 +175,7 @@ export default function TransactionInbox() {
   const [expandedId, setExpandedId] = useState<string | null>(null)
   const [bulkNominalCodeId, setBulkNominalCodeId] = useState('')
   const [bulkUpdating, setBulkUpdating] = useState(false)
+  const [bulkPosting, setBulkPosting] = useState(false)
   const [postResult, setPostResult] = useState<{
     posted: number
     errors: number
@@ -308,8 +309,44 @@ export default function TransactionInbox() {
       return
     }
 
-    await fetchTransactions()
     setBulkNominalCodeId('')
+    await fetchTransactions()
+  }
+
+  async function bulkAssignAndPost() {
+    if (selected.size === 0 || !bulkNominalCodeId) return
+
+    setPostResult(null)
+    setBulkPosting(true)
+
+    const response = await fetch('/api/transactions/bulk-assign-and-post', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        transactionIds: [...selected],
+        nominalCodeId: bulkNominalCodeId
+      })
+    })
+
+    const data = await response.json().catch(() => null)
+
+    setBulkPosting(false)
+
+    if (!response.ok) {
+      setPostResult({
+        posted: 0,
+        errors: 1
+      })
+      return
+    }
+
+    setPostResult({
+      posted: data?.posted ?? 0,
+      errors: data?.errors?.length ?? 0
+    })
+
+    setBulkNominalCodeId('')
+    await fetchTransactions()
   }
 
   async function excludeTransaction(txId: string) {
@@ -419,6 +456,8 @@ export default function TransactionInbox() {
     codedTransactions.length
   )
 
+  const busy = posting || bulkUpdating || bulkPosting
+
   return (
     <div className='min-h-screen bg-slate-50 font-sans'>
       <div className='border-b border-slate-200 bg-white px-6 py-4'>
@@ -448,7 +487,7 @@ export default function TransactionInbox() {
 
             <button
               onClick={postSelected}
-              disabled={posting || codedCount === 0}
+              disabled={busy || codedCount === 0}
               className='inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-slate-700 disabled:cursor-not-allowed disabled:opacity-40'
             >
               {posting ? (
@@ -550,11 +589,12 @@ export default function TransactionInbox() {
 
             <div className='flex items-center gap-2'>
               <div className='flex flex-col'>
-                {!bulkNominalCodeId && selected.size > 0 && (
-                  <span className='text-xs text-blue-600'>
-                    Step 1: choose a nominal code → Step 2: apply to selected
+                {!bulkNominalCodeId && (
+                  <span className='mb-1 text-xs text-blue-700'>
+                    Choose a nominal code to apply to all selected transactions
                   </span>
                 )}
+
                 <select
                   value={bulkNominalCodeId}
                   onChange={event => setBulkNominalCodeId(event.target.value)}
@@ -569,13 +609,23 @@ export default function TransactionInbox() {
                   ))}
                 </select>
               </div>
+
               <button
                 type='button'
                 onClick={bulkAssignNominal}
-                disabled={!bulkNominalCodeId || bulkUpdating}
+                disabled={!bulkNominalCodeId || bulkUpdating || bulkPosting}
                 className='rounded-md bg-slate-900 px-3 py-2 text-sm font-medium text-white disabled:opacity-50'
               >
                 {bulkUpdating ? 'Assigning...' : 'Apply to selected'}
+              </button>
+
+              <button
+                type='button'
+                onClick={bulkAssignAndPost}
+                disabled={!bulkNominalCodeId || bulkPosting || bulkUpdating}
+                className='rounded-md bg-green-700 px-3 py-2 text-sm font-medium text-white hover:bg-green-800 disabled:opacity-50'
+              >
+                {bulkPosting ? 'Posting...' : 'Apply & post'}
               </button>
             </div>
           </div>
@@ -715,7 +765,7 @@ export default function TransactionInbox() {
                               codes={nominalCodes}
                               value={transaction.nominalCodeId}
                               onChange={id => assignNominal(transaction.id, id)}
-                              disabled={isUpdating || posting || bulkUpdating}
+                              disabled={isUpdating || busy}
                             />
                           )}
                         </td>

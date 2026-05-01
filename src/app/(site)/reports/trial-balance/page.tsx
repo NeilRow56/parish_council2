@@ -195,9 +195,27 @@ export default async function TrialBalancePage() {
 
           <tbody>
             {trialBalanceRows.map(row => (
-              <tr key={row.nominalCodeId} className='border-t'>
-                <td className='px-4 py-3 font-medium'>{row.code}</td>
-                <td className='px-4 py-3'>{row.name}</td>
+              <tr
+                key={row.nominalCodeId}
+                className='border-t transition-colors hover:bg-slate-50'
+              >
+                <td className='px-4 py-3 font-medium'>
+                  <Link
+                    href={`/ledger/${row.nominalCodeId}`}
+                    className='text-slate-900 hover:text-blue-600 hover:underline'
+                  >
+                    {row.code}
+                  </Link>
+                </td>
+
+                <td className='px-4 py-3'>
+                  <Link
+                    href={`/ledger/${row.nominalCodeId}`}
+                    className='text-slate-900 hover:text-blue-600 hover:underline'
+                  >
+                    {row.name}
+                  </Link>
+                </td>
                 <td className='px-4 py-3 text-zinc-500'>{row.type}</td>
                 <td className='px-4 py-3 text-right'>
                   {formatAmount(row.debit)}

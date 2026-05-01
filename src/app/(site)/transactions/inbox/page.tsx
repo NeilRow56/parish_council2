@@ -8,6 +8,7 @@ import {
   useState,
   useTransition
 } from 'react'
+import { toast } from 'sonner'
 
 interface NominalCode {
   id: string
@@ -48,7 +49,18 @@ interface Summary {
   total: string
 }
 
-type FilterStatus = 'all' | 'PENDING' | 'CODED'
+interface MatchCandidate {
+  journalEntryId: string
+  reference: string
+  date: string
+  description: string
+  debit: string
+  credit: string
+  nominalCode: string
+  nominalName: string
+}
+
+type FilterStatus = 'all' | 'PENDING' | 'CODED' | 'EXCLUDED'
 
 function formatBankAmount(amount: string, type: 'CREDIT' | 'DEBIT') {
   const value = Math.abs(Number(amount))
@@ -180,6 +192,10 @@ export default function TransactionInbox() {
     posted: number
     errors: number
   } | null>(null)
+  const [matchCandidates, setMatchCandidates] = useState<
+    Record<string, MatchCandidate[]>
+  >({})
+  const [matchingId, setMatchingId] = useState<string | null>(null)
 
   useEffect(() => {
     fetch('/api/nominal-codes')
@@ -239,6 +255,52 @@ export default function TransactionInbox() {
       ).sort((a, b) => a.name.localeCompare(b.name)),
     [transactions]
   )
+
+  async function toggleMatchCandidates(txId: string) {
+    if (expandedId === txId) {
+      setExpandedId(null)
+      return
+    }
+
+    setExpandedId(txId)
+
+    if (matchCandidates[txId]) {
+      return
+    }
+
+    setMatchingId(txId)
+
+    const response = await fetch(
+      `/api/transactions/staged/${txId}/match-candidates`
+    )
+
+    const data = await response.json().catch(() => null)
+
+    setMatchCandidates(previous => ({
+      ...previous,
+      [txId]: data?.candidates ?? []
+    }))
+
+    setMatchingId(null)
+  }
+
+  async function confirmMatch(txId: string, journalEntryId: string) {
+    setMatchingId(txId)
+
+    const response = await fetch(`/api/transactions/staged/${txId}/match`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ journalEntryId })
+    })
+
+    setMatchingId(null)
+
+    if (!response.ok) {
+      return
+    }
+
+    await fetchTransactions()
+  }
 
   async function assignNominal(txId: string, nominalCodeId: string) {
     setPostResult(null)
@@ -353,14 +415,45 @@ export default function TransactionInbox() {
     setPostResult(null)
     setUpdatingId(txId)
 
-    await fetch(`/api/transactions/staged/${txId}`, {
+    const response = await fetch(`/api/transactions/staged/${txId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'exclude' })
     })
 
+    if (!response.ok) {
+      setUpdatingId(null)
+
+      toast.error('Failed to exclude transaction')
+      return
+    }
+
     setUpdatingId(null)
+
+    // Optimistic UI refresh
     await fetchTransactions()
+
+    // Toast with undo
+    toast.success('Transaction excluded', {
+      duration: 6000,
+      action: {
+        label: 'Undo',
+        onClick: async () => {
+          setUpdatingId(txId)
+
+          await fetch(`/api/transactions/staged/${txId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'unexclude' })
+          })
+
+          setUpdatingId(null)
+          await fetchTransactions()
+
+          toast.success('Transaction restored', { duration: 4000 })
+        }
+      }
+    })
   }
 
   async function restoreTransaction(txId: string) {
@@ -527,6 +620,12 @@ export default function TransactionInbox() {
               label: 'Coded',
               value: 'CODED' as FilterStatus,
               count: codedCount
+            },
+            {
+              label: 'Excluded',
+              value: 'EXCLUDED' as FilterStatus,
+              count:
+                summary.find(item => item.status === 'EXCLUDED')?.count ?? 0
             }
           ].map(({ label, value, count }) => (
             <button
@@ -538,7 +637,9 @@ export default function TransactionInbox() {
               className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-sm font-medium transition-all ${
                 filterStatus === value
                   ? 'border-slate-900 bg-slate-900 text-white'
-                  : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                  : value === 'EXCLUDED'
+                    ? 'border-slate-200 bg-white text-slate-400 hover:border-slate-300'
+                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
               }`}
             >
               {label}
@@ -785,14 +886,13 @@ export default function TransactionInbox() {
                           <div className='flex items-center gap-1'>
                             <button
                               onClick={() =>
-                                setExpandedId(
-                                  isExpanded ? null : transaction.id
-                                )
+                                toggleMatchCandidates(transaction.id)
                               }
-                              title='Notes'
-                              className='rounded p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600'
+                              title='Match to existing journal'
+                              disabled={isExcluded || busy}
+                              className='rounded p-1.5 text-slate-400 transition-colors hover:bg-blue-50 hover:text-blue-600 disabled:opacity-40'
                             >
-                              💬
+                              Match
                             </button>
 
                             {!isExcluded ? (
@@ -801,7 +901,7 @@ export default function TransactionInbox() {
                                   excludeTransaction(transaction.id)
                                 }
                                 title='Exclude'
-                                className='rounded p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500'
+                                className='rounded text-slate-400 transition-colors hover:bg-red-50 hover:text-red-500'
                               >
                                 ⊘
                               </button>
@@ -822,19 +922,13 @@ export default function TransactionInbox() {
 
                       {isExpanded && (
                         <tr className='border-b border-slate-100 bg-slate-50'>
-                          <td colSpan={8} className='px-4 py-3'>
-                            <NotesEditor
-                              txId={transaction.id}
-                              initialNotes={transaction.notes ?? ''}
-                              onSave={notes => {
-                                setTransactions(previous =>
-                                  previous.map(item =>
-                                    item.id === transaction.id
-                                      ? { ...item, notes }
-                                      : item
-                                  )
-                                )
-                              }}
+                          <td colSpan={8} className='px-4 py-4'>
+                            <MatchCandidatesPanel
+                              candidates={matchCandidates[transaction.id] ?? []}
+                              loading={matchingId === transaction.id}
+                              onMatch={journalEntryId =>
+                                confirmMatch(transaction.id, journalEntryId)
+                              }
                             />
                           </td>
                         </tr>
@@ -890,61 +984,144 @@ export default function TransactionInbox() {
   )
 }
 
-function NotesEditor({
-  txId,
-  initialNotes,
-  onSave
+// function NotesEditor({
+//   txId,
+//   initialNotes,
+//   onSave
+// }: {
+//   txId: string
+//   initialNotes: string
+//   onSave: (notes: string) => void
+// }) {
+//   const [notes, setNotes] = useState(initialNotes)
+//   const [saving, setSaving] = useState(false)
+//   const [saved, setSaved] = useState(false)
+
+//   async function save() {
+//     setSaving(true)
+
+//     await fetch(`/api/transactions/staged/${txId}`, {
+//       method: 'PATCH',
+//       headers: { 'Content-Type': 'application/json' },
+//       body: JSON.stringify({ action: 'update_notes', notes })
+//     })
+
+//     setSaving(false)
+//     setSaved(true)
+//     onSave(notes)
+
+//     setTimeout(() => setSaved(false), 2000)
+//   }
+
+//   return (
+//     <div className='flex items-start gap-3'>
+//       <div className='flex-1'>
+//         <label className='mb-1 block text-xs font-medium text-slate-500'>
+//           Notes / memo
+//         </label>
+
+//         <textarea
+//           value={notes}
+//           onChange={event => {
+//             setNotes(event.target.value)
+//             setSaved(false)
+//           }}
+//           rows={2}
+//           placeholder='Add a note for the internal audit trail…'
+//           className='w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none'
+//         />
+//       </div>
+
+//       <button
+//         onClick={save}
+//         disabled={saving}
+//         className='mt-5 rounded-lg bg-slate-800 px-3 py-2 text-xs font-medium text-white hover:bg-slate-700 disabled:opacity-50'
+//       >
+//         {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save'}
+//       </button>
+//     </div>
+//   )
+// }
+
+function MatchCandidatesPanel({
+  candidates,
+  loading,
+  onMatch
 }: {
-  txId: string
-  initialNotes: string
-  onSave: (notes: string) => void
+  candidates: MatchCandidate[]
+  loading: boolean
+  onMatch: (journalEntryId: string) => void
 }) {
-  const [notes, setNotes] = useState(initialNotes)
-  const [saving, setSaving] = useState(false)
-  const [saved, setSaved] = useState(false)
+  if (loading) {
+    return <p className='text-sm text-slate-500'>Finding matches...</p>
+  }
 
-  async function save() {
-    setSaving(true)
-
-    await fetch(`/api/transactions/staged/${txId}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'update_notes', notes })
-    })
-
-    setSaving(false)
-    setSaved(true)
-    onSave(notes)
-
-    setTimeout(() => setSaved(false), 2000)
+  if (candidates.length === 0) {
+    return (
+      <div className='rounded-lg border bg-white p-4 text-sm text-slate-500'>
+        No matching manual journals found.
+      </div>
+    )
   }
 
   return (
-    <div className='flex items-start gap-3'>
-      <div className='flex-1'>
-        <label className='mb-1 block text-xs font-medium text-slate-500'>
-          Notes / memo
-        </label>
-
-        <textarea
-          value={notes}
-          onChange={event => {
-            setNotes(event.target.value)
-            setSaved(false)
-          }}
-          rows={2}
-          placeholder='Add a note for the internal audit trail…'
-          className='w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none'
-        />
+    <div className='rounded-lg border bg-white'>
+      <div className='border-b px-4 py-3'>
+        <p className='text-sm font-medium text-slate-900'>
+          Possible matching journals
+        </p>
+        <p className='mt-1 text-xs text-slate-500'>
+          Matching marks this bank transaction as cleared without posting a new
+          journal.
+        </p>
       </div>
 
-      <button
-        onClick={save}
-        disabled={saving}
-        className='mt-5 rounded-lg bg-slate-800 px-3 py-2 text-xs font-medium text-white hover:bg-slate-700 disabled:opacity-50'
-      >
-        {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save'}
-      </button>
+      <table className='w-full text-sm'>
+        <thead className='bg-slate-50 text-left text-slate-500'>
+          <tr>
+            <th className='px-4 py-2 font-medium'>Date</th>
+            <th className='px-4 py-2 font-medium'>Reference</th>
+            <th className='px-4 py-2 font-medium'>Description</th>
+            <th className='px-4 py-2 text-right font-medium'>Debit</th>
+            <th className='px-4 py-2 text-right font-medium'>Credit</th>
+            <th className='px-4 py-2' />
+          </tr>
+        </thead>
+
+        <tbody>
+          {candidates.map(candidate => (
+            <tr key={candidate.journalEntryId} className='border-t'>
+              <td className='px-4 py-2 whitespace-nowrap'>
+                {formatDate(candidate.date)}
+              </td>
+              <td className='px-4 py-2 font-mono text-xs whitespace-nowrap text-slate-500'>
+                {candidate.reference}
+              </td>
+              <td className='px-4 py-2'>
+                <div>{candidate.description}</div>
+                <div className='text-xs text-slate-500'>
+                  {candidate.nominalCode} — {candidate.nominalName}
+                </div>
+              </td>
+              <td className='px-4 py-2 text-right'>
+                {candidate.debit === '0.00' ? '—' : candidate.debit}
+              </td>
+              <td className='px-4 py-2 text-right'>
+                {candidate.credit === '0.00' ? '—' : candidate.credit}
+              </td>
+              <td className='px-4 py-2 text-right'>
+                <button
+                  type='button'
+                  onClick={() => onMatch(candidate.journalEntryId)}
+                  className='rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-700'
+                >
+                  Match
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   )
 }

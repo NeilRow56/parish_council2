@@ -18,6 +18,7 @@ export const txStatusEnum = pgEnum('tx_status', [
   'PENDING',
   'CODED',
   'POSTED',
+  'MATCHED',
   'EXCLUDED'
 ])
 
@@ -51,14 +52,20 @@ export const bankTransactions = pgTable(
 
     nominalCodeId: text('nominal_code_id').references(() => nominalCodes.id),
     matchingRule: text('matching_rule'),
+
     notes: text('notes'),
 
     journalEntryId: text('journal_entry_id').references(
       () => journalEntries.id
     ),
 
+    matchedJournalEntryId: text('matched_journal_entry_id').references(
+      () => journalEntries.id
+    ),
+
     importedAt: timestamp('imported_at').defaultNow().notNull(),
-    postedAt: timestamp('posted_at')
+    postedAt: timestamp('posted_at'),
+    matchedAt: timestamp('matched_at')
   },
   t => ({
     connectionProviderTxUnique: uniqueIndex(

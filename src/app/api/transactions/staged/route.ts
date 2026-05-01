@@ -38,11 +38,23 @@ export async function GET(request: NextRequest) {
 
   const conditions = [
     eq(bankTransactions.parishCouncilId, parishCouncilId),
-    inArray(bankTransactions.status, ['PENDING', 'CODED'])
+    inArray(bankTransactions.status, ['PENDING', 'CODED', 'EXCLUDED'])
   ]
 
-  if (status && status !== 'all' && ['PENDING', 'CODED'].includes(status)) {
-    conditions.push(eq(bankTransactions.status, status as 'PENDING' | 'CODED'))
+  type TxFilterStatus = 'PENDING' | 'CODED' | 'EXCLUDED' | 'MATCHED'
+  const allowedStatuses: TxFilterStatus[] = [
+    'PENDING',
+    'CODED',
+    'EXCLUDED',
+    'MATCHED'
+  ]
+
+  if (status && status !== 'all') {
+    const typedStatus = status as TxFilterStatus
+
+    if (allowedStatuses.includes(typedStatus)) {
+      conditions.push(eq(bankTransactions.status, typedStatus))
+    }
   }
 
   if (connectionId && connectionId !== 'all') {

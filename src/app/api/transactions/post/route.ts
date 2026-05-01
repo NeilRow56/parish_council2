@@ -124,14 +124,18 @@ export async function POST(request: NextRequest) {
             'Linked bank nominal code is inactive, missing, or not valid for this financial year'
           )
         }
-
+        // ✅ SAFEGUARD — add this
+        if (!tx.transactionType) {
+          throw new Error(`Transaction ${tx.id} missing transaction type`)
+        }
         const amount = Number(tx.amount)
 
         if (!Number.isFinite(amount) || amount === 0) {
           throw new Error('Invalid transaction amount')
         }
 
-        const absoluteAmount = Math.abs(amount).toFixed(2)
+        const absoluteAmount = amount.toFixed(2)
+        const isReceipt = tx.transactionType === 'CREDIT'
         const reference = `BNK-${tx.date}-${tx.id.slice(-6).toUpperCase()}`
 
         const [entry] = await trx
@@ -148,7 +152,8 @@ export async function POST(request: NextRequest) {
           })
           .returning()
 
-        if (amount < 0) {
+        if (isReceipt) {
+          // Receipt: Dr Bank, Cr nominal
           await trx.insert(journalLines).values([
             {
               parishCouncilId,
@@ -168,6 +173,7 @@ export async function POST(request: NextRequest) {
             }
           ])
         } else {
+          // Payment: Dr nominal, Cr Bank
           await trx.insert(journalLines).values([
             {
               parishCouncilId,

@@ -60,16 +60,24 @@ export const bankTransactionsRelations = relations(
       fields: [bankTransactions.parishCouncilId],
       references: [parishCouncils.id]
     }),
+
     connection: one(bankConnections, {
       fields: [bankTransactions.connectionId],
       references: [bankConnections.id]
     }),
+
     nominalCode: one(nominalCodes, {
       fields: [bankTransactions.nominalCodeId],
       references: [nominalCodes.id]
     }),
+
     journalEntry: one(journalEntries, {
       fields: [bankTransactions.journalEntryId],
+      references: [journalEntries.id]
+    }),
+
+    matchedJournalEntry: one(journalEntries, {
+      fields: [bankTransactions.matchedJournalEntryId],
       references: [journalEntries.id]
     })
   })

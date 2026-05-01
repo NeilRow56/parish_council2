@@ -32,22 +32,36 @@ export default function RootLayout({
       <body className={`${geistSans.className} h-screen flex-1`}>
         <Toaster
           position='bottom-center'
+          richColors={false}
+          closeButton
           toastOptions={{
+            duration: 5000,
             unstyled: true,
             classNames: {
-              loading:
-                'min-w-[280px] border border-blue-200 bg-blue-50 text-blue-800 rounded-md px-3 py-2 text-sm',
+              toast:
+                'flex min-w-[320px] max-w-[420px] items-center gap-3 rounded-xl border bg-white px-4 py-3 text-sm shadow-lg shadow-slate-900/10 ring-1 ring-slate-900/5',
+
+              title: 'font-medium text-slate-900',
+              description: 'mt-0.5 text-xs leading-5 text-slate-500',
 
               success:
-                'min-w-[280px] border border-green-200 bg-green-50 text-green-800 rounded-md px-3 py-2 text-sm',
-
+                'border-emerald-200 bg-white text-slate-900 before:h-2 before:w-2 before:shrink-0 before:rounded-full before:bg-emerald-500',
               error:
-                'min-w-[280px] border border-red-200 bg-red-50 text-red-700 rounded-md px-3 py-2 text-sm',
-
+                'border-red-200 bg-white text-slate-900 before:h-2 before:w-2 before:shrink-0 before:rounded-full before:bg-red-500',
               warning:
-                'min-w-[280px] border border-yellow-200 bg-yellow-50 text-yellow-800 rounded-md px-3 py-2 text-sm',
+                'border-amber-200 bg-white text-slate-900 before:h-2 before:w-2 before:shrink-0 before:rounded-full before:bg-amber-500',
+              info: 'border-blue-200 bg-white text-slate-900 before:h-2 before:w-2 before:shrink-0 before:rounded-full before:bg-blue-500',
+              loading:
+                'border-blue-200 bg-white text-slate-900 before:h-2 before:w-2 before:shrink-0 before:animate-pulse before:rounded-full before:bg-blue-500',
 
-              info: 'min-w-[280px] border border-blue-200 bg-blue-50 text-blue-800 rounded-md px-3 py-2 text-sm'
+              actionButton:
+                'ml-auto rounded-md bg-slate-900 px-3 py-1.5 text-xs font-medium text-white transition-colors hover:bg-slate-700',
+
+              cancelButton:
+                'ml-auto rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50',
+
+              closeButton:
+                'rounded-full border border-slate-200 bg-white text-slate-400 hover:text-slate-700'
             }
           }}
         />

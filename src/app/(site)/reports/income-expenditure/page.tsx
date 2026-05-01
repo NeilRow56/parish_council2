@@ -206,8 +206,23 @@ export default async function IncomeExpenditurePage() {
             <tbody>
               {incomeRows.map(row => (
                 <tr key={row.nominalCodeId} className='border-t'>
-                  <td className='px-4 py-3 font-medium'>{row.code}</td>
-                  <td className='px-4 py-3'>{row.name}</td>
+                  <td className='px-4 py-3 font-medium'>
+                    <Link
+                      href={`/ledger/${row.nominalCodeId}`}
+                      className='text-slate-900 hover:text-blue-600 hover:underline'
+                    >
+                      {row.code}
+                    </Link>
+                  </td>
+
+                  <td className='px-4 py-3'>
+                    <Link
+                      href={`/ledger/${row.nominalCodeId}`}
+                      className='text-slate-700 hover:text-blue-600 hover:underline'
+                    >
+                      {row.name}
+                    </Link>
+                  </td>
                   <td
                     className={
                       row.amount < 0
@@ -255,16 +270,29 @@ export default async function IncomeExpenditurePage() {
 
             <tbody>
               {expenditureRows.map(row => (
-                <tr key={row.nominalCodeId} className='border-t'>
-                  <td className='px-4 py-3 font-medium'>{row.code}</td>
-                  <td className='px-4 py-3'>{row.name}</td>
-                  <td
-                    className={
-                      row.amount < 0
-                        ? 'px-4 py-3 text-right text-red-600'
-                        : 'px-4 py-3 text-right'
-                    }
-                  >
+                <tr
+                  key={row.nominalCodeId}
+                  className='border-t transition-colors hover:bg-slate-50'
+                >
+                  <td className='px-4 py-3 font-medium'>
+                    <Link
+                      href={`/ledger/${row.nominalCodeId}`}
+                      className='text-slate-900 hover:text-blue-600 hover:underline'
+                    >
+                      {row.code}
+                    </Link>
+                  </td>
+
+                  <td className='px-4 py-3'>
+                    <Link
+                      href={`/ledger/${row.nominalCodeId}`}
+                      className='text-slate-700 hover:text-blue-600 hover:underline'
+                    >
+                      {row.name}
+                    </Link>
+                  </td>
+
+                  <td className='px-4 py-3 text-right'>
                     {formatAmount(row.amount)}
                   </td>
                 </tr>

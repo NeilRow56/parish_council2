@@ -66,6 +66,7 @@ export default async function NewBankEntryPage() {
       id: nominalCodes.id,
       code: nominalCodes.code,
       name: nominalCodes.name,
+      category: nominalCodes.category,
       type: nominalCodes.type
     })
     .from(nominalCodes)

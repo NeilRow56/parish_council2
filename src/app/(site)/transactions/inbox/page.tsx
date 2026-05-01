@@ -115,40 +115,35 @@ function NominalPicker({
   onChange: (id: string) => void
   disabled: boolean
 }) {
-  const income = codes.filter(code => code.type === 'INCOME')
-  const expenditure = codes.filter(code => code.type === 'EXPENDITURE')
+  const sortedCodes = useMemo(
+    () =>
+      [...codes].sort((a, b) => {
+        const categoryA = a.category ?? 'General'
+        const categoryB = b.category ?? 'General'
 
-  const renderGroup = (label: string, items: NominalCode[]) => {
-    if (!items.length) return null
+        if (categoryA !== categoryB) {
+          return categoryA.localeCompare(categoryB)
+        }
 
-    const byCategory = items.reduce<Record<string, NominalCode[]>>(
-      (acc, code) => {
+        return a.code.localeCompare(b.code, undefined, {
+          numeric: true
+        })
+      }),
+    [codes]
+  )
+
+  const groupedCodes = useMemo(
+    () =>
+      sortedCodes.reduce<Record<string, NominalCode[]>>((acc, code) => {
         const category = code.category ?? 'General'
+
         acc[category] = acc[category] ?? []
         acc[category].push(code)
+
         return acc
-      },
-      {}
-    )
-
-    return (
-      <optgroup label={label} key={label}>
-        {Object.entries(byCategory).map(([category, categoryCodes]) => (
-          <Fragment key={`${label}-${category}`}>
-            <option disabled value='' className='text-slate-400 italic'>
-              — {category} —
-            </option>
-
-            {categoryCodes.map(code => (
-              <option key={code.id} value={code.id}>
-                {code.code} · {code.name}
-              </option>
-            ))}
-          </Fragment>
-        ))}
-      </optgroup>
-    )
-  }
+      }, {}),
+    [sortedCodes]
+  )
 
   return (
     <select
@@ -162,8 +157,16 @@ function NominalPicker({
       className='w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:bg-slate-50 disabled:text-slate-400'
     >
       <option value=''>Select nominal code…</option>
-      {renderGroup('INCOME', income)}
-      {renderGroup('EXPENDITURE', expenditure)}
+
+      {Object.entries(groupedCodes).map(([category, categoryCodes]) => (
+        <optgroup key={category} label={`— ${category} —`}>
+          {categoryCodes.map(code => (
+            <option key={code.id} value={code.id}>
+              {code.code} {code.name}
+            </option>
+          ))}
+        </optgroup>
+      ))}
     </select>
   )
 }

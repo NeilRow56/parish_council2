@@ -10,6 +10,7 @@ type NominalCodeOption = {
   code: string
   name: string
   type: string
+  category: string | null
 }
 
 type JournalLine = {
@@ -57,6 +58,59 @@ function formatMoney(value: number) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   })
+}
+
+function NominalCodeSelect({
+  value,
+  codes,
+  onChange
+}: {
+  value: string
+  codes: NominalCodeOption[]
+  onChange: (value: string) => void
+}) {
+  const groupedCodes = useMemo(() => {
+    const sorted = [...codes].sort((a, b) => {
+      const categoryA = a.category ?? 'General'
+      const categoryB = b.category ?? 'General'
+
+      if (categoryA !== categoryB) {
+        return categoryA.localeCompare(categoryB)
+      }
+
+      return a.code.localeCompare(b.code, undefined, { numeric: true })
+    })
+
+    return sorted.reduce<Record<string, NominalCodeOption[]>>((acc, code) => {
+      const category = code.category ?? 'General'
+      acc[category] = acc[category] ?? []
+      acc[category].push(code)
+      return acc
+    }, {})
+  }, [codes])
+
+  const selectedCode = codes.find(code => code.id === value)
+
+  return (
+    <select
+      value={value}
+      title={selectedCode ? `${selectedCode.code} — ${selectedCode.name}` : ''}
+      onChange={event => onChange(event.target.value)}
+      className='w-full truncate rounded-md border px-3 py-2'
+    >
+      <option value=''>Select code</option>
+
+      {Object.entries(groupedCodes).map(([category, categoryCodes]) => (
+        <optgroup key={category} label={`— ${category} —`}>
+          {categoryCodes.map(code => (
+            <option key={code.id} value={code.id}>
+              {code.code} — {code.name}
+            </option>
+          ))}
+        </optgroup>
+      ))}
+    </select>
+  )
 }
 
 export function ManualJournalForm({
@@ -185,31 +239,13 @@ export function ManualJournalForm({
             {lines.map(line => (
               <tr key={line.id} className='border-t'>
                 <td className='px-4 py-3'>
-                  <select
+                  <NominalCodeSelect
                     value={line.nominalCodeId}
-                    title={
-                      nominalCodes.find(code => code.id === line.nominalCodeId)
-                        ? `${nominalCodes.find(code => code.id === line.nominalCodeId)?.code} — ${
-                            nominalCodes.find(
-                              code => code.id === line.nominalCodeId
-                            )?.name
-                          }`
-                        : ''
+                    codes={nominalCodes}
+                    onChange={value =>
+                      updateLine(line.id, { nominalCodeId: value })
                     }
-                    onChange={event =>
-                      updateLine(line.id, {
-                        nominalCodeId: event.target.value
-                      })
-                    }
-                    className='w-full truncate rounded-md border px-3 py-2'
-                  >
-                    <option value=''>Select code</option>
-                    {nominalCodes.map(code => (
-                      <option key={code.id} value={code.id}>
-                        {code.code} — {code.name}
-                      </option>
-                    ))}
-                  </select>
+                  />
                 </td>
 
                 <td className='px-4 py-3'>
@@ -284,14 +320,12 @@ export function ManualJournalForm({
               <td className='px-4 py-3' colSpan={2}>
                 Totals
               </td>
-
               <td className='py-3 pr-7 text-right'>
                 {formatMoney(totals.debit)}
               </td>
               <td className='py-3 pr-7 text-right'>
                 {formatMoney(totals.credit)}
               </td>
-
               <td />
             </tr>
           </tfoot>

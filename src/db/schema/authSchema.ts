@@ -18,6 +18,34 @@ export const parishCouncils = pgTable('parish_councils', {
 
   name: text('name').notNull(),
 
+  addressLine1: text('address_line_1'),
+  addressLine2: text('address_line_2'),
+  town: text('town'),
+  county: text('county'),
+  postcode: text('postcode'),
+
+  telephone: text('telephone'),
+
+  email: text('email'),
+  website: text('website'),
+
+  canRecoverVat: boolean('can_recover_vat').default(true).notNull(),
+
+  vatStatus: text('vat_status').notNull().default('NOT_REGISTERED'),
+  // NOT_REGISTERED | REGISTERED
+
+  vatRegistrationNumber: text('vat_registration_number'),
+
+  vatClaimFrequency: text('vat_claim_frequency').notNull().default('ANNUAL'),
+  // ANNUAL | QUARTERLY | MONTHLY
+
+  vatClaimMethod: text('vat_claim_method').notNull().default('VAT126'),
+  // VAT126 | VAT_RETURN
+
+  onboardingCompletedAt: timestamp('onboarding_completed_at', {
+    mode: 'date'
+  }),
+
   createdAt: timestamp('created_at', { mode: 'date' }).defaultNow().notNull(),
 
   updatedAt: timestamp('updated_at', { mode: 'date' }).defaultNow().notNull()

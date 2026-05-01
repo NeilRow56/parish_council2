@@ -1,44 +1,39 @@
-import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
-import { and, eq, gte, lte } from 'drizzle-orm'
+import { redirect } from 'next/navigation'
+import { and, asc, eq } from 'drizzle-orm'
 
-import { auth } from '@/lib/auth'
 import { db } from '@/db'
+import { auth } from '@/lib/auth'
 import { financialYears, nominalCodes } from '@/db/schema/nominalLedger'
-import { ManualJournalForm } from './_components/manual-journal-form'
+import { NominalCodesSettings } from './_components/nominal-codes-settings'
 
-export default async function NewManualJournalPage() {
+export default async function NominalCodesSettingsPage() {
   const session = await auth.api.getSession({
     headers: await headers()
   })
 
-  if (!session?.user) {
+  if (!session?.user?.parishCouncilId) {
     redirect('/auth/login')
   }
 
   const parishCouncilId = session.user.parishCouncilId
 
-  if (!parishCouncilId) {
-    redirect('/auth/register')
-  }
-
-  const today = new Date().toISOString().split('T')[0]
-
   const [financialYear] = await db
-    .select()
+    .select({
+      id: financialYears.id,
+      label: financialYears.label
+    })
     .from(financialYears)
     .where(
       and(
         eq(financialYears.parishCouncilId, parishCouncilId),
-        lte(financialYears.startDate, today),
-        gte(financialYears.endDate, today),
         eq(financialYears.isClosed, false)
       )
     )
     .limit(1)
 
   if (!financialYear) {
-    redirect('/ledger')
+    redirect('/')
   }
 
   const codes = await db
@@ -46,27 +41,26 @@ export default async function NewManualJournalPage() {
       id: nominalCodes.id,
       code: nominalCodes.code,
       name: nominalCodes.name,
+      type: nominalCodes.type,
       category: nominalCodes.category,
-      type: nominalCodes.type
+      isBank: nominalCodes.isBank,
+      isActive: nominalCodes.isActive
     })
     .from(nominalCodes)
     .where(
       and(
         eq(nominalCodes.parishCouncilId, parishCouncilId),
-        eq(nominalCodes.financialYearId, financialYear.id),
-        eq(nominalCodes.isActive, true)
+        eq(nominalCodes.financialYearId, financialYear.id)
       )
     )
-    .orderBy(nominalCodes.code)
+    .orderBy(asc(nominalCodes.code))
 
   return (
-    <main className='mx-auto max-w-5xl px-6 py-8'>
+    <main className='mx-auto max-w-7xl px-6 py-8'>
       <div className='mb-8'>
-        <h1 className='text-2xl font-semibold tracking-tight'>
-          New manual journal
-        </h1>
+        <h1 className='text-2xl font-semibold tracking-tight'>Nominal codes</h1>
         <p className='mt-1 text-sm text-zinc-600'>
-          Enter a balanced journal for corrections, adjustments, or transfers.
+          Add new nominal codes and maintain the chart of accounts.
         </p>
         <p className='mt-2 text-sm text-zinc-500'>
           Financial year:{' '}
@@ -76,10 +70,7 @@ export default async function NewManualJournalPage() {
         </p>
       </div>
 
-      <ManualJournalForm
-        nominalCodes={codes}
-        financialYearId={financialYear.id}
-      />
+      <NominalCodesSettings financialYearId={financialYear.id} codes={codes} />
     </main>
   )
 }

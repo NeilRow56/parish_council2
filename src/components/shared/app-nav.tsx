@@ -149,6 +149,24 @@ export default function AppNav() {
                 }
               ]}
             />
+            <NavDropdown
+              label='Settings'
+              active={pathname.startsWith('/settings')}
+              items={[
+                {
+                  href: '/settings/nominal-codes',
+                  label: 'Nominal codes'
+                }
+                // {
+                //   href: '/settings/income-expenditure',
+                //   label: 'Income & Expenditure'
+                // },
+                // {
+                //   href: '/settings/bank-reconciliation',
+                //   label: 'Bank Reconciliation'
+                // }
+              ]}
+            />
           </nav>
         </div>
 

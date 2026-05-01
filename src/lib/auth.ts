@@ -16,8 +16,8 @@ export const auth = betterAuth({
 
   // ── Session ───────────────────────────────────────────────────────────────
   session: {
-    // 8-hour working-day session
-    expiresIn: 60 * 60 * 8,
+    // 18-hour working-day session
+    expiresIn: 60 * 60 * 18,
 
     // Refresh session once per hour while active
     updateAge: 60 * 60

@@ -78,6 +78,8 @@ export const nominalCodes = pgTable(
     category: text('category'),
 
     isBank: boolean('is_bank').default(false).notNull(),
+    isVatRecoverable: boolean('is_vat_recoverable').default(false).notNull(),
+
     isActive: boolean('is_active').default(true).notNull()
   },
   t => ({
@@ -86,14 +88,22 @@ export const nominalCodes = pgTable(
       t.financialYearId,
       t.code
     ),
+
     parishYearIdx: index('nominal_code_parish_year_idx').on(
       t.parishCouncilId,
       t.financialYearId
     ),
+
     bankIdx: index('nominal_code_bank_idx').on(
       t.parishCouncilId,
       t.financialYearId,
       t.isBank
+    ),
+
+    vatRecoverableIdx: index('nominal_code_vat_recoverable_idx').on(
+      t.parishCouncilId,
+      t.financialYearId,
+      t.isVatRecoverable
     )
   })
 )
@@ -245,6 +255,7 @@ export const matchingRules = pgTable(
       t.parishCouncilId,
       t.name
     ),
+
     parishIdx: index('matching_rule_parish_idx').on(t.parishCouncilId)
   })
 )

@@ -22,6 +22,19 @@ export const txStatusEnum = pgEnum('tx_status', [
   'EXCLUDED'
 ])
 
+export const vatRateEnum = pgEnum('vat_rate', [
+  'NO_VAT',
+  'ZERO',
+  'STANDARD_20',
+  'REDUCED_5'
+])
+
+export const vatTreatmentEnum = pgEnum('vat_treatment', [
+  'RECOVERABLE',
+  'IRRECOVERABLE',
+  'OUTSIDE_SCOPE'
+])
+
 export const bankTransactions = pgTable(
   'bank_transactions',
   {
@@ -52,6 +65,18 @@ export const bankTransactions = pgTable(
 
     nominalCodeId: text('nominal_code_id').references(() => nominalCodes.id),
     matchingRule: text('matching_rule'),
+
+    vatRate: vatRateEnum('vat_rate').default('NO_VAT').notNull(),
+
+    vatTreatment: vatTreatmentEnum('vat_treatment')
+      .default('OUTSIDE_SCOPE')
+      .notNull(),
+
+    netAmount: decimal('net_amount', { precision: 12, scale: 2 }),
+
+    vatAmount: decimal('vat_amount', { precision: 12, scale: 2 }),
+
+    grossAmount: decimal('gross_amount', { precision: 12, scale: 2 }),
 
     notes: text('notes'),
 

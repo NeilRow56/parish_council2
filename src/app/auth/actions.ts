@@ -167,5 +167,5 @@ export async function completeCouncilOnboardingAction(formData: FormData) {
     redirect('/transactions/inbox')
   }
 
-  redirect('/onboarding/council-details')
+  redirect('/onboarding/council-details?saved=1')
 }

@@ -1,30 +1,45 @@
-// src/app/auth/login/LoginForm.tsx
-
 'use client'
 
 import { useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { signIn } from '@/lib/auth-client'
-import { BackButton } from '@/components/shared/back-button'
 import { ArrowBigRight } from 'lucide-react'
 
-export default function LoginForm() {
+import { signIn } from '@/lib/auth-client'
+import { BackButton } from '@/components/shared/back-button'
+
+type Props = {
+  next?: string
+  error?: string
+}
+
+export default function LoginForm({ next, error: initialError }: Props) {
   const router = useRouter()
   const searchParams = useSearchParams()
+
   const registered = searchParams.get('registered')
 
-  const [error, setError] = useState<string | null>(null)
+  const safeNext =
+    next && next.startsWith('/') && !next.startsWith('//')
+      ? next
+      : '/transactions/inbox'
+
+  const [error, setError] = useState<string | null>(initialError ?? null)
   const [pending, setPending] = useState(false)
 
-  async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
+  async function handleSubmit(event: SubmitEvent) {
     event.preventDefault()
+
+    const form = event.currentTarget as HTMLFormElement
+
     setError(null)
     setPending(true)
 
-    const formData = new FormData(event.currentTarget)
+    const formData = new FormData(form)
 
     const email = String(formData.get('email') ?? '')
+      .trim()
+      .toLowerCase()
     const password = String(formData.get('password') ?? '')
 
     const result = await signIn.email({
@@ -39,14 +54,14 @@ export default function LoginForm() {
       return
     }
 
-    router.push('/transactions/inbox')
+    router.push(safeNext)
     router.refresh()
   }
 
   return (
     <main className='flex min-h-screen flex-col items-center justify-center bg-zinc-50 px-6'>
       <form
-        onSubmit={handleSubmit}
+        onSubmit={event => handleSubmit(event.nativeEvent as SubmitEvent)}
         className='w-full max-w-md rounded-xl bg-white p-8 shadow-sm'
       >
         <h1 className='text-2xl font-semibold'>Log in</h1>
@@ -57,7 +72,20 @@ export default function LoginForm() {
           </p>
         )}
 
-        {error && (
+        {initialError === 'missing-council' && (
+          <p className='mt-4 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700'>
+            Your account is not linked to a parish council. Please log in again
+            or contact support.
+          </p>
+        )}
+
+        {next && (
+          <p className='mt-4 rounded-md bg-blue-50 px-3 py-2 text-sm text-blue-700'>
+            Your session expired. Please log in to continue.
+          </p>
+        )}
+
+        {error && initialError !== 'missing-council' && (
           <p className='mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700'>
             {error}
           </p>
@@ -96,6 +124,7 @@ export default function LoginForm() {
           </Link>
         </p>
       </form>
+
       <div className='flex items-center p-2'>
         <BackButton title='Back' variant='outline' className='' />
         <ArrowBigRight className='h-4 w-4' />

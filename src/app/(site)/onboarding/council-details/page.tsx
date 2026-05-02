@@ -7,6 +7,7 @@ import { parishCouncils } from '@/db/schema/authSchema'
 import { getCurrentUser } from '@/lib/get-current-user'
 import { completeCouncilOnboardingAction } from '@/app/auth/actions'
 import { CouncilOnboardingForm } from './_components/council-onboarding-form'
+import { redirect } from 'next/navigation'
 
 type CouncilDetailsPageProps = {
   searchParams?: Promise<{
@@ -22,8 +23,12 @@ export default async function CouncilDetailsPage({
 
   const currentUser = await getCurrentUser()
 
-  if (!currentUser?.parishCouncilId) {
-    throw new Error('User is not linked to a parish council.')
+  if (!currentUser) {
+    redirect('/auth/login?next=/onboarding/council-details')
+  }
+
+  if (!currentUser.parishCouncilId) {
+    redirect('/auth/login?error=missing-council')
   }
 
   const [council] = await db

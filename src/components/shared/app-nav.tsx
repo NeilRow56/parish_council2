@@ -167,6 +167,24 @@ export default function AppNav() {
                 // }
               ]}
             />
+            <NavDropdown
+              label='VAT'
+              active={pathname.startsWith('/vat')}
+              items={[
+                {
+                  href: '/vat/returns',
+                  label: 'VAT returns'
+                }
+                // {
+                //   href: '/onboarding/council-details',
+                //   label: 'Parish council details'
+                // }
+                // {
+                //   href: '/settings/bank-reconciliation',
+                //   label: 'Bank Reconciliation'
+                // }
+              ]}
+            />
           </nav>
         </div>
 

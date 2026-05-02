@@ -73,9 +73,7 @@ export const bankTransactions = pgTable(
       .notNull(),
 
     netAmount: decimal('net_amount', { precision: 12, scale: 2 }),
-
     vatAmount: decimal('vat_amount', { precision: 12, scale: 2 }),
-
     grossAmount: decimal('gross_amount', { precision: 12, scale: 2 }),
 
     notes: text('notes'),
@@ -92,21 +90,16 @@ export const bankTransactions = pgTable(
     postedAt: timestamp('posted_at'),
     matchedAt: timestamp('matched_at')
   },
-  t => ({
-    connectionProviderTxUnique: uniqueIndex(
-      'bank_tx_connection_provider_tx_unique'
-    ).on(t.connectionId, t.providerTxId),
-
-    parishStatusIdx: index('bank_tx_parish_status_idx').on(
-      t.parishCouncilId,
-      t.status
+  t => [
+    uniqueIndex('bank_tx_connection_provider_tx_unique').on(
+      t.connectionId,
+      t.providerTxId
     ),
 
-    parishDateIdx: index('bank_tx_parish_date_idx').on(
-      t.parishCouncilId,
-      t.date
-    ),
+    index('bank_tx_parish_status_idx').on(t.parishCouncilId, t.status),
 
-    connectionIdx: index('bank_tx_connection_idx').on(t.connectionId)
-  })
+    index('bank_tx_parish_date_idx').on(t.parishCouncilId, t.date),
+
+    index('bank_tx_connection_idx').on(t.connectionId)
+  ]
 )

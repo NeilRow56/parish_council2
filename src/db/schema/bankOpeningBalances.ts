@@ -48,13 +48,12 @@ export const bankOpeningBalances = pgTable(
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull()
   },
-  table => ({
-    parishIdx: index('bank_opening_balances_parish_idx').on(
-      table.parishCouncilId
-    ),
+  table => [
+    index('bank_opening_balances_parish_idx').on(table.parishCouncilId),
 
-    uniqueConnectionYear: uniqueIndex(
-      'bank_opening_balances_connection_year_unique'
-    ).on(table.connectionId, table.financialYearId)
-  })
+    uniqueIndex('bank_opening_balances_connection_year_unique').on(
+      table.connectionId,
+      table.financialYearId
+    )
+  ]
 )

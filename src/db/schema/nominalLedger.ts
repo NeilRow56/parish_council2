@@ -26,7 +26,8 @@ export const journalSourceEnum = pgEnum('journal_source', [
   'BANK_FEED',
   'MANUAL',
   'YEAR_END',
-  'OPENING_BALANCE'
+  'OPENING_BALANCE',
+  'VAT_RETURN'
 ])
 
 export const financialYears = pgTable(
@@ -47,13 +48,13 @@ export const financialYears = pgTable(
     isClosed: boolean('is_closed').default(false).notNull(),
     closedAt: timestamp('closed_at')
   },
-  t => ({
-    unq: uniqueIndex('financial_year_council_label_idx').on(
+  t => [
+    uniqueIndex('financial_year_council_label_idx').on(
       t.parishCouncilId,
       t.label
     ),
-    parishIdx: index('financial_year_parish_idx').on(t.parishCouncilId)
-  })
+    index('financial_year_parish_idx').on(t.parishCouncilId)
+  ]
 )
 
 export const nominalCodes = pgTable(
@@ -82,30 +83,30 @@ export const nominalCodes = pgTable(
     isVatPayable: boolean('is_vat_payable').default(false).notNull(),
     isActive: boolean('is_active').default(true).notNull()
   },
-  t => ({
-    unq: uniqueIndex('nominal_code_council_year_code_idx').on(
+  t => [
+    uniqueIndex('nominal_code_council_year_code_idx').on(
       t.parishCouncilId,
       t.financialYearId,
       t.code
     ),
 
-    parishYearIdx: index('nominal_code_parish_year_idx').on(
+    index('nominal_code_parish_year_idx').on(
       t.parishCouncilId,
       t.financialYearId
     ),
 
-    bankIdx: index('nominal_code_bank_idx').on(
+    index('nominal_code_bank_idx').on(
       t.parishCouncilId,
       t.financialYearId,
       t.isBank
     ),
 
-    vatRecoverableIdx: index('nominal_code_vat_recoverable_idx').on(
+    index('nominal_code_vat_recoverable_idx').on(
       t.parishCouncilId,
       t.financialYearId,
       t.isVatRecoverable
     )
-  })
+  ]
 )
 
 export const journalEntries = pgTable(
@@ -130,34 +131,32 @@ export const journalEntries = pgTable(
 
     source: journalSourceEnum('source').default('BANK_FEED').notNull(),
 
-    // For BANK_FEED this should store bank_transactions.id.
-    // This helps prevent duplicate posting.
     sourceId: text('source_id'),
 
     postedById: text('posted_by_id'),
 
     createdAt: timestamp('created_at').defaultNow().notNull()
   },
-  t => ({
-    referenceUnq: uniqueIndex('journal_entry_reference_idx').on(
+  t => [
+    uniqueIndex('journal_entry_reference_idx').on(
       t.parishCouncilId,
       t.financialYearId,
       t.reference
     ),
 
-    sourceUnq: uniqueIndex('journal_entry_source_idx').on(
+    uniqueIndex('journal_entry_source_idx').on(
       t.parishCouncilId,
       t.source,
       t.sourceId
     ),
 
-    dateIdx: index('journal_entry_date_idx').on(t.date),
+    index('journal_entry_date_idx').on(t.date),
 
-    parishYearIdx: index('journal_entry_parish_year_idx').on(
+    index('journal_entry_parish_year_idx').on(
       t.parishCouncilId,
       t.financialYearId
     )
-  })
+  ]
 )
 
 export const journalLines = pgTable(
@@ -189,11 +188,11 @@ export const journalLines = pgTable(
 
     description: text('description')
   },
-  t => ({
-    entryIdx: index('journal_line_entry_idx').on(t.journalEntryId),
-    nominalIdx: index('journal_line_nominal_idx').on(t.nominalCodeId),
-    parishIdx: index('journal_line_parish_idx').on(t.parishCouncilId)
-  })
+  t => [
+    index('journal_line_entry_idx').on(t.journalEntryId),
+    index('journal_line_nominal_idx').on(t.nominalCodeId),
+    index('journal_line_parish_idx').on(t.parishCouncilId)
+  ]
 )
 
 export const budgets = pgTable(
@@ -217,13 +216,13 @@ export const budgets = pgTable(
 
     amount: decimal('amount', { precision: 12, scale: 2 }).notNull()
   },
-  t => ({
-    unq: uniqueIndex('budget_council_year_code_idx').on(
+  t => [
+    uniqueIndex('budget_council_year_code_idx').on(
       t.parishCouncilId,
       t.financialYearId,
       t.nominalCodeId
     )
-  })
+  ]
 )
 
 export const matchingRules = pgTable(
@@ -250,12 +249,9 @@ export const matchingRules = pgTable(
 
     createdAt: timestamp('created_at').defaultNow().notNull()
   },
-  t => ({
-    unq: uniqueIndex('matching_rule_council_name_idx').on(
-      t.parishCouncilId,
-      t.name
-    ),
+  t => [
+    uniqueIndex('matching_rule_council_name_idx').on(t.parishCouncilId, t.name),
 
-    parishIdx: index('matching_rule_parish_idx').on(t.parishCouncilId)
-  })
+    index('matching_rule_parish_idx').on(t.parishCouncilId)
+  ]
 )

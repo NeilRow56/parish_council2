@@ -12,6 +12,7 @@ import {
   matchingRules
 } from './nominalLedger'
 import { bankOpeningBalances } from './bankOpeningBalances'
+import { vatReturns } from './vatReturns'
 
 export const parishCouncilsRelations = relations(
   parishCouncils,
@@ -24,7 +25,8 @@ export const parishCouncilsRelations = relations(
     matchingRules: many(matchingRules),
     bankConnections: many(bankConnections),
     bankTransactions: many(bankTransactions),
-    bankOpeningBalances: many(bankOpeningBalances)
+    bankOpeningBalances: many(bankOpeningBalances),
+    vatReturns: many(vatReturns)
   })
 )
 
@@ -93,7 +95,8 @@ export const financialYearsRelations = relations(
     nominalCodes: many(nominalCodes),
     journalEntries: many(journalEntries),
     bankOpeningBalances: many(bankOpeningBalances),
-    budgets: many(budgets)
+    budgets: many(budgets),
+    vatReturns: many(vatReturns)
   })
 )
 
@@ -187,5 +190,17 @@ export const matchingRulesRelations = relations(matchingRules, ({ one }) => ({
   parishCouncil: one(parishCouncils, {
     fields: [matchingRules.parishCouncilId],
     references: [parishCouncils.id]
+  })
+}))
+
+export const vatReturnsRelations = relations(vatReturns, ({ one }) => ({
+  parishCouncil: one(parishCouncils, {
+    fields: [vatReturns.parishCouncilId],
+    references: [parishCouncils.id]
+  }),
+
+  financialYear: one(financialYears, {
+    fields: [vatReturns.financialYearId],
+    references: [financialYears.id]
   })
 }))

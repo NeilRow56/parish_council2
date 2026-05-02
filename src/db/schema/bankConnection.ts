@@ -63,11 +63,12 @@ export const bankConnections = pgTable(
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull()
   },
-  table => ({
-    parishIdx: index('bank_connections_parish_idx').on(table.parishCouncilId),
+  table => [
+    index('bank_connections_parish_idx').on(table.parishCouncilId),
 
-    providerAccountUnique: uniqueIndex(
-      'bank_connections_provider_account_unique'
-    ).on(table.providerName, table.providerAccountId)
-  })
+    uniqueIndex('bank_connections_provider_account_unique').on(
+      table.providerName,
+      table.providerAccountId
+    )
+  ]
 )

@@ -6,6 +6,8 @@ export type DefaultNominal = {
   type: 'INCOME' | 'EXPENDITURE' | 'BALANCE_SHEET'
   category: string
   isBank?: boolean
+  isVatRecoverable?: boolean
+  isVatPayable?: boolean
 }
 
 export const defaultChart: DefaultNominal[] = [
@@ -50,6 +52,20 @@ export const defaultChart: DefaultNominal[] = [
     name: 'VAT / Control Account',
     type: 'BALANCE_SHEET',
     category: 'Control'
+  },
+  {
+    code: '2110',
+    name: 'Input VAT recoverable',
+    type: 'BALANCE_SHEET',
+    category: 'Control',
+    isVatRecoverable: true
+  },
+  {
+    code: '2120',
+    name: 'Output VAT payable',
+    type: 'BALANCE_SHEET',
+    category: 'Control',
+    isVatPayable: true
   },
   {
     code: '2200',

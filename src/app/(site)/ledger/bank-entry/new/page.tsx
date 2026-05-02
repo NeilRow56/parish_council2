@@ -1,3 +1,5 @@
+// src/app/ledger/bank-entry/new/page.tsx
+
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { and, asc, eq, gte, isNotNull, lte } from 'drizzle-orm'
@@ -14,7 +16,7 @@ export default async function NewBankEntryPage() {
   })
 
   if (!session?.user?.parishCouncilId) {
-    redirect('/auth/login')
+    redirect('/auth/login?next=/ledger/bank-entry/new')
   }
 
   const parishCouncilId = session.user.parishCouncilId
@@ -55,11 +57,12 @@ export default async function NewBankEntryPage() {
       and(
         eq(bankConnections.parishCouncilId, parishCouncilId),
         isNotNull(bankConnections.nominalCodeId),
+        eq(nominalCodes.financialYearId, financialYear.id),
         eq(nominalCodes.isBank, true),
         eq(nominalCodes.isActive, true)
       )
     )
-    .orderBy(asc(bankConnections.accountName))
+    .orderBy(asc(nominalCodes.code), asc(bankConnections.accountName))
 
   const analysisCodes = await db
     .select({
@@ -67,7 +70,9 @@ export default async function NewBankEntryPage() {
       code: nominalCodes.code,
       name: nominalCodes.name,
       category: nominalCodes.category,
-      type: nominalCodes.type
+      type: nominalCodes.type,
+      isVatRecoverable: nominalCodes.isVatRecoverable,
+      isVatPayable: nominalCodes.isVatPayable
     })
     .from(nominalCodes)
     .where(
@@ -75,20 +80,22 @@ export default async function NewBankEntryPage() {
         eq(nominalCodes.parishCouncilId, parishCouncilId),
         eq(nominalCodes.financialYearId, financialYear.id),
         eq(nominalCodes.isActive, true),
-        eq(nominalCodes.isBank, false)
+        eq(nominalCodes.isBank, false),
+        eq(nominalCodes.isVatRecoverable, false),
+        eq(nominalCodes.isVatPayable, false)
       )
     )
     .orderBy(asc(nominalCodes.code))
 
   return (
-    <main className='mx-auto max-w-6xl px-6 py-8'>
+    <main className='mx-auto max-w-7xl px-6 py-8'>
       <div className='mb-8'>
         <h1 className='text-2xl font-semibold tracking-tight'>
           New cash/bank entry
         </h1>
         <p className='mt-1 text-sm text-zinc-600'>
-          Enter cash or bank receipts and payments. Bank entries can later be
-          matched to the bank feed.
+          Enter cash or bank receipts and payments. VAT will be split to the
+          relevant VAT control accounts where applicable.
         </p>
         <p className='mt-2 text-sm text-zinc-500'>
           Financial year:{' '}

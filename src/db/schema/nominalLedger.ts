@@ -79,7 +79,7 @@ export const nominalCodes = pgTable(
 
     isBank: boolean('is_bank').default(false).notNull(),
     isVatRecoverable: boolean('is_vat_recoverable').default(false).notNull(),
-
+    isVatPayable: boolean('is_vat_payable').default(false).notNull(),
     isActive: boolean('is_active').default(true).notNull()
   },
   t => ({

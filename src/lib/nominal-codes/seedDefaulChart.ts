@@ -71,6 +71,8 @@ export async function seedDefaultChart({
         type: item.type,
         category: item.category,
         isBank: item.isBank ?? false,
+        isVatRecoverable: item.isVatRecoverable ?? false,
+        isVatPayable: item.isVatPayable ?? false,
         isActive: true
       })
     }

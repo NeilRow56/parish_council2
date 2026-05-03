@@ -1,4 +1,5 @@
 // src/lib/validation/reserves-projects-suppliers.ts
+
 import { z } from 'zod'
 
 const optionalId = z
@@ -11,10 +12,24 @@ const optionalId = z
     return value
   })
 
+const requiredId = z.string().trim().min(1, 'Reserve is required.')
+
 const checkboxBoolean = z
   .union([z.literal('on'), z.literal('true'), z.literal(true)])
   .optional()
   .transform(value => Boolean(value))
+
+const nullableText = (max: number, message: string) =>
+  z
+    .string()
+    .trim()
+    .max(max, message)
+    .optional()
+    .nullable()
+    .transform(value => {
+      if (!value) return null
+      return value
+    })
 
 export const createReserveSchema = z.object({
   code: z
@@ -50,18 +65,9 @@ export const createProjectSchema = z.object({
     .min(1, 'Project name is required.')
     .max(120, 'Project name must be 120 characters or fewer.'),
 
-  reserveId: optionalId,
+  reserveId: requiredId,
 
-  description: z
-    .string()
-    .trim()
-    .max(500, 'Description must be 500 characters or fewer.')
-    .optional()
-    .nullable()
-    .transform(value => {
-      if (!value) return null
-      return value
-    })
+  description: nullableText(500, 'Description must be 500 characters or fewer.')
 })
 
 export const updateProjectSchema = createProjectSchema.extend({
@@ -76,27 +82,12 @@ export const createSupplierSchema = z.object({
     .min(1, 'Supplier name is required.')
     .max(160, 'Supplier name must be 160 characters or fewer.'),
 
-  vatNumber: z
-    .string()
-    .trim()
-    .max(20, 'VAT number must be 20 characters or fewer.')
-    .optional()
-    .nullable()
-    .transform(value => {
-      if (!value) return null
-      return value
-    }),
+  vatNumber: nullableText(20, 'VAT number must be 20 characters or fewer.'),
 
-  defaultGoodsSupplied: z
-    .string()
-    .trim()
-    .max(500, 'Default goods supplied must be 500 characters or fewer.')
-    .optional()
-    .nullable()
-    .transform(value => {
-      if (!value) return null
-      return value
-    }),
+  defaultGoodsSupplied: nullableText(
+    500,
+    'Default goods supplied must be 500 characters or fewer.'
+  ),
 
   defaultNominalCodeId: optionalId,
   defaultReserveId: optionalId,

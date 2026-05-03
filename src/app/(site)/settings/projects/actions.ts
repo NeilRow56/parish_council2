@@ -48,7 +48,7 @@ export async function createProjectAction(
       reserveId: data.reserveId,
       code: data.code,
       name: data.name,
-      description: data.description,
+      description: data.description || null,
       isActive: true
     })
   } catch {
@@ -94,7 +94,7 @@ export async function updateProjectAction(
         code: data.code,
         name: data.name,
         reserveId: data.reserveId,
-        description: data.description,
+        description: data.description || null,
         isActive: data.isActive,
         updatedAt: new Date()
       })

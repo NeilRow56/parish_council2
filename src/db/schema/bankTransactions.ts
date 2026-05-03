@@ -13,6 +13,7 @@ import { createId } from '@paralleldrive/cuid2'
 import { bankConnections } from './bankConnection'
 import { journalEntries, nominalCodes } from './nominalLedger'
 import { parishCouncils } from './authSchema'
+import { projects, reserves, suppliers } from './reservesProjectsSuppliers'
 
 export const txStatusEnum = pgEnum('tx_status', [
   'PENDING',
@@ -56,6 +57,20 @@ export const bankTransactions = pgTable(
     description: text('description').notNull(),
     amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
     currency: text('currency').default('GBP').notNull(),
+
+    supplierId: text('supplier_id').references(() => suppliers.id),
+    reserveId: text('reserve_id')
+      .notNull()
+      .references(() => reserves.id),
+    projectId: text('project_id').references(() => projects.id),
+
+    invoiceReference: text('invoice_reference'),
+    goodsSupplied: text('goods_supplied'),
+    supplierVatNumberSnapshot: text('supplier_vat_number_snapshot'),
+
+    attachmentUrl: text('attachment_url'),
+    attachmentName: text('attachment_name'),
+    attachmentKey: text('attachment_key'),
 
     merchantName: text('merchant_name'),
     category: text('category'),

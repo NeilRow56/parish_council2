@@ -14,6 +14,7 @@ import {
   journalLines,
   nominalCodes
 } from '@/db/schema/nominalLedger'
+import { projects, reserves, suppliers } from '@/db/schema'
 
 type BankEntryType = 'PAYMENT' | 'RECEIPT'
 type VatRate = 'NO_VAT' | 'STANDARD_20' | 'REDUCED_5'
@@ -22,6 +23,12 @@ type VatTreatment = 'RECOVERABLE' | 'IRRECOVERABLE' | 'OUTPUT' | 'OUTSIDE_SCOPE'
 
 type BankEntryLineInput = {
   nominalCodeId: string
+  supplierId?: string
+  reserveId?: string
+  projectId?: string
+  invoiceReference?: string
+  goodsSupplied?: string
+  supplierVatNumberSnapshot?: string
   description: string
   amount: string
   vatRate?: VatRate
@@ -99,12 +106,19 @@ function normaliseVatTreatment(
   return entryType === 'PAYMENT' ? 'RECOVERABLE' : 'OUTSIDE_SCOPE'
 }
 
+function uniqueStrings(values: string[]) {
+  return Array.from(new Set(values))
+}
+
 export async function createBankEntryAction(input: {
   financialYearId: string
   date: string
   bankConnectionId: string
   entryType: BankEntryType
   reference: string
+  attachmentUrl?: string
+  attachmentName?: string
+  attachmentKey?: string
   lines: BankEntryLineInput[]
 }) {
   const session = await auth.api.getSession({
@@ -147,16 +161,43 @@ export async function createBankEntryAction(input: {
     )
   }
 
+  const [defaultReserve] = await db
+    .select({ id: reserves.id })
+    .from(reserves)
+    .where(
+      and(
+        eq(reserves.parishCouncilId, parishCouncilId),
+        eq(reserves.isDefault, true),
+        eq(reserves.isActive, true)
+      )
+    )
+    .limit(1)
+
+  if (!defaultReserve) {
+    throw new Error('No active default reserve has been configured.')
+  }
+
   const bankNominalCodeId = bankAccount.nominalCodeId
 
   const enteredLines = input.lines.filter(
-    line => line.nominalCodeId || line.description.trim() || line.amount.trim()
+    line =>
+      line.nominalCodeId ||
+      line.description.trim() ||
+      line.amount.trim() ||
+      line.supplierId ||
+      line.reserveId ||
+      line.projectId ||
+      line.invoiceReference?.trim() ||
+      line.goodsSupplied?.trim() ||
+      line.supplierVatNumberSnapshot?.trim()
   )
 
   const cleanedLines = enteredLines.map(line => {
     if (!line.nominalCodeId) {
       throw new Error('Each entered line must have a nominal code.')
     }
+
+    const reserveId = line.reserveId || defaultReserve.id
 
     const grossPence = parsePositiveAmountToPence(line.amount)
     const vatRate = normaliseVatRate(line.vatRate)
@@ -196,6 +237,12 @@ export async function createBankEntryAction(input: {
 
     return {
       nominalCodeId: line.nominalCodeId,
+      supplierId: line.supplierId || null,
+      reserveId,
+      projectId: line.projectId || null,
+      invoiceReference: line.invoiceReference?.trim() || null,
+      goodsSupplied: line.goodsSupplied?.trim() || null,
+      supplierVatNumberSnapshot: line.supplierVatNumberSnapshot?.trim() || null,
       description: line.description.trim(),
       grossPence,
       netPence,
@@ -219,7 +266,7 @@ export async function createBankEntryAction(input: {
         eq(nominalCodes.isActive, true),
         inArray(
           nominalCodes.id,
-          cleanedLines.map(line => line.nominalCodeId)
+          uniqueStrings(cleanedLines.map(line => line.nominalCodeId))
         )
       )
     )
@@ -229,6 +276,89 @@ export async function createBankEntryAction(input: {
   for (const line of cleanedLines) {
     if (!validCodeIds.has(line.nominalCodeId)) {
       throw new Error('Invalid nominal code selected.')
+    }
+  }
+
+  const supplierIds = uniqueStrings(
+    cleanedLines
+      .map(line => line.supplierId)
+      .filter((id): id is string => Boolean(id))
+  )
+
+  const reserveIds = uniqueStrings(cleanedLines.map(line => line.reserveId))
+
+  const projectIds = uniqueStrings(
+    cleanedLines
+      .map(line => line.projectId)
+      .filter((id): id is string => Boolean(id))
+  )
+
+  const validSuppliers = supplierIds.length
+    ? await db
+        .select({ id: suppliers.id })
+        .from(suppliers)
+        .where(
+          and(
+            eq(suppliers.parishCouncilId, parishCouncilId),
+            inArray(suppliers.id, supplierIds)
+          )
+        )
+    : []
+
+  const validReserves = await db
+    .select({ id: reserves.id })
+    .from(reserves)
+    .where(
+      and(
+        eq(reserves.parishCouncilId, parishCouncilId),
+        eq(reserves.isActive, true),
+        inArray(reserves.id, reserveIds)
+      )
+    )
+
+  const validProjects = projectIds.length
+    ? await db
+        .select({
+          id: projects.id,
+          reserveId: projects.reserveId
+        })
+        .from(projects)
+        .where(
+          and(
+            eq(projects.parishCouncilId, parishCouncilId),
+            eq(projects.isActive, true),
+            inArray(projects.id, projectIds)
+          )
+        )
+    : []
+
+  const validSupplierIds = new Set(validSuppliers.map(supplier => supplier.id))
+  const validReserveIds = new Set(validReserves.map(reserve => reserve.id))
+  const validProjectById = new Map(
+    validProjects.map(project => [project.id, project])
+  )
+
+  for (const line of cleanedLines) {
+    if (line.supplierId && !validSupplierIds.has(line.supplierId)) {
+      throw new Error('Invalid supplier selected.')
+    }
+
+    if (!validReserveIds.has(line.reserveId)) {
+      throw new Error('Invalid reserve selected.')
+    }
+
+    if (line.projectId) {
+      const project = validProjectById.get(line.projectId)
+
+      if (!project) {
+        throw new Error('Invalid project selected.')
+      }
+
+      if (project.reserveId !== line.reserveId) {
+        throw new Error(
+          'Selected project does not belong to the selected reserve.'
+        )
+      }
     }
   }
 
@@ -323,7 +453,10 @@ export async function createBankEntryAction(input: {
           date: input.date,
           description,
           source: 'MANUAL',
-          postedById: userId
+          postedById: userId,
+          attachmentUrl: input.attachmentUrl || null,
+          attachmentName: input.attachmentName || null,
+          attachmentKey: input.attachmentKey || null
         })
         .returning()
 
@@ -336,6 +469,12 @@ export async function createBankEntryAction(input: {
             parishCouncilId,
             journalEntryId: entry.id,
             nominalCodeId: line.nominalCodeId,
+            supplierId: line.supplierId,
+            reserveId: line.reserveId,
+            projectId: line.projectId,
+            invoiceReference: line.invoiceReference,
+            goodsSupplied: line.goodsSupplied,
+            supplierVatNumberSnapshot: line.supplierVatNumberSnapshot,
             debit: formatPence(
               shouldPostRecoverableVat ? line.netPence : line.grossPence
             ),
@@ -355,6 +494,7 @@ export async function createBankEntryAction(input: {
             parishCouncilId,
             journalEntryId: entry.id,
             nominalCodeId: inputVatNominalCodeId,
+            reserveId: line.reserveId,
             debit: formatPence(line.vatPence),
             credit: '0.00',
             description: `Recoverable VAT - ${description}`
@@ -365,6 +505,7 @@ export async function createBankEntryAction(input: {
           parishCouncilId,
           journalEntryId: entry.id,
           nominalCodeId: bankNominalCodeId,
+          reserveId: line.reserveId,
           debit: '0.00',
           credit: formatPence(line.grossPence),
           description
@@ -380,6 +521,7 @@ export async function createBankEntryAction(input: {
             parishCouncilId,
             journalEntryId: entry.id,
             nominalCodeId: bankNominalCodeId,
+            reserveId: line.reserveId,
             debit: formatPence(line.grossPence),
             credit: '0.00',
             description
@@ -388,6 +530,12 @@ export async function createBankEntryAction(input: {
             parishCouncilId,
             journalEntryId: entry.id,
             nominalCodeId: line.nominalCodeId,
+            supplierId: line.supplierId,
+            reserveId: line.reserveId,
+            projectId: line.projectId,
+            invoiceReference: line.invoiceReference,
+            goodsSupplied: line.goodsSupplied,
+            supplierVatNumberSnapshot: line.supplierVatNumberSnapshot,
             debit: '0.00',
             credit: formatPence(
               shouldPostOutputVat ? line.netPence : line.grossPence
@@ -407,6 +555,7 @@ export async function createBankEntryAction(input: {
             parishCouncilId,
             journalEntryId: entry.id,
             nominalCodeId: outputVatNominalCodeId,
+            reserveId: line.reserveId,
             debit: '0.00',
             credit: formatPence(line.vatPence),
             description: `Output VAT - ${description}`

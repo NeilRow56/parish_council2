@@ -1,14 +1,15 @@
 // src/app/ledger/journals/[id]/actions.ts
+
 'use server'
 
 import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
+import { redirect } from 'next/navigation'
 import { and, eq } from 'drizzle-orm'
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
 import { journalEntries, journalLines } from '@/db/schema/nominalLedger'
-import { redirect } from 'next/navigation'
 
 export async function updateJournalDescriptionsAction(input: {
   journalEntryId: string
@@ -122,7 +123,10 @@ export async function reverseJournalAction(journalEntryId: string) {
         description: `Reversal of ${originalJournal.reference}`,
         source: 'MANUAL',
         sourceId: originalJournal.id,
-        postedById: userId
+        postedById: userId,
+        attachmentUrl: originalJournal.attachmentUrl,
+        attachmentName: originalJournal.attachmentName,
+        attachmentKey: originalJournal.attachmentKey
       })
       .returning()
 
@@ -133,6 +137,12 @@ export async function reverseJournalAction(journalEntryId: string) {
         parishCouncilId,
         journalEntryId: reversalEntry.id,
         nominalCodeId: line.nominalCodeId,
+        supplierId: line.supplierId,
+        reserveId: line.reserveId,
+        projectId: line.projectId,
+        invoiceReference: line.invoiceReference,
+        goodsSupplied: line.goodsSupplied,
+        supplierVatNumberSnapshot: line.supplierVatNumberSnapshot,
         debit: line.credit,
         credit: line.debit,
         description: `Reversal of ${originalJournal.reference}`

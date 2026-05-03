@@ -1,7 +1,8 @@
 // src/app/(app)/settings/projects/_components/project-row-form.tsx
+
 'use client'
 
-import { useActionState, useEffect } from 'react'
+import { useActionState, useEffect, useMemo } from 'react'
 import { toast } from 'sonner'
 
 import { projects } from '@/db/schema'
@@ -16,6 +17,7 @@ type ProjectRow = typeof projects.$inferSelect
 type Option = {
   id: string
   label: string
+  isDefault?: boolean
 }
 
 type Props = {
@@ -31,11 +33,24 @@ export function ProjectRowForm({ project, reserveOptions }: Props) {
     initialState
   )
 
+  const defaultReserveId = useMemo(() => {
+    return (
+      project.reserveId ??
+      reserveOptions.find(option => option.isDefault)?.id ??
+      reserveOptions[0]?.id ??
+      ''
+    )
+  }, [project.reserveId, reserveOptions])
+
   useEffect(() => {
     if (state.success) {
       toast.success(state.success)
     }
-  }, [state.success])
+
+    if (state.error) {
+      toast.error(state.error)
+    }
+  }, [state.success, state.error])
 
   return (
     <form action={formAction} className='px-4 py-3'>
@@ -62,10 +77,10 @@ export function ProjectRowForm({ project, reserveOptions }: Props) {
 
         <select
           name='reserveId'
-          defaultValue={project.reserveId ?? ''}
-          className='rounded-md border px-3 py-2 text-sm'
+          defaultValue={defaultReserveId}
+          disabled={reserveOptions.length === 0}
+          className='rounded-md border px-3 py-2 text-sm disabled:bg-zinc-50 disabled:text-zinc-500'
         >
-          <option value=''>No reserve</option>
           {reserveOptions.map(option => (
             <option key={option.id} value={option.id}>
               {option.label}
@@ -85,7 +100,7 @@ export function ProjectRowForm({ project, reserveOptions }: Props) {
         <div className='flex justify-end gap-2'>
           <button
             type='submit'
-            disabled={isPending}
+            disabled={isPending || reserveOptions.length === 0}
             className='rounded-md border px-3 py-2 text-sm disabled:opacity-50'
           >
             {isPending ? 'Saving...' : 'Save changes'}

@@ -11,9 +11,11 @@ import {
   journalLines,
   nominalCodes
 } from '@/db/schema/nominalLedger'
+import { reserves } from '@/db/schema'
 
 type JournalLineInput = {
   nominalCodeId: string
+  reserveId?: string
   description: string
   debit: string
   credit: string
@@ -43,9 +45,26 @@ export async function createManualJournalAction(input: {
     throw new Error('Date and description are required.')
   }
 
+  const [defaultReserve] = await db
+    .select({ id: reserves.id })
+    .from(reserves)
+    .where(
+      and(
+        eq(reserves.parishCouncilId, parishCouncilId),
+        eq(reserves.isDefault, true),
+        eq(reserves.isActive, true)
+      )
+    )
+    .limit(1)
+
+  if (!defaultReserve) {
+    throw new Error('No active default reserve has been configured.')
+  }
+
   const cleanedLines = input.lines
     .map(line => ({
       nominalCodeId: line.nominalCodeId,
+      reserveId: line.reserveId || defaultReserve.id,
       description: line.description.trim(),
       debit: Number(line.debit.replace(/,/g, '') || 0),
       credit: Number(line.credit.replace(/,/g, '') || 0)
@@ -73,8 +92,6 @@ export async function createManualJournalAction(input: {
     throw new Error('Journal does not balance.')
   }
 
-  const codeIds = cleanedLines.map(line => line.nominalCodeId)
-
   const validCodes = await db
     .select({ id: nominalCodes.id })
     .from(nominalCodes)
@@ -88,9 +105,27 @@ export async function createManualJournalAction(input: {
 
   const validCodeIds = new Set(validCodes.map(code => code.id))
 
-  for (const codeId of codeIds) {
-    if (!validCodeIds.has(codeId)) {
+  for (const line of cleanedLines) {
+    if (!validCodeIds.has(line.nominalCodeId)) {
       throw new Error('Invalid nominal code selected.')
+    }
+  }
+
+  const validReserves = await db
+    .select({ id: reserves.id })
+    .from(reserves)
+    .where(
+      and(
+        eq(reserves.parishCouncilId, parishCouncilId),
+        eq(reserves.isActive, true)
+      )
+    )
+
+  const validReserveIds = new Set(validReserves.map(reserve => reserve.id))
+
+  for (const line of cleanedLines) {
+    if (!validReserveIds.has(line.reserveId)) {
+      throw new Error('Invalid reserve selected.')
     }
   }
 
@@ -115,6 +150,7 @@ export async function createManualJournalAction(input: {
         parishCouncilId,
         journalEntryId: entry.id,
         nominalCodeId: line.nominalCodeId,
+        reserveId: line.reserveId,
         debit: line.debit.toFixed(2),
         credit: line.credit.toFixed(2),
         description: line.description || description

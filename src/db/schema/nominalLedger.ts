@@ -13,6 +13,7 @@ import {
 
 import { createId } from '@paralleldrive/cuid2'
 import { parishCouncils } from './authSchema'
+import { projects, reserves, suppliers } from './reservesProjectsSuppliers'
 
 export const userRoleEnum = pgEnum('user_role', ['CLERK', 'RFO', 'COUNCILLOR'])
 
@@ -135,6 +136,10 @@ export const journalEntries = pgTable(
 
     postedById: text('posted_by_id'),
 
+    attachmentUrl: text('attachment_url'),
+    attachmentName: text('attachment_name'),
+    attachmentKey: text('attachment_key'),
+
     createdAt: timestamp('created_at').defaultNow().notNull()
   },
   t => [
@@ -178,6 +183,20 @@ export const journalLines = pgTable(
       .notNull()
       .references(() => nominalCodes.id),
 
+    supplierId: text('supplier_id').references(() => suppliers.id),
+
+    reserveId: text('reserve_id')
+      .notNull()
+      .references(() => reserves.id),
+
+    projectId: text('project_id').references(() => projects.id),
+
+    invoiceReference: text('invoice_reference'),
+
+    goodsSupplied: text('goods_supplied'),
+
+    supplierVatNumberSnapshot: text('supplier_vat_number_snapshot'),
+
     debit: decimal('debit', { precision: 12, scale: 2 })
       .default('0.00')
       .notNull(),
@@ -191,7 +210,10 @@ export const journalLines = pgTable(
   t => [
     index('journal_line_entry_idx').on(t.journalEntryId),
     index('journal_line_nominal_idx').on(t.nominalCodeId),
-    index('journal_line_parish_idx').on(t.parishCouncilId)
+    index('journal_line_parish_idx').on(t.parishCouncilId),
+    index('journal_line_supplier_idx').on(t.supplierId),
+    index('journal_line_reserve_idx').on(t.reserveId),
+    index('journal_line_project_idx').on(t.projectId)
   ]
 )
 

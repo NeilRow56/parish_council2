@@ -50,9 +50,9 @@ export const projects = pgTable(
       .notNull()
       .references(() => parishCouncils.id, { onDelete: 'cascade' }),
 
-    reserveId: text('reserve_id').references(() => reserves.id, {
-      onDelete: 'set null'
-    }),
+    reserveId: text('reserve_id')
+      .notNull()
+      .references(() => reserves.id),
 
     code: text('code').notNull(),
     name: text('name').notNull(),

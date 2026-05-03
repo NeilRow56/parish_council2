@@ -13,6 +13,7 @@ import {
 } from './nominalLedger'
 import { bankOpeningBalances } from './bankOpeningBalances'
 import { vatReturns } from './vatReturns'
+import { reserves, projects, suppliers } from './reservesProjectsSuppliers'
 
 export const parishCouncilsRelations = relations(
   parishCouncils,
@@ -26,7 +27,10 @@ export const parishCouncilsRelations = relations(
     bankConnections: many(bankConnections),
     bankTransactions: many(bankTransactions),
     bankOpeningBalances: many(bankOpeningBalances),
-    vatReturns: many(vatReturns)
+    vatReturns: many(vatReturns),
+    reserves: many(reserves),
+    projects: many(projects),
+    suppliers: many(suppliers)
   })
 )
 
@@ -115,7 +119,8 @@ export const nominalCodesRelations = relations(
     bankTransactions: many(bankTransactions),
     bankConnections: many(bankConnections),
     bankOpeningBalances: many(bankOpeningBalances),
-    budgets: many(budgets)
+    budgets: many(budgets),
+    defaultSuppliers: many(suppliers)
   })
 )
 
@@ -202,5 +207,51 @@ export const vatReturnsRelations = relations(vatReturns, ({ one }) => ({
   financialYear: one(financialYears, {
     fields: [vatReturns.financialYearId],
     references: [financialYears.id]
+  })
+}))
+
+export const reservesRelations = relations(reserves, ({ one, many }) => ({
+  parishCouncil: one(parishCouncils, {
+    fields: [reserves.parishCouncilId],
+    references: [parishCouncils.id]
+  }),
+
+  projects: many(projects),
+  defaultSuppliers: many(suppliers)
+}))
+
+export const projectsRelations = relations(projects, ({ one, many }) => ({
+  parishCouncil: one(parishCouncils, {
+    fields: [projects.parishCouncilId],
+    references: [parishCouncils.id]
+  }),
+
+  reserve: one(reserves, {
+    fields: [projects.reserveId],
+    references: [reserves.id]
+  }),
+
+  defaultSuppliers: many(suppliers)
+}))
+
+export const suppliersRelations = relations(suppliers, ({ one }) => ({
+  parishCouncil: one(parishCouncils, {
+    fields: [suppliers.parishCouncilId],
+    references: [parishCouncils.id]
+  }),
+
+  defaultNominalCode: one(nominalCodes, {
+    fields: [suppliers.defaultNominalCodeId],
+    references: [nominalCodes.id]
+  }),
+
+  defaultReserve: one(reserves, {
+    fields: [suppliers.defaultReserveId],
+    references: [reserves.id]
+  }),
+
+  defaultProject: one(projects, {
+    fields: [suppliers.defaultProjectId],
+    references: [projects.id]
   })
 }))

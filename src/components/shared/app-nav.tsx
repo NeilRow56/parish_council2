@@ -160,11 +160,19 @@ export default function AppNav() {
                 {
                   href: '/onboarding/council-details',
                   label: 'Parish council details'
+                },
+                {
+                  href: '/settings/projects',
+                  label: 'Projects'
+                },
+                {
+                  href: '/settings/reserves',
+                  label: 'Reserves'
+                },
+                {
+                  href: '/settings/suppliers',
+                  label: 'Suppliers'
                 }
-                // {
-                //   href: '/settings/bank-reconciliation',
-                //   label: 'Bank Reconciliation'
-                // }
               ]}
             />
             <NavDropdown

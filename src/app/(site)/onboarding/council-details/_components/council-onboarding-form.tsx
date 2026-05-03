@@ -86,7 +86,9 @@ export function CouncilOnboardingForm({
   const [canRecoverVat, setCanRecoverVat] = useState(
     initialValues.canRecoverVat
   )
+
   const isSubmittingRef = useRef(false)
+
   const [vatStatus, setVatStatus] = useState<VatStatus>(
     initialValues.vatStatus === 'REGISTERED' ? 'REGISTERED' : 'NOT_REGISTERED'
   )
@@ -141,6 +143,7 @@ export function CouncilOnboardingForm({
               id='name'
               name='name'
               required
+              autoComplete='organization'
               defaultValue={initialValues.name}
             />
           </div>
@@ -152,6 +155,7 @@ export function CouncilOnboardingForm({
                 id='addressLine1'
                 name='addressLine1'
                 placeholder='100 High Street'
+                autoComplete='address-line1'
                 defaultValue={initialValues.addressLine1 ?? ''}
               />
             </div>
@@ -161,6 +165,7 @@ export function CouncilOnboardingForm({
               <Input
                 id='addressLine2'
                 name='addressLine2'
+                autoComplete='address-line2'
                 defaultValue={initialValues.addressLine2 ?? ''}
               />
             </div>
@@ -170,6 +175,7 @@ export function CouncilOnboardingForm({
               <Input
                 id='town'
                 name='town'
+                autoComplete='address-level2'
                 defaultValue={initialValues.town ?? ''}
               />
             </div>
@@ -179,6 +185,7 @@ export function CouncilOnboardingForm({
               <Input
                 id='county'
                 name='county'
+                autoComplete='address-level1'
                 defaultValue={initialValues.county ?? ''}
               />
             </div>
@@ -189,6 +196,7 @@ export function CouncilOnboardingForm({
                 id='postcode'
                 name='postcode'
                 placeholder='LT10 7TO'
+                autoComplete='postal-code'
                 defaultValue={initialValues.postcode ?? ''}
               />
             </div>
@@ -198,6 +206,8 @@ export function CouncilOnboardingForm({
               <Input
                 id='telephone'
                 name='telephone'
+                type='tel'
+                autoComplete='tel'
                 defaultValue={initialValues.telephone ?? ''}
               />
             </div>
@@ -208,6 +218,7 @@ export function CouncilOnboardingForm({
                 id='email'
                 name='email'
                 type='email'
+                autoComplete='email'
                 defaultValue={initialValues.email ?? ''}
               />
             </div>
@@ -217,7 +228,9 @@ export function CouncilOnboardingForm({
               <Input
                 id='website'
                 name='website'
+                type='url'
                 placeholder='https://example.gov.uk'
+                autoComplete='url'
                 defaultValue={initialValues.website ?? ''}
               />
             </div>
@@ -295,6 +308,7 @@ export function CouncilOnboardingForm({
                   <Input
                     id='vatRegistrationNumber'
                     name='vatRegistrationNumber'
+                    autoComplete='off'
                     defaultValue={initialValues.vatRegistrationNumber ?? ''}
                     required
                   />

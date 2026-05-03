@@ -11,6 +11,7 @@ import { auth } from '@/lib/auth'
 import { parishCouncils, user } from '@/db/schema/authSchema'
 import { getCurrentUser } from '@/lib/get-current-user'
 import { councilOnboardingSchema } from '@/lib/validation/council-onboarding'
+import { ensureDefaultReserve } from '@/lib/reserves/ensure-default-reserves'
 
 type VatStatus = 'NOT_REGISTERED' | 'REGISTERED'
 
@@ -18,14 +19,16 @@ function normaliseVatClaimMethod(vatStatus: VatStatus) {
   return vatStatus === 'REGISTERED' ? 'VAT_RETURN' : 'VAT126'
 }
 
-function requireCouncilUser(user: Awaited<ReturnType<typeof getCurrentUser>>) {
-  if (!user) throw new Error('Not authenticated.')
+function requireCouncilUser(
+  currentUser: Awaited<ReturnType<typeof getCurrentUser>>
+) {
+  if (!currentUser) throw new Error('Not authenticated.')
 
-  if (!user.parishCouncilId) {
+  if (!currentUser.parishCouncilId) {
     throw new Error('User is not linked to a parish council.')
   }
 
-  return user as typeof user & { parishCouncilId: string }
+  return currentUser as typeof currentUser & { parishCouncilId: string }
 }
 
 export async function registerAction(formData: FormData) {
@@ -79,6 +82,8 @@ export async function registerAction(formData: FormData) {
     vatClaimMethod: 'VAT126'
   })
 
+  await ensureDefaultReserve(parishCouncilId)
+
   await db
     .update(user)
     .set({
@@ -129,7 +134,6 @@ export async function completeCouncilOnboardingAction(formData: FormData) {
   }
 
   const data = parsed.data
-
   const canRecoverVat = data.canRecoverVat === 'on'
 
   const finalVatStatus: VatStatus = canRecoverVat
@@ -163,6 +167,9 @@ export async function completeCouncilOnboardingAction(formData: FormData) {
       updatedAt: new Date()
     })
     .where(eq(parishCouncils.id, currentUser.parishCouncilId))
+
+  await ensureDefaultReserve(currentUser.parishCouncilId)
+
   if (isFirstSetup) {
     redirect('/transactions/inbox')
   }

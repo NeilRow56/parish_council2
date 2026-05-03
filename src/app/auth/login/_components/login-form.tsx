@@ -4,9 +4,24 @@ import { useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowBigRight } from 'lucide-react'
+import { useForm } from 'react-hook-form'
+import { z } from 'zod'
+import { zodResolver } from '@hookform/resolvers/zod'
 
 import { signIn } from '@/lib/auth-client'
 import { BackButton } from '@/components/shared/back-button'
+
+const loginSchema = z.object({
+  email: z
+    .string()
+    .trim()
+    .min(1, 'Email is required.')
+    .check(z.email())
+    .toLowerCase(),
+  password: z.string().min(1, 'Password is required.')
+})
+
+type LoginFormValues = z.infer<typeof loginSchema>
 
 type Props = {
   next?: string
@@ -25,43 +40,49 @@ export default function LoginForm({ next, error: initialError }: Props) {
       : '/transactions/inbox'
 
   const [error, setError] = useState<string | null>(initialError ?? null)
-  const [pending, setPending] = useState(false)
 
-  async function handleSubmit(event: SubmitEvent) {
-    event.preventDefault()
-
-    const form = event.currentTarget as HTMLFormElement
-
-    setError(null)
-    setPending(true)
-
-    const formData = new FormData(form)
-
-    const email = String(formData.get('email') ?? '')
-      .trim()
-      .toLowerCase()
-    const password = String(formData.get('password') ?? '')
-
-    const result = await signIn.email({
-      email,
-      password
-    })
-
-    setPending(false)
-
-    if (result.error) {
-      setError(result.error.message ?? 'Login failed.')
-      return
+  const {
+    register,
+    handleSubmit,
+    formState: { errors, isSubmitting }
+  } = useForm<LoginFormValues>({
+    resolver: zodResolver(loginSchema),
+    defaultValues: {
+      email: '',
+      password: ''
     }
+  })
 
-    router.push(safeNext)
-    router.refresh()
+  async function onSubmit(values: LoginFormValues) {
+    setError(null)
+
+    try {
+      const result = await signIn.email({
+        email: values.email,
+        password: values.password
+      })
+
+      if (result.error) {
+        setError(result.error.message ?? 'Login failed.')
+        return
+      }
+
+      router.push(safeNext)
+      router.refresh()
+    } catch (err) {
+      setError(
+        err instanceof Error
+          ? err.message
+          : 'Something went wrong. Please try again.'
+      )
+    }
   }
 
   return (
     <main className='flex min-h-screen flex-col items-center justify-center bg-zinc-50 px-6'>
       <form
-        onSubmit={event => handleSubmit(event.nativeEvent as SubmitEvent)}
+        onSubmit={handleSubmit(onSubmit)}
+        noValidate
         className='w-full max-w-md rounded-xl bg-white p-8 shadow-sm'
       >
         <h1 className='text-2xl font-semibold'>Log in</h1>
@@ -92,29 +113,43 @@ export default function LoginForm({ next, error: initialError }: Props) {
         )}
 
         <div className='mt-6 space-y-4'>
-          <input
-            name='email'
-            type='email'
-            placeholder='Email'
-            required
-            className='w-full rounded-md border px-3 py-2'
-          />
+          <div>
+            <input
+              {...register('email')}
+              type='email'
+              placeholder='Email'
+              autoComplete='email'
+              className='w-full rounded-md border px-3 py-2'
+            />
+            {errors.email && (
+              <p className='mt-1 text-sm text-red-600'>
+                {errors.email.message}
+              </p>
+            )}
+          </div>
 
-          <input
-            name='password'
-            type='password'
-            placeholder='Password'
-            required
-            className='w-full rounded-md border px-3 py-2'
-          />
+          <div>
+            <input
+              {...register('password')}
+              type='password'
+              placeholder='Password'
+              autoComplete='current-password'
+              className='w-full rounded-md border px-3 py-2'
+            />
+            {errors.password && (
+              <p className='mt-1 text-sm text-red-600'>
+                {errors.password.message}
+              </p>
+            )}
+          </div>
         </div>
 
         <button
           type='submit'
-          disabled={pending}
+          disabled={isSubmitting}
           className='mt-6 w-full rounded-md bg-zinc-950 px-4 py-2 text-white disabled:opacity-50'
         >
-          {pending ? 'Logging in...' : 'Log in'}
+          {isSubmitting ? 'Logging in...' : 'Log in'}
         </button>
 
         <p className='mt-4 text-sm text-zinc-600'>
@@ -126,7 +161,7 @@ export default function LoginForm({ next, error: initialError }: Props) {
       </form>
 
       <div className='flex items-center p-2'>
-        <BackButton title='Back' variant='outline' className='' />
+        <BackButton title='Back' variant='outline' />
         <ArrowBigRight className='h-4 w-4' />
       </div>
     </main>

@@ -2,7 +2,6 @@
 
 'use server'
 
-import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { and, eq, inArray } from 'drizzle-orm'
 
@@ -431,7 +430,8 @@ export async function createBankEntryAction(input: {
       const referencePrefix = input.entryType === 'PAYMENT' ? 'PAY' : 'REC'
 
       const baseReference =
-        input.reference.trim() || `${referencePrefix}-${input.date}-${sequence}`
+        input.reference.trim() ||
+        `${referencePrefix}-${input.date}-${Date.now()}-${sequence}`
 
       const reference =
         cleanedLines.length === 1
@@ -566,6 +566,49 @@ export async function createBankEntryAction(input: {
       }
     }
   })
+  return {
+    success: true
+  }
+}
 
-  redirect('/ledger')
+export async function quickCreateSupplierAction(input: {
+  name: string
+  vatNumber?: string
+  defaultGoodsSupplied?: string
+}) {
+  const session = await auth.api.getSession({
+    headers: await headers()
+  })
+
+  if (!session?.user?.parishCouncilId) {
+    throw new Error('Unauthorised')
+  }
+
+  const parishCouncilId = session.user.parishCouncilId
+  const name = input.name.trim()
+
+  if (!name) {
+    throw new Error('Supplier name is required.')
+  }
+
+  const [supplier] = await db
+    .insert(suppliers)
+    .values({
+      parishCouncilId,
+      name,
+      vatNumber: input.vatNumber?.trim() || null,
+      defaultGoodsSupplied: input.defaultGoodsSupplied?.trim() || null,
+      isActive: true
+    })
+    .returning({
+      id: suppliers.id,
+      name: suppliers.name,
+      vatNumber: suppliers.vatNumber,
+      defaultGoodsSupplied: suppliers.defaultGoodsSupplied,
+      defaultNominalCodeId: suppliers.defaultNominalCodeId,
+      defaultReserveId: suppliers.defaultReserveId,
+      defaultProjectId: suppliers.defaultProjectId
+    })
+
+  return supplier
 }

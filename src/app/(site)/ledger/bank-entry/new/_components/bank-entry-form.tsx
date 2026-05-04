@@ -4,11 +4,10 @@
 
 import { Fragment, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
-import { Plus, Trash2 } from 'lucide-react'
+import { ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react'
+import { createBankEntryAction, quickCreateSupplierAction } from '../actions'
 import { toast } from 'sonner'
 import { z } from 'zod'
-
-import { createBankEntryAction } from '../actions'
 
 type BankEntryType = 'PAYMENT' | 'RECEIPT'
 type VatRate = 'NO_VAT' | 'STANDARD_20' | 'REDUCED_5'
@@ -73,6 +72,7 @@ type BankEntryLine = {
   vatTreatment: VatTreatment
   vatAmount: string
   vatManuallyEdited: boolean
+  showDetails: boolean
 }
 
 const bankEntrySchema = z.object({
@@ -90,10 +90,7 @@ const bankEntrySchema = z.object({
     .min(1, 'At least one line is required.')
 })
 
-function createEmptyLine(
-  entryType: BankEntryType = 'PAYMENT',
-  defaultReserveId = ''
-): BankEntryLine {
+function createEmptyLine(defaultReserveId = ''): BankEntryLine {
   return {
     id: crypto.randomUUID(),
     nominalCodeId: '',
@@ -105,10 +102,11 @@ function createEmptyLine(
     supplierVatNumberSnapshot: '',
     description: '',
     amount: '',
-    vatRate: entryType === 'PAYMENT' ? 'STANDARD_20' : 'NO_VAT',
-    vatTreatment: entryType === 'PAYMENT' ? 'RECOVERABLE' : 'OUTSIDE_SCOPE',
+    vatRate: 'NO_VAT',
+    vatTreatment: 'OUTSIDE_SCOPE',
     vatAmount: '',
-    vatManuallyEdited: false
+    vatManuallyEdited: false,
+    showDetails: false
   }
 }
 
@@ -246,13 +244,25 @@ export function BankEntryForm({
     bankAccounts[0]?.connectionId ?? ''
   )
   const [reference, setReference] = useState('')
-  const [attachmentUrl, setAttachmentUrl] = useState('')
-  const [attachmentName, setAttachmentName] = useState('')
-  const [attachmentKey, setAttachmentKey] = useState('')
+  const [attachmentUrl] = useState('')
+  const [attachmentName] = useState('')
+  const [attachmentKey] = useState('')
+
+  const [supplierOptions, setSupplierOptions] =
+    useState<SupplierOption[]>(suppliers)
+
+  const [quickSupplierLineId, setQuickSupplierLineId] = useState<string | null>(
+    null
+  )
+  const [quickSupplierName, setQuickSupplierName] = useState('')
+  const [quickSupplierVatNumber, setQuickSupplierVatNumber] = useState('')
+  const [quickSupplierGoodsSupplied, setQuickSupplierGoodsSupplied] =
+    useState('')
+  const [isQuickSupplierPending, startQuickSupplierTransition] = useTransition()
 
   const [lines, setLines] = useState<BankEntryLine[]>([
-    createEmptyLine('PAYMENT', fallbackReserveId),
-    createEmptyLine('PAYMENT', fallbackReserveId)
+    createEmptyLine(fallbackReserveId),
+    createEmptyLine(fallbackReserveId)
   ])
 
   const filteredCodes = useMemo(() => {
@@ -291,10 +301,7 @@ export function BankEntryForm({
   }
 
   function addLine() {
-    setLines(current => [
-      ...current,
-      createEmptyLine(entryType, fallbackReserveId)
-    ])
+    setLines(current => [...current, createEmptyLine(fallbackReserveId)])
   }
 
   function removeLine(id: string) {
@@ -307,16 +314,17 @@ export function BankEntryForm({
     setLines(current =>
       current.map(line => ({
         ...line,
-        vatRate: value === 'PAYMENT' ? 'STANDARD_20' : 'NO_VAT',
-        vatTreatment: value === 'PAYMENT' ? 'RECOVERABLE' : 'OUTSIDE_SCOPE',
+        vatRate: 'NO_VAT',
+        vatTreatment: 'OUTSIDE_SCOPE',
         vatAmount: '',
-        vatManuallyEdited: false
+        vatManuallyEdited: false,
+        showDetails: false
       }))
     )
   }
 
   function handleSupplierChange(line: BankEntryLine, supplierId: string) {
-    const supplier = suppliers.find(item => item.id === supplierId)
+    const supplier = supplierOptions.find(item => item.id === supplierId)
 
     if (!supplier) {
       updateLine(line.id, {
@@ -346,7 +354,63 @@ export function BankEntryForm({
         : '',
       goodsSupplied: supplier.defaultGoodsSupplied || line.goodsSupplied,
       supplierVatNumberSnapshot: supplier.vatNumber || '',
-      description: line.description || supplier.name
+      showDetails:
+        line.showDetails ||
+        Boolean(supplier.vatNumber || supplier.defaultGoodsSupplied)
+    })
+  }
+
+  function openQuickSupplierModal(lineId: string) {
+    setQuickSupplierLineId(lineId)
+    setQuickSupplierName('')
+    setQuickSupplierVatNumber('')
+    setQuickSupplierGoodsSupplied('')
+  }
+
+  function closeQuickSupplierModal() {
+    setQuickSupplierLineId(null)
+    setQuickSupplierName('')
+    setQuickSupplierVatNumber('')
+    setQuickSupplierGoodsSupplied('')
+  }
+
+  function handleQuickSupplierSubmit() {
+    const name = quickSupplierName.trim()
+
+    if (!name) {
+      toast.error('Supplier name is required.')
+      return
+    }
+
+    if (!quickSupplierLineId) {
+      toast.error('No bank entry line selected.')
+      return
+    }
+
+    startQuickSupplierTransition(async () => {
+      try {
+        const supplier = await quickCreateSupplierAction({
+          name,
+          vatNumber: quickSupplierVatNumber,
+          defaultGoodsSupplied: quickSupplierGoodsSupplied
+        })
+
+        setSupplierOptions(current => [...current, supplier])
+
+        updateLine(quickSupplierLineId, {
+          supplierId: supplier.id,
+          supplierVatNumberSnapshot: supplier.vatNumber ?? '',
+          goodsSupplied: supplier.defaultGoodsSupplied ?? '',
+          showDetails: Boolean(
+            supplier.vatNumber || supplier.defaultGoodsSupplied
+          )
+        })
+
+        toast.success('Supplier added.')
+        closeQuickSupplierModal()
+      } catch {
+        toast.error('Could not add supplier.')
+      }
     })
   }
 
@@ -374,7 +438,11 @@ export function BankEntryForm({
     updateLine(id, {
       vatTreatment: value,
       vatAmount: '',
-      vatManuallyEdited: false
+      vatManuallyEdited: false,
+      showDetails:
+        value === 'RECOVERABLE' || value === 'OUTPUT'
+          ? true
+          : (lines.find(line => line.id === id)?.showDetails ?? false)
     })
   }
 
@@ -436,10 +504,11 @@ export function BankEntryForm({
           }))
         })
 
-        toast.success('Bank entry posted.')
-      } catch (err) {
+        toast.success('Entry posted to ledger.')
+        router.push('/ledger')
+      } catch {
         const message =
-          err instanceof Error ? err.message : 'Could not post bank entry.'
+          'Could not post bank entry. Please check the details and try again.'
 
         setError(message)
         toast.error(message)
@@ -533,30 +602,44 @@ export function BankEntryForm({
             PDF upload can be wired here using your UploadThing component. The
             form already supports attachment URL, name and key.
           </p>
-
-          {attachmentName && (
-            <p className='mt-2 text-sm text-zinc-700'>
-              Attached: <span className='font-medium'>{attachmentName}</span>
-            </p>
-          )}
-
-          <input type='hidden' value={attachmentUrl} readOnly />
-          <input type='hidden' value={attachmentName} readOnly />
-          <input type='hidden' value={attachmentKey} readOnly />
         </div>
       </div>
 
       <div className='overflow-x-auto'>
-        <table className='w-full min-w-350 table-fixed border-collapse text-sm'>
+        <div className='flex flex-wrap items-center justify-between gap-3 border-b bg-zinc-50 px-4 py-3 text-sm'>
+          <p className='text-zinc-600'>
+            Code each line to a nominal code, reserve and optional project.
+          </p>
+
+          <div className='flex items-center gap-2'>
+            <button
+              type='button'
+              onClick={() => router.push('/settings/nominal-codes')}
+              className='rounded-md border border-blue-600 bg-white px-3 py-1.5 font-medium hover:bg-zinc-50'
+            >
+              Manage nominal codes
+            </button>
+
+            <button
+              type='button'
+              onClick={() => router.push('/settings/suppliers')}
+              className='rounded-md border border-blue-600 bg-white px-3 py-1.5 font-medium hover:bg-zinc-50'
+            >
+              Manage suppliers
+            </button>
+          </div>
+        </div>
+        <table className='w-full min-w-400 table-fixed border-collapse text-sm'>
           <colgroup>
-            <col className='w-72' />
-            <col className='w-64' />
-            <col />
-            <col className='w-36' />
-            <col className='w-44' />
-            <col className='w-36' />
+            <col className='w-40' />
+            <col className='w-48' />
+            <col className='w-52' />
+            <col className='w-48' />
+            <col className='w-48' />
             <col className='w-32' />
-            <col className='w-12' />
+            <col className='w-32' />
+            <col className='w-32' />
+            <col className='w-24' />
           </colgroup>
 
           <thead className='bg-zinc-50 text-left text-zinc-600'>
@@ -564,11 +647,12 @@ export function BankEntryForm({
               <th className='px-4 py-3 font-medium'>Nominal code</th>
               <th className='px-4 py-3 font-medium'>Supplier / payer</th>
               <th className='px-4 py-3 font-medium'>Description</th>
-              <th className='px-4 py-3 font-medium'>VAT rate</th>
-              <th className='px-4 py-3 font-medium'>VAT treatment</th>
+              <th className='px-4 py-3 font-medium'>Reserve</th>
+              <th className='px-4 py-3 font-medium'>Project</th>
               <th className='px-4 py-3 text-right font-medium'>Gross</th>
               <th className='px-4 py-3 text-right font-medium'>VAT</th>
-              <th className='px-4 py-3' />
+              <th className='px-4 py-3 font-medium'>VAT treatment</th>
+              <th className='px-4 py-3 text-right font-medium'>Actions</th>
             </tr>
           </thead>
 
@@ -578,6 +662,18 @@ export function BankEntryForm({
               const useVat = shouldUseVat(entryType, line)
               const filteredProjects = projects.filter(
                 project => project.reserveId === line.reserveId
+              )
+
+              const selectedSupplier = supplierOptions.find(
+                supplier => supplier.id === line.supplierId
+              )
+
+              const selectedReserve = reserves.find(
+                reserve => reserve.id === line.reserveId
+              )
+
+              const selectedProject = projects.find(
+                project => project.id === line.projectId
               )
 
               return (
@@ -594,24 +690,36 @@ export function BankEntryForm({
                     </td>
 
                     <td className='px-4 py-3'>
-                      <select
-                        value={line.supplierId}
-                        onChange={event =>
-                          handleSupplierChange(line, event.target.value)
-                        }
-                        className='w-full rounded-md border px-3 py-2'
-                      >
-                        <option value=''>
-                          {entryType === 'PAYMENT'
-                            ? 'Select supplier'
-                            : 'Select payer'}
-                        </option>
-                        {suppliers.map(supplier => (
-                          <option key={supplier.id} value={supplier.id}>
-                            {supplier.name}
+                      <div className='flex gap-2'>
+                        <select
+                          value={line.supplierId}
+                          title={selectedSupplier?.name ?? ''}
+                          onChange={event =>
+                            handleSupplierChange(line, event.target.value)
+                          }
+                          className='min-w-0 flex-1 truncate rounded-md border px-3 py-2'
+                        >
+                          <option value=''>
+                            {entryType === 'PAYMENT'
+                              ? 'Select supplier'
+                              : 'Select payer'}
                           </option>
-                        ))}
-                      </select>
+                          {supplierOptions.map(supplier => (
+                            <option key={supplier.id} value={supplier.id}>
+                              {supplier.name}
+                            </option>
+                          ))}
+                        </select>
+
+                        <button
+                          type='button'
+                          onClick={() => openQuickSupplierModal(line.id)}
+                          className='shrink-0 rounded-md border px-2.5 py-2 text-sm font-medium hover:bg-zinc-50'
+                          title='Add supplier'
+                        >
+                          +
+                        </button>
+                      </div>
                     </td>
 
                     <td className='px-4 py-3'>
@@ -624,7 +732,7 @@ export function BankEntryForm({
                         }
                         placeholder={
                           entryType === 'PAYMENT'
-                            ? 'e.g. Cheque 001 / supplier'
+                            ? 'e.g. Goods/service'
                             : 'e.g. Receipt reference / payer'
                         }
                         className='w-full rounded-md border px-3 py-2'
@@ -633,44 +741,46 @@ export function BankEntryForm({
 
                     <td className='px-4 py-3'>
                       <select
-                        value={line.vatRate}
-                        onChange={event =>
-                          handleVatRateChange(
-                            line.id,
-                            event.target.value as VatRate
-                          )
+                        value={line.reserveId}
+                        title={
+                          selectedReserve
+                            ? `${selectedReserve.code} — ${selectedReserve.name}`
+                            : ''
                         }
-                        className='w-full rounded-md border px-3 py-2'
+                        onChange={event =>
+                          handleReserveChange(line, event.target.value)
+                        }
+                        className='w-full truncate rounded-md border px-3 py-2'
                       >
-                        <option value='NO_VAT'>No VAT</option>
-                        <option value='STANDARD_20'>20%</option>
-                        <option value='REDUCED_5'>5%</option>
+                        {reserves.map(reserve => (
+                          <option key={reserve.id} value={reserve.id}>
+                            {reserve.name}
+                          </option>
+                        ))}
                       </select>
                     </td>
 
                     <td className='px-4 py-3'>
                       <select
-                        value={line.vatTreatment}
-                        onChange={event =>
-                          handleVatTreatmentChange(
-                            line.id,
-                            event.target.value as VatTreatment
-                          )
+                        value={line.projectId}
+                        title={
+                          selectedProject
+                            ? `${selectedProject.code} — ${selectedProject.name}`
+                            : ''
                         }
-                        className='w-full rounded-md border px-3 py-2'
+                        onChange={event =>
+                          updateLine(line.id, {
+                            projectId: event.target.value
+                          })
+                        }
+                        className='w-full truncate rounded-md border px-3 py-2'
                       >
-                        {entryType === 'PAYMENT' ? (
-                          <>
-                            <option value='RECOVERABLE'>Recoverable</option>
-                            <option value='IRRECOVERABLE'>Irrecoverable</option>
-                            <option value='OUTSIDE_SCOPE'>Outside scope</option>
-                          </>
-                        ) : (
-                          <>
-                            <option value='OUTSIDE_SCOPE'>Outside scope</option>
-                            <option value='OUTPUT'>Output VAT</option>
-                          </>
-                        )}
+                        <option value=''>No project</option>
+                        {filteredProjects.map(project => (
+                          <option key={project.id} value={project.id}>
+                            {project.name}
+                          </option>
+                        ))}
                       </select>
                     </td>
 
@@ -726,123 +836,150 @@ export function BankEntryForm({
                       />
                     </td>
 
+                    <td className='px-4 py-3'>
+                      <select
+                        value={line.vatTreatment}
+                        onChange={event =>
+                          handleVatTreatmentChange(
+                            line.id,
+                            event.target.value as VatTreatment
+                          )
+                        }
+                        className='w-full min-w-32 rounded-md border px-3 py-2'
+                      >
+                        {entryType === 'PAYMENT' ? (
+                          <>
+                            <option value='OUTSIDE_SCOPE'>Outside scope</option>
+                            <option value='RECOVERABLE'>Recoverable</option>
+                            <option value='IRRECOVERABLE'>Irrecoverable</option>
+                          </>
+                        ) : (
+                          <>
+                            <option value='OUTSIDE_SCOPE'>Outside scope</option>
+                            <option value='OUTPUT'>Output VAT</option>
+                          </>
+                        )}
+                      </select>
+                    </td>
+
                     <td className='px-4 py-3 text-right'>
-                      <button
-                        type='button'
-                        onClick={() => removeLine(line.id)}
-                        disabled={lines.length <= 1}
-                        className='rounded-md p-2 text-zinc-500 hover:bg-zinc-100 disabled:opacity-40'
-                      >
-                        <Trash2 className='h-4 w-4' />
-                      </button>
+                      <div className='flex justify-end gap-1'>
+                        <button
+                          type='button'
+                          onClick={() =>
+                            updateLine(line.id, {
+                              showDetails: !line.showDetails
+                            })
+                          }
+                          className='rounded-md p-2 text-zinc-500 hover:bg-zinc-100'
+                          title={
+                            line.showDetails
+                              ? 'Hide VAT126 details'
+                              : 'Show VAT126 details'
+                          }
+                        >
+                          {line.showDetails ? (
+                            <ChevronDown className='h-4 w-4' />
+                          ) : (
+                            <ChevronRight className='h-4 w-4' />
+                          )}
+                        </button>
+
+                        <button
+                          type='button'
+                          onClick={() => removeLine(line.id)}
+                          disabled={lines.length <= 1}
+                          className='rounded-md p-2 text-zinc-500 hover:bg-zinc-100 disabled:opacity-40'
+                          title='Remove line'
+                        >
+                          <Trash2 className='h-4 w-4' />
+                        </button>
+                      </div>
                     </td>
                   </tr>
 
-                  <tr
-                    key={`${line.id}-secondary`}
-                    className='border-t bg-zinc-50/50'
-                  >
-                    <td className='px-4 py-3'>
-                      <label className='mb-1 block text-xs font-medium text-zinc-500'>
-                        Reserve
-                      </label>
-                      <select
-                        value={line.reserveId}
-                        onChange={event =>
-                          handleReserveChange(line, event.target.value)
-                        }
-                        className='w-full rounded-md border bg-white px-3 py-2'
+                  {line.showDetails && (
+                    <tr className='border-t bg-zinc-50/50'>
+                      <td className='px-4 py-3'>
+                        <label className='mb-1 block text-xs font-medium text-zinc-500'>
+                          VAT rate
+                        </label>
+                        <select
+                          value={line.vatRate}
+                          onChange={event =>
+                            handleVatRateChange(
+                              line.id,
+                              event.target.value as VatRate
+                            )
+                          }
+                          className='w-full rounded-md border bg-white px-3 py-2'
+                        >
+                          <option value='NO_VAT'>No VAT</option>
+                          <option value='STANDARD_20'>20%</option>
+                          <option value='REDUCED_5'>5%</option>
+                        </select>
+                      </td>
+
+                      <td className='px-4 py-3'>
+                        <label className='mb-1 block text-xs font-medium text-zinc-500'>
+                          Goods supplied
+                        </label>
+                        <input
+                          value={line.goodsSupplied}
+                          onChange={event =>
+                            updateLine(line.id, {
+                              goodsSupplied: event.target.value
+                            })
+                          }
+                          placeholder='For VAT126'
+                          className='w-full rounded-md border bg-white px-3 py-2'
+                        />
+                      </td>
+
+                      <td className='px-4 py-3'>
+                        <label className='mb-1 block text-xs font-medium text-zinc-500'>
+                          Supplier VAT number
+                        </label>
+                        <input
+                          value={line.supplierVatNumberSnapshot}
+                          onChange={event =>
+                            updateLine(line.id, {
+                              supplierVatNumberSnapshot: event.target.value
+                            })
+                          }
+                          placeholder='Snapshot'
+                          className='w-full rounded-md border bg-white px-3 py-2'
+                        />
+                      </td>
+
+                      <td className='px-4 py-3'>
+                        <label className='mb-1 block text-xs font-medium text-zinc-500'>
+                          Invoice ref
+                        </label>
+                        <input
+                          value={line.invoiceReference}
+                          onChange={event =>
+                            updateLine(line.id, {
+                              invoiceReference: event.target.value
+                            })
+                          }
+                          placeholder='Optional'
+                          className='w-full rounded-md border bg-white px-3 py-2'
+                        />
+                      </td>
+
+                      <td
+                        className='px-4 py-3 text-right text-xs text-zinc-500'
+                        colSpan={5}
                       >
-                        <option value=''>Select reserve</option>
-                        {reserves.map(reserve => (
-                          <option key={reserve.id} value={reserve.id}>
-                            {reserve.code} — {reserve.name}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-
-                    <td className='px-4 py-3'>
-                      <label className='mb-1 block text-xs font-medium text-zinc-500'>
-                        Project
-                      </label>
-                      <select
-                        value={line.projectId}
-                        onChange={event =>
-                          updateLine(line.id, {
-                            projectId: event.target.value
-                          })
-                        }
-                        className='w-full rounded-md border bg-white px-3 py-2'
-                      >
-                        <option value=''>No project</option>
-                        {filteredProjects.map(project => (
-                          <option key={project.id} value={project.id}>
-                            {project.code} — {project.name}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
-
-                    <td className='px-4 py-3'>
-                      <label className='mb-1 block text-xs font-medium text-zinc-500'>
-                        Goods supplied
-                      </label>
-                      <input
-                        value={line.goodsSupplied}
-                        onChange={event =>
-                          updateLine(line.id, {
-                            goodsSupplied: event.target.value
-                          })
-                        }
-                        placeholder='For VAT126'
-                        className='w-full rounded-md border bg-white px-3 py-2'
-                      />
-                    </td>
-
-                    <td className='px-4 py-3'>
-                      <label className='mb-1 block text-xs font-medium text-zinc-500'>
-                        VAT number
-                      </label>
-                      <input
-                        value={line.supplierVatNumberSnapshot}
-                        onChange={event =>
-                          updateLine(line.id, {
-                            supplierVatNumberSnapshot: event.target.value
-                          })
-                        }
-                        placeholder='Snapshot'
-                        className='w-full rounded-md border bg-white px-3 py-2'
-                      />
-                    </td>
-
-                    <td className='px-4 py-3'>
-                      <label className='mb-1 block text-xs font-medium text-zinc-500'>
-                        Invoice ref
-                      </label>
-                      <input
-                        value={line.invoiceReference}
-                        onChange={event =>
-                          updateLine(line.id, {
-                            invoiceReference: event.target.value
-                          })
-                        }
-                        placeholder='Optional'
-                        className='w-full rounded-md border bg-white px-3 py-2'
-                      />
-                    </td>
-
-                    <td
-                      className='px-4 py-3 text-right text-xs text-zinc-500'
-                      colSpan={3}
-                    >
-                      Net: £
-                      {formatMoney(
-                        parseAmount(line.amount) -
-                          (shouldUseVat(entryType, line) ? vat : 0)
-                      )}
-                    </td>
-                  </tr>
+                        Net: £
+                        {formatMoney(
+                          parseAmount(line.amount) -
+                            (shouldUseVat(entryType, line) ? vat : 0)
+                        )}
+                      </td>
+                    </tr>
+                  )}
                 </Fragment>
               )
             })}
@@ -859,7 +996,7 @@ export function BankEntryForm({
               <td className='px-4 py-3 text-right'>
                 {formatMoney(totals.vat)}
               </td>
-              <td />
+              <td colSpan={2} />
             </tr>
           </tfoot>
         </table>
@@ -867,8 +1004,8 @@ export function BankEntryForm({
 
       <div className='flex flex-col gap-4 border-t p-4 lg:flex-row lg:items-center lg:justify-between'>
         <p className='max-w-2xl text-sm leading-6 text-zinc-500'>
-          Amounts are entered gross. Supplier VAT numbers are snapshotted for
-          VAT126 reporting. Projects are filtered by the selected reserve.
+          Reserve and project are always captured for reporting. Use the details
+          button to add VAT126 and invoice information where needed.
         </p>
 
         <div className='flex shrink-0 items-center gap-2'>
@@ -899,6 +1036,77 @@ export function BankEntryForm({
           </button>
         </div>
       </div>
+
+      {quickSupplierLineId && (
+        <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4'>
+          <div className='w-full max-w-md rounded-lg bg-white p-5 shadow-xl'>
+            <div>
+              <h2 className='text-lg font-semibold'>Add supplier</h2>
+              <p className='mt-1 text-sm text-zinc-500'>
+                Add a supplier while keeping this bank entry in progress.
+              </p>
+            </div>
+
+            <div className='mt-5 space-y-4'>
+              <div>
+                <label className='text-sm font-medium'>Supplier name</label>
+                <input
+                  value={quickSupplierName}
+                  onChange={event => setQuickSupplierName(event.target.value)}
+                  className='mt-1 w-full rounded-md border px-3 py-2 text-sm'
+                  autoFocus
+                />
+              </div>
+
+              <div>
+                <label className='text-sm font-medium'>VAT number</label>
+                <input
+                  value={quickSupplierVatNumber}
+                  onChange={event =>
+                    setQuickSupplierVatNumber(event.target.value)
+                  }
+                  placeholder='Optional'
+                  className='mt-1 w-full rounded-md border px-3 py-2 text-sm'
+                />
+              </div>
+
+              <div>
+                <label className='text-sm font-medium'>
+                  Default goods supplied
+                </label>
+                <input
+                  value={quickSupplierGoodsSupplied}
+                  onChange={event =>
+                    setQuickSupplierGoodsSupplied(event.target.value)
+                  }
+                  placeholder='Optional'
+                  className='mt-1 w-full rounded-md border px-3 py-2 text-sm'
+                />
+              </div>
+            </div>
+
+            <div className='mt-6 flex justify-end gap-2'>
+              <button
+                type='button'
+                onClick={closeQuickSupplierModal}
+                disabled={isQuickSupplierPending}
+                className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-zinc-50 disabled:opacity-50'
+              >
+                Cancel
+              </button>
+
+              <button
+                type='button'
+                onClick={handleQuickSupplierSubmit}
+                disabled={isQuickSupplierPending}
+                className='rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white disabled:opacity-50'
+              >
+                {isQuickSupplierPending ? 'Adding...' : 'Add supplier'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

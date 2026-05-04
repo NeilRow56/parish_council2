@@ -157,7 +157,7 @@ export default async function NewBankEntryPage() {
     ''
 
   return (
-    <main className='mx-auto max-w-7xl px-6 py-8'>
+    <main className='mx-auto max-w-420 px-6 py-8'>
       <div className='mb-8'>
         <h1 className='text-2xl font-semibold tracking-tight'>
           New cash/bank entry

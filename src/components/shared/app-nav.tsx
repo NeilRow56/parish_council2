@@ -172,6 +172,10 @@ export default function AppNav() {
                 {
                   href: '/settings/suppliers',
                   label: 'Suppliers'
+                },
+                {
+                  href: '/settings/vat-rates',
+                  label: 'VAT rates'
                 }
               ]}
             />

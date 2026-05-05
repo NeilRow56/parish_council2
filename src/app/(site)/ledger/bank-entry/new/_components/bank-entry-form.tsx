@@ -5,12 +5,22 @@
 import { Fragment, useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react'
-import { createBankEntryAction, quickCreateSupplierAction } from '../actions'
 import { toast } from 'sonner'
 import { z } from 'zod'
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle
+} from '@/components/ui/alert-dialog'
+
+import { createBankEntryAction, quickCreateSupplierAction } from '../actions'
 
 type BankEntryType = 'PAYMENT' | 'RECEIPT'
-type VatRate = 'NO_VAT' | 'STANDARD_20' | 'REDUCED_5'
 
 type VatTreatment = 'RECOVERABLE' | 'IRRECOVERABLE' | 'OUTPUT' | 'OUTSIDE_SCOPE'
 
@@ -57,6 +67,13 @@ type ProjectOption = {
   name: string
 }
 
+type VatRateOption = {
+  id: string
+  code: string
+  name: string
+  ratePercent: string
+}
+
 type BankEntryLine = {
   id: string
   nominalCodeId: string
@@ -68,7 +85,7 @@ type BankEntryLine = {
   supplierVatNumberSnapshot: string
   description: string
   amount: string
-  vatRate: VatRate
+  vatRateId: string
   vatTreatment: VatTreatment
   vatAmount: string
   vatManuallyEdited: boolean
@@ -84,13 +101,17 @@ const bankEntrySchema = z.object({
       z.object({
         nominalCodeId: z.string().min(1, 'Nominal code is required.'),
         reserveId: z.string().min(1, 'Reserve is required.'),
+        vatRateId: z.string().min(1, 'VAT rate is required.'),
         amount: z.coerce.number().positive('Amount must be greater than zero.')
       })
     )
     .min(1, 'At least one line is required.')
 })
 
-function createEmptyLine(defaultReserveId = ''): BankEntryLine {
+function createEmptyLine(
+  defaultReserveId = '',
+  defaultVatRateId = ''
+): BankEntryLine {
   return {
     id: crypto.randomUUID(),
     nominalCodeId: '',
@@ -102,7 +123,7 @@ function createEmptyLine(defaultReserveId = ''): BankEntryLine {
     supplierVatNumberSnapshot: '',
     description: '',
     amount: '',
-    vatRate: 'NO_VAT',
+    vatRateId: defaultVatRateId,
     vatTreatment: 'OUTSIDE_SCOPE',
     vatAmount: '',
     vatManuallyEdited: false,
@@ -114,14 +135,17 @@ function parseAmount(value: string) {
   return Number(value.replace(/,/g, '') || 0)
 }
 
-function getVatRatePercent(vatRate: VatRate) {
-  if (vatRate === 'STANDARD_20') return 20
-  if (vatRate === 'REDUCED_5') return 5
-  return 0
+function getVatRatePercent(vatRateId: string, vatRates: VatRateOption[]) {
+  const rate = vatRates.find(item => item.id === vatRateId)
+  return Number(rate?.ratePercent ?? 0)
 }
 
-function splitGrossAmount(gross: number, vatRate: VatRate) {
-  const rate = getVatRatePercent(vatRate)
+function splitGrossAmount(
+  gross: number,
+  vatRateId: string,
+  vatRates: VatRateOption[]
+) {
+  const rate = getVatRatePercent(vatRateId, vatRates)
 
   if (!Number.isFinite(gross) || gross <= 0 || rate === 0) {
     return { gross, net: gross, vat: 0 }
@@ -153,14 +177,19 @@ function shouldUseVat(entryType: BankEntryType, line: BankEntryLine) {
   )
 }
 
-function getLineVatAmount(entryType: BankEntryType, line: BankEntryLine) {
+function getLineVatAmount(
+  entryType: BankEntryType,
+  line: BankEntryLine,
+  vatRates: VatRateOption[]
+) {
   if (!shouldUseVat(entryType, line)) return 0
 
   if (line.vatManuallyEdited) {
     return parseAmount(line.vatAmount)
   }
 
-  return splitGrossAmount(parseAmount(line.amount), line.vatRate).vat
+  return splitGrossAmount(parseAmount(line.amount), line.vatRateId, vatRates)
+    .vat
 }
 
 function NominalCodeSelect({
@@ -221,7 +250,8 @@ export function BankEntryForm({
   suppliers,
   reserves,
   projects,
-  defaultReserveId
+  defaultReserveId,
+  vatRates
 }: {
   financialYearId: string
   bankAccounts: BankAccountOption[]
@@ -230,6 +260,7 @@ export function BankEntryForm({
   reserves: ReserveOption[]
   projects: ProjectOption[]
   defaultReserveId: string
+  vatRates: VatRateOption[]
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -237,6 +268,15 @@ export function BankEntryForm({
 
   const fallbackReserveId =
     defaultReserveId || reserves.find(reserve => reserve.isDefault)?.id || ''
+
+  const defaultVatRateId =
+    vatRates.find(rate => rate.code === 'NO_VAT')?.id ?? vatRates[0]?.id ?? ''
+
+  function getValidVatRateId(vatRateId: string) {
+    return vatRates.some(rate => rate.id === vatRateId)
+      ? vatRateId
+      : defaultVatRateId
+  }
 
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0])
   const [entryType, setEntryType] = useState<BankEntryType>('PAYMENT')
@@ -247,6 +287,7 @@ export function BankEntryForm({
   const [attachmentUrl] = useState('')
   const [attachmentName] = useState('')
   const [attachmentKey] = useState('')
+  const [showVat126Warning, setShowVat126Warning] = useState(false)
 
   const [supplierOptions, setSupplierOptions] =
     useState<SupplierOption[]>(suppliers)
@@ -261,8 +302,8 @@ export function BankEntryForm({
   const [isQuickSupplierPending, startQuickSupplierTransition] = useTransition()
 
   const [lines, setLines] = useState<BankEntryLine[]>([
-    createEmptyLine(fallbackReserveId),
-    createEmptyLine(fallbackReserveId)
+    createEmptyLine(fallbackReserveId, defaultVatRateId),
+    createEmptyLine(fallbackReserveId, defaultVatRateId)
   ])
 
   const filteredCodes = useMemo(() => {
@@ -281,7 +322,7 @@ export function BankEntryForm({
     return lines.reduce(
       (sum, line) => {
         const gross = parseAmount(line.amount)
-        const vat = getLineVatAmount(entryType, line)
+        const vat = getLineVatAmount(entryType, line, vatRates)
         const useVat = shouldUseVat(entryType, line)
 
         return {
@@ -292,7 +333,7 @@ export function BankEntryForm({
       },
       { gross: 0, net: 0, vat: 0 }
     )
-  }, [entryType, lines])
+  }, [entryType, lines, vatRates])
 
   function updateLine(id: string, patch: Partial<BankEntryLine>) {
     setLines(current =>
@@ -301,7 +342,10 @@ export function BankEntryForm({
   }
 
   function addLine() {
-    setLines(current => [...current, createEmptyLine(fallbackReserveId)])
+    setLines(current => [
+      ...current,
+      createEmptyLine(fallbackReserveId, defaultVatRateId)
+    ])
   }
 
   function removeLine(id: string) {
@@ -314,7 +358,7 @@ export function BankEntryForm({
     setLines(current =>
       current.map(line => ({
         ...line,
-        vatRate: 'NO_VAT',
+        vatRateId: defaultVatRateId,
         vatTreatment: 'OUTSIDE_SCOPE',
         vatAmount: '',
         vatManuallyEdited: false,
@@ -426,9 +470,9 @@ export function BankEntryForm({
     })
   }
 
-  function handleVatRateChange(id: string, value: VatRate) {
+  function handleVatRateChange(id: string, value: string) {
     updateLine(id, {
-      vatRate: value,
+      vatRateId: value,
       vatAmount: '',
       vatManuallyEdited: false
     })
@@ -446,7 +490,7 @@ export function BankEntryForm({
     })
   }
 
-  function handleSubmit() {
+  function handleSubmit(options?: { skipVat126Warning?: boolean }) {
     setError(null)
 
     const activeLines = lines.filter(
@@ -461,6 +505,7 @@ export function BankEntryForm({
       lines: activeLines.map(line => ({
         nominalCodeId: line.nominalCodeId,
         reserveId: line.reserveId,
+        vatRateId: getValidVatRateId(line.vatRateId),
         amount: parseAmount(line.amount)
       }))
     })
@@ -471,6 +516,29 @@ export function BankEntryForm({
 
       setError(message)
       toast.error(message)
+      return
+    }
+
+    const recoverableLinesMissingVat126 = activeLines.filter(line => {
+      const vatAmount = shouldUseVat(entryType, line)
+        ? getLineVatAmount(entryType, line, vatRates)
+        : 0
+
+      return (
+        entryType === 'PAYMENT' &&
+        line.vatTreatment === 'RECOVERABLE' &&
+        vatAmount > 0 &&
+        (!line.goodsSupplied.trim() ||
+          !line.supplierVatNumberSnapshot.trim() ||
+          !line.invoiceReference.trim())
+      )
+    })
+
+    if (
+      recoverableLinesMissingVat126.length > 0 &&
+      !options?.skipVat126Warning
+    ) {
+      setShowVat126Warning(true)
       return
     }
 
@@ -496,17 +564,23 @@ export function BankEntryForm({
               line.supplierVatNumberSnapshot || undefined,
             description: line.description,
             amount: line.amount,
-            vatRate: line.vatRate,
+            vatRateId: getValidVatRateId(line.vatRateId),
             vatTreatment: line.vatTreatment,
             vatAmount: shouldUseVat(entryType, line)
-              ? formatMoney(getLineVatAmount(entryType, line))
+              ? formatMoney(getLineVatAmount(entryType, line, vatRates))
               : '0.00'
           }))
         })
 
         toast.success('Entry posted to ledger.')
         router.push('/ledger')
-      } catch {
+      } catch (err) {
+        if (err instanceof Error && err.message === 'SESSION_EXPIRED') {
+          toast.error('Your session has expired. Please sign in again.')
+          router.push('/auth/login?next=/ledger/bank-entry/new')
+          return
+        }
+
         const message =
           'Could not post bank entry. Please check the details and try again.'
 
@@ -522,7 +596,10 @@ export function BankEntryForm({
     totals.gross > 0 &&
     lines.some(
       line =>
-        line.nominalCodeId && line.reserveId && parseAmount(line.amount) > 0
+        line.nominalCodeId &&
+        line.reserveId &&
+        line.vatRateId &&
+        parseAmount(line.amount) > 0
     )
 
   return (
@@ -538,6 +615,13 @@ export function BankEntryForm({
           <p className='rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700'>
             No linked cash/bank accounts found. Link a cash/bank nominal code
             first.
+          </p>
+        )}
+
+        {vatRates.length === 0 && (
+          <p className='rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700'>
+            No active VAT rates found. Add VAT rates before posting bank
+            entries.
           </p>
         )}
 
@@ -629,6 +713,7 @@ export function BankEntryForm({
             </button>
           </div>
         </div>
+
         <table className='w-full min-w-400 table-fixed border-collapse text-sm'>
           <colgroup>
             <col className='w-40' />
@@ -657,8 +742,8 @@ export function BankEntryForm({
           </thead>
 
           <tbody>
-            {lines.map(line => {
-              const vat = getLineVatAmount(entryType, line)
+            {lines.map((line: BankEntryLine) => {
+              const vat = getLineVatAmount(entryType, line, vatRates)
               const useVat = shouldUseVat(entryType, line)
               const filteredProjects = projects.filter(
                 project => project.reserveId === line.reserveId
@@ -905,18 +990,17 @@ export function BankEntryForm({
                           VAT rate
                         </label>
                         <select
-                          value={line.vatRate}
+                          value={getValidVatRateId(line.vatRateId)}
                           onChange={event =>
-                            handleVatRateChange(
-                              line.id,
-                              event.target.value as VatRate
-                            )
+                            handleVatRateChange(line.id, event.target.value)
                           }
                           className='w-full rounded-md border bg-white px-3 py-2'
                         >
-                          <option value='NO_VAT'>No VAT</option>
-                          <option value='STANDARD_20'>20%</option>
-                          <option value='REDUCED_5'>5%</option>
+                          {vatRates.map(rate => (
+                            <option key={rate.id} value={rate.id}>
+                              {rate.name}
+                            </option>
+                          ))}
                         </select>
                       </td>
 
@@ -1028,8 +1112,8 @@ export function BankEntryForm({
 
           <button
             type='button'
-            onClick={handleSubmit}
-            disabled={!canSubmit}
+            onClick={() => handleSubmit()}
+            disabled={!canSubmit || vatRates.length === 0}
             className='rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white disabled:opacity-50'
           >
             {isPending ? 'Posting...' : 'Post cash/bank entry'}
@@ -1107,6 +1191,30 @@ export function BankEntryForm({
           </div>
         </div>
       )}
+      <AlertDialog open={showVat126Warning} onOpenChange={setShowVat126Warning}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>VAT126 details are incomplete</AlertDialogTitle>
+            <AlertDialogDescription>
+              One or more recoverable VAT lines are missing VAT126 details. You
+              can still post this entry, but the VAT126 report may be
+              incomplete.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          <AlertDialogFooter>
+            <AlertDialogCancel>Go back</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setShowVat126Warning(false)
+                handleSubmit({ skipVat126Warning: true })
+              }}
+            >
+              Post anyway
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }

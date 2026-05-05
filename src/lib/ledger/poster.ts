@@ -7,6 +7,7 @@ import {
   journalLines,
   nominalCodes
 } from '@/db/schema/nominalLedger'
+import { reserves } from '@/db/schema/reservesProjectsSuppliers'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -39,6 +40,27 @@ export async function postTransactionsToLedger(
     skipped: 0,
     errors: [],
     journalEntryIds: []
+  }
+
+  const [defaultReserve] = await db
+    .select({ id: reserves.id })
+    .from(reserves)
+    .where(
+      and(
+        eq(reserves.parishCouncilId, parishCouncilId),
+        eq(reserves.isDefault, true),
+        eq(reserves.isActive, true)
+      )
+    )
+    .limit(1)
+
+  if (!defaultReserve) {
+    result.errors.push({
+      transactionId: 'GLOBAL',
+      reason: 'No active default reserve has been configured.'
+    })
+
+    return result
   }
 
   const conditions = [
@@ -152,12 +174,15 @@ export async function postTransactionsToLedger(
           })
           .returning()
 
-        const lines = isCredit
+        const reserveId = tx.reserveId ?? defaultReserve.id
+
+        const lines: (typeof journalLines.$inferInsert)[] = isCredit
           ? [
               {
                 parishCouncilId,
                 journalEntryId: entry.id,
                 nominalCodeId: bankCode.id,
+                reserveId,
                 debit: amount.toFixed(2),
                 credit: '0.00',
                 description: tx.description
@@ -166,6 +191,12 @@ export async function postTransactionsToLedger(
                 parishCouncilId,
                 journalEntryId: entry.id,
                 nominalCodeId: nominalCode.id,
+                supplierId: tx.supplierId,
+                reserveId,
+                projectId: tx.projectId,
+                invoiceReference: tx.invoiceReference,
+                goodsSupplied: tx.goodsSupplied,
+                supplierVatNumberSnapshot: tx.supplierVatNumberSnapshot,
                 debit: '0.00',
                 credit: amount.toFixed(2),
                 description: tx.description
@@ -176,6 +207,12 @@ export async function postTransactionsToLedger(
                 parishCouncilId,
                 journalEntryId: entry.id,
                 nominalCodeId: nominalCode.id,
+                supplierId: tx.supplierId,
+                reserveId,
+                projectId: tx.projectId,
+                invoiceReference: tx.invoiceReference,
+                goodsSupplied: tx.goodsSupplied,
+                supplierVatNumberSnapshot: tx.supplierVatNumberSnapshot,
                 debit: amount.toFixed(2),
                 credit: '0.00',
                 description: tx.description
@@ -184,6 +221,7 @@ export async function postTransactionsToLedger(
                 parishCouncilId,
                 journalEntryId: entry.id,
                 nominalCodeId: bankCode.id,
+                reserveId,
                 debit: '0.00',
                 credit: amount.toFixed(2),
                 description: tx.description

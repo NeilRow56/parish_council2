@@ -14,6 +14,7 @@ import {
 import { bankOpeningBalances } from './bankOpeningBalances'
 import { vatReturns } from './vatReturns'
 import { reserves, projects, suppliers } from './reservesProjectsSuppliers'
+import { vatRates } from './vatRates'
 
 export const parishCouncilsRelations = relations(
   parishCouncils,
@@ -28,6 +29,7 @@ export const parishCouncilsRelations = relations(
     bankTransactions: many(bankTransactions),
     bankOpeningBalances: many(bankOpeningBalances),
     vatReturns: many(vatReturns),
+    vatRates: many(vatRates),
     reserves: many(reserves),
     projects: many(projects),
     suppliers: many(suppliers)
@@ -166,13 +168,34 @@ export const journalEntriesRelations = relations(
 )
 
 export const journalLinesRelations = relations(journalLines, ({ one }) => ({
+  parishCouncil: one(parishCouncils, {
+    fields: [journalLines.parishCouncilId],
+    references: [parishCouncils.id]
+  }),
+
   journalEntry: one(journalEntries, {
     fields: [journalLines.journalEntryId],
     references: [journalEntries.id]
   }),
+
   nominalCode: one(nominalCodes, {
     fields: [journalLines.nominalCodeId],
     references: [nominalCodes.id]
+  }),
+
+  supplier: one(suppliers, {
+    fields: [journalLines.supplierId],
+    references: [suppliers.id]
+  }),
+
+  reserve: one(reserves, {
+    fields: [journalLines.reserveId],
+    references: [reserves.id]
+  }),
+
+  project: one(projects, {
+    fields: [journalLines.projectId],
+    references: [projects.id]
   })
 }))
 
@@ -210,6 +233,13 @@ export const vatReturnsRelations = relations(vatReturns, ({ one }) => ({
   })
 }))
 
+export const vatRatesRelations = relations(vatRates, ({ one }) => ({
+  parishCouncil: one(parishCouncils, {
+    fields: [vatRates.parishCouncilId],
+    references: [parishCouncils.id]
+  })
+}))
+
 export const reservesRelations = relations(reserves, ({ one, many }) => ({
   parishCouncil: one(parishCouncils, {
     fields: [reserves.parishCouncilId],
@@ -217,7 +247,8 @@ export const reservesRelations = relations(reserves, ({ one, many }) => ({
   }),
 
   projects: many(projects),
-  defaultSuppliers: many(suppliers)
+  defaultSuppliers: many(suppliers),
+  journalLines: many(journalLines)
 }))
 
 export const projectsRelations = relations(projects, ({ one, many }) => ({
@@ -231,10 +262,11 @@ export const projectsRelations = relations(projects, ({ one, many }) => ({
     references: [reserves.id]
   }),
 
-  defaultSuppliers: many(suppliers)
+  defaultSuppliers: many(suppliers),
+  journalLines: many(journalLines)
 }))
 
-export const suppliersRelations = relations(suppliers, ({ one }) => ({
+export const suppliersRelations = relations(suppliers, ({ one, many }) => ({
   parishCouncil: one(parishCouncils, {
     fields: [suppliers.parishCouncilId],
     references: [parishCouncils.id]
@@ -253,5 +285,7 @@ export const suppliersRelations = relations(suppliers, ({ one }) => ({
   defaultProject: one(projects, {
     fields: [suppliers.defaultProjectId],
     references: [projects.id]
-  })
+  }),
+
+  journalLines: many(journalLines)
 }))

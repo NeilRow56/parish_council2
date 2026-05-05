@@ -10,7 +10,7 @@ import { bankConnections } from '@/db/schema/bankConnection'
 import { financialYears, nominalCodes } from '@/db/schema/nominalLedger'
 
 import { BankEntryForm } from './_components/bank-entry-form'
-import { projects, reserves, suppliers } from '@/db/schema'
+import { projects, reserves, suppliers, vatRates } from '@/db/schema'
 
 export default async function NewBankEntryPage() {
   const session = await auth.api.getSession({
@@ -156,6 +156,22 @@ export default async function NewBankEntryPage() {
     reserveOptions[0]?.id ??
     ''
 
+  const vatRateOptions = await db
+    .select({
+      id: vatRates.id,
+      code: vatRates.code,
+      name: vatRates.name,
+      ratePercent: vatRates.ratePercent
+    })
+    .from(vatRates)
+    .where(
+      and(
+        eq(vatRates.parishCouncilId, parishCouncilId),
+        eq(vatRates.isActive, true)
+      )
+    )
+    .orderBy(asc(vatRates.sortOrder), asc(vatRates.name))
+
   return (
     <main className='mx-auto max-w-420 px-6 py-8'>
       <div className='mb-8'>
@@ -185,6 +201,7 @@ export default async function NewBankEntryPage() {
         reserves={reserveOptions}
         projects={projectOptions}
         defaultReserveId={defaultReserveId}
+        vatRates={vatRateOptions}
       />
     </main>
   )

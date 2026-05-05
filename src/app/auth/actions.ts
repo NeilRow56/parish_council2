@@ -12,6 +12,7 @@ import { parishCouncils, user } from '@/db/schema/authSchema'
 import { getCurrentUser } from '@/lib/get-current-user'
 import { councilOnboardingSchema } from '@/lib/validation/council-onboarding'
 import { ensureDefaultReserve } from '@/lib/reserves/ensure-default-reserves'
+import { seedVatRatesForCouncil } from '@/server/seeds/seedVatRates'
 
 type VatStatus = 'NOT_REGISTERED' | 'REGISTERED'
 
@@ -98,6 +99,7 @@ export async function registerAction(formData: FormData) {
 
 export async function completeCouncilOnboardingAction(formData: FormData) {
   const currentUser = requireCouncilUser(await getCurrentUser())
+  const user = requireCouncilUser(currentUser)
 
   const [existingCouncil] = await db
     .select({
@@ -169,6 +171,10 @@ export async function completeCouncilOnboardingAction(formData: FormData) {
     .where(eq(parishCouncils.id, currentUser.parishCouncilId))
 
   await ensureDefaultReserve(currentUser.parishCouncilId)
+
+  if (!parishCouncils.onboardingCompletedAt) {
+    await seedVatRatesForCouncil(user.parishCouncilId)
+  }
 
   if (isFirstSetup) {
     redirect('/transactions/inbox')

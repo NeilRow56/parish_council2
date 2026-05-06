@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { headers } from 'next/headers'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, ilike, or } from 'drizzle-orm'
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
@@ -10,6 +10,12 @@ import {
   journalLines,
   nominalCodes
 } from '@/db/schema/nominalLedger'
+
+type LedgerPageProps = {
+  searchParams?: Promise<{
+    q?: string
+  }>
+}
 
 function formatAmount(value: string | number | null) {
   const amount = Number(value ?? 0)
@@ -41,7 +47,10 @@ function formatDate(value: string) {
   })
 }
 
-export default async function LedgerPage() {
+export default async function LedgerPage({ searchParams }: LedgerPageProps) {
+  const params = await searchParams
+  const query = params?.q?.trim() ?? ''
+
   const session = await auth.api.getSession({
     headers: await headers()
   })
@@ -74,6 +83,16 @@ export default async function LedgerPage() {
     )
   }
 
+  const searchFilter = query
+    ? or(
+        ilike(journalEntries.reference, `%${query}%`),
+        ilike(journalEntries.description, `%${query}%`),
+        ilike(journalLines.description, `%${query}%`),
+        ilike(nominalCodes.code, `%${query}%`),
+        ilike(nominalCodes.name, `%${query}%`)
+      )
+    : undefined
+
   const rows = await db
     .select({
       entryId: journalEntries.id,
@@ -101,10 +120,12 @@ export default async function LedgerPage() {
     .where(
       and(
         eq(journalEntries.parishCouncilId, parishCouncilId),
-        eq(journalEntries.financialYearId, currentYear.id)
+        eq(journalEntries.financialYearId, currentYear.id),
+        searchFilter
       )
     )
     .orderBy(desc(journalEntries.date), desc(journalEntries.createdAt))
+    .limit(100)
 
   const totalDebit = rows.reduce((sum, row) => sum + Number(row.debit), 0)
   const totalCredit = rows.reduce((sum, row) => sum + Number(row.credit), 0)
@@ -121,38 +142,72 @@ export default async function LedgerPage() {
 
         <div className='grid gap-4 sm:grid-cols-3'>
           <div className='rounded-lg border bg-white p-4'>
-            <p className='text-sm text-slate-500'>Journal lines</p>
+            <p className='text-sm text-slate-500'>Journal lines shown</p>
             <p className='mt-1 text-2xl font-semibold'>{rows.length}</p>
           </div>
 
           <div className='rounded-lg border bg-white p-4'>
-            <p className='text-sm text-slate-500'>Total debits</p>
+            <p className='text-sm text-slate-500'>Total debits shown</p>
             <p className='mt-1 text-2xl font-semibold'>
               {formatCurrency(totalDebit)}
             </p>
           </div>
 
           <div className='rounded-lg border bg-white p-4'>
-            <p className='text-sm text-slate-500'>Total credits</p>
+            <p className='text-sm text-slate-500'>Total credits shown</p>
             <p className='mt-1 text-2xl font-semibold'>
               {formatCurrency(totalCredit)}
             </p>
           </div>
         </div>
 
-        <div className='py-4'>
+        <div className='flex flex-col gap-3 py-4 sm:flex-row sm:items-center sm:justify-between'>
+          <form action='/ledger' className='flex w-full max-w-xl gap-2'>
+            <input
+              type='search'
+              name='q'
+              defaultValue={query}
+              placeholder='Search reference, description or nominal code…'
+              className='w-full rounded-md border bg-white px-3 py-2 text-sm shadow-sm'
+            />
+
+            <button
+              type='submit'
+              className='rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white'
+            >
+              Search
+            </button>
+
+            {query && (
+              <Link
+                href='/ledger'
+                className='rounded-md border bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50'
+              >
+                Clear
+              </Link>
+            )}
+          </form>
+
           <Link
             href='/ledger/journals/new'
-            className='rounded-md bg-zinc-950 px-3 py-2 text-sm font-medium text-white'
+            className='rounded-md bg-zinc-950 px-3 py-2 text-sm font-medium whitespace-nowrap text-white'
           >
             New manual journal
           </Link>
         </div>
 
+        {query && (
+          <p className='text-sm text-slate-600'>
+            Showing results for <span className='font-medium'>“{query}”</span>.
+          </p>
+        )}
+
         <div className='overflow-hidden rounded-xl border bg-white shadow-sm'>
           {rows.length === 0 ? (
             <div className='p-10 text-center text-sm text-slate-500'>
-              No ledger entries yet. Code and post transactions from the inbox.
+              {query
+                ? 'No ledger entries matched your search.'
+                : 'No ledger entries yet. Code and post transactions from the inbox.'}
             </div>
           ) : (
             <table className='w-full text-sm'>
@@ -223,7 +278,7 @@ export default async function LedgerPage() {
               <tfoot className='border-t bg-slate-50 font-medium'>
                 <tr>
                   <td colSpan={4} className='px-4 py-3 text-right'>
-                    Totals
+                    Totals shown
                   </td>
                   <td className='px-4 py-3 text-right font-mono'>
                     {formatCurrency(totalDebit)}

@@ -170,6 +170,10 @@ export default function AppNav({
                 {
                   href: '/reports/bank-reconciliation',
                   label: 'Bank Reconciliation'
+                },
+                {
+                  href: '/reports/large-payments',
+                  label: 'Payments > £100'
                 }
               ]}
             />

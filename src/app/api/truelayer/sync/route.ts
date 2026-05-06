@@ -1,9 +1,9 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { syncAllConnections } from '@/lib/truelayer/sync'
 import { auth } from '@/lib/auth'
 import { headers } from 'next/headers'
 
-export async function POST(request: NextRequest) {
+export async function POST() {
   // ── Auth: get session ─────────────────────────────────────────────
   const session = await auth.api.getSession({
     headers: await headers()

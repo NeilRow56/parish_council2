@@ -7,6 +7,7 @@ import { db } from '@/db'
 import { bankTransactions } from '@/db/schema/bankTransactions'
 import { bankConnections } from '@/db/schema/bankConnection'
 import { financialYears } from '@/db/schema/nominalLedger'
+import { reserves } from '@/db/schema'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -59,6 +60,22 @@ export async function syncConnection({
   // Resolve current financial year for this parish council only.
   const currentYearId = await getCurrentFinancialYearId(parishCouncilId)
 
+  const [defaultReserve] = await db
+    .select({ id: reserves.id })
+    .from(reserves)
+    .where(
+      and(
+        eq(reserves.parishCouncilId, parishCouncilId),
+        eq(reserves.isDefault, true),
+        eq(reserves.isActive, true)
+      )
+    )
+    .limit(1)
+
+  if (!defaultReserve) {
+    throw new Error('No active default reserve has been configured.')
+  }
+
   const matchMap = await applyMatchingRulesBatch(
     transactions,
     parishCouncilId,
@@ -108,6 +125,7 @@ export async function syncConnection({
       transactionType: tx.transaction_type,
       status: matchResult ? 'CODED' : 'PENDING',
       nominalCodeId: matchResult?.nominalCodeId ?? null,
+      reserveId: defaultReserve.id,
       matchingRule: matchResult?.ruleName ?? null
     })
 

@@ -289,7 +289,7 @@ export function CouncilOnboardingForm({
                   <SelectTrigger id='vatStatus'>
                     <SelectValue placeholder='Select VAT status' />
                   </SelectTrigger>
-                  <SelectContent>
+                  <SelectContent className='w-82.5'>
                     <SelectItem value='NOT_REGISTERED'>
                       Not VAT registered — reclaim using VAT126
                     </SelectItem>
@@ -336,7 +336,7 @@ export function CouncilOnboardingForm({
                 </Select>
               </div>
 
-              <div className='bg-muted text-muted-foreground rounded-lg p-4 text-sm'>
+              <div className='bg-muted rounded-lg p-4 text-sm text-blue-600'>
                 {vatStatus === 'REGISTERED'
                   ? 'VAT will be handled through regular VAT returns.'
                   : 'VAT will be treated as recoverable through VAT126 claims.'}
@@ -345,7 +345,7 @@ export function CouncilOnboardingForm({
           )}
 
           {!canRecoverVat && (
-            <div className='bg-muted text-muted-foreground rounded-lg p-4 text-sm'>
+            <div className='bg-muted rounded-lg p-4 text-sm text-blue-600'>
               VAT recovery will be disabled. VAT amounts will be treated as part
               of the gross cost unless changed later.
             </div>

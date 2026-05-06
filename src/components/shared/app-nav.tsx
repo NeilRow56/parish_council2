@@ -80,7 +80,13 @@ function NavDropdown({
   )
 }
 
-export default function AppNav() {
+export default function AppNav({
+  canRecoverVat,
+  vatStatus
+}: {
+  canRecoverVat: boolean
+  vatStatus: 'NOT_REGISTERED' | 'REGISTERED'
+}) {
   const pathname = usePathname()
   const router = useRouter()
 
@@ -88,6 +94,24 @@ export default function AppNav() {
     await signOut()
     router.push('/')
   }
+
+  // ✅ VAT menu logic
+  const showVatNav = canRecoverVat
+
+  const vatItems =
+    vatStatus === 'NOT_REGISTERED'
+      ? [
+          {
+            href: '/vat/vat-claim-126',
+            label: 'VAT 126 claim'
+          }
+        ]
+      : [
+          {
+            href: '/vat/returns',
+            label: 'VAT returns'
+          }
+        ]
 
   return (
     <header className='border-b bg-white'>
@@ -149,6 +173,7 @@ export default function AppNav() {
                 }
               ]}
             />
+
             <NavDropdown
               label='Settings'
               active={pathname.startsWith('/settings')}
@@ -179,24 +204,14 @@ export default function AppNav() {
                 }
               ]}
             />
-            <NavDropdown
-              label='VAT'
-              active={pathname.startsWith('/vat')}
-              items={[
-                {
-                  href: '/vat/returns',
-                  label: 'VAT returns'
-                }
-                // {
-                //   href: '/onboarding/council-details',
-                //   label: 'Parish council details'
-                // }
-                // {
-                //   href: '/settings/bank-reconciliation',
-                //   label: 'Bank Reconciliation'
-                // }
-              ]}
-            />
+
+            {showVatNav && (
+              <NavDropdown
+                label='VAT'
+                active={pathname.startsWith('/vat')}
+                items={vatItems}
+              />
+            )}
           </nav>
         </div>
 

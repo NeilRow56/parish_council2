@@ -13,6 +13,7 @@ import { getCurrentUser } from '@/lib/get-current-user'
 import { councilOnboardingSchema } from '@/lib/validation/council-onboarding'
 import { ensureDefaultReserve } from '@/lib/reserves/ensure-default-reserves'
 import { seedVatRatesForCouncil } from '@/server/seeds/seedVatRates'
+import { revalidatePath } from 'next/cache'
 
 type VatStatus = 'NOT_REGISTERED' | 'REGISTERED'
 
@@ -175,6 +176,8 @@ export async function completeCouncilOnboardingAction(formData: FormData) {
   if (!parishCouncils.onboardingCompletedAt) {
     await seedVatRatesForCouncil(user.parishCouncilId)
   }
+
+  revalidatePath('/', 'layout')
 
   if (isFirstSetup) {
     redirect('/transactions/inbox')

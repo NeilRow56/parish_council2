@@ -717,7 +717,7 @@ export function BankEntryForm({
         <table className='w-full min-w-400 table-fixed border-collapse text-sm'>
           <colgroup>
             <col className='w-40' />
-            <col className='w-48' />
+            {entryType === 'PAYMENT' && <col className='w-48' />}
             <col className='w-52' />
             <col className='w-48' />
             <col className='w-48' />
@@ -730,8 +730,14 @@ export function BankEntryForm({
           <thead className='bg-zinc-50 text-left text-zinc-600'>
             <tr>
               <th className='px-4 py-3 font-medium'>Nominal code</th>
-              <th className='px-4 py-3 font-medium'>Supplier / payer</th>
-              <th className='px-4 py-3 font-medium'>Description</th>
+              {entryType === 'PAYMENT' && (
+                <th className='px-4 py-3 font-medium'>Supplier</th>
+              )}
+              <th className='px-4 py-3 font-medium'>
+                {entryType === 'PAYMENT'
+                  ? 'Description'
+                  : 'Description / payer'}
+              </th>
               <th className='px-4 py-3 font-medium'>Reserve</th>
               <th className='px-4 py-3 font-medium'>Project</th>
               <th className='px-4 py-3 text-right font-medium'>Gross</th>
@@ -774,38 +780,36 @@ export function BankEntryForm({
                       />
                     </td>
 
-                    <td className='px-4 py-3'>
-                      <div className='flex gap-2'>
-                        <select
-                          value={line.supplierId}
-                          title={selectedSupplier?.name ?? ''}
-                          onChange={event =>
-                            handleSupplierChange(line, event.target.value)
-                          }
-                          className='min-w-0 flex-1 truncate rounded-md border px-3 py-2'
-                        >
-                          <option value=''>
-                            {entryType === 'PAYMENT'
-                              ? 'Select supplier'
-                              : 'Select payer'}
-                          </option>
-                          {supplierOptions.map(supplier => (
-                            <option key={supplier.id} value={supplier.id}>
-                              {supplier.name}
-                            </option>
-                          ))}
-                        </select>
+                    {entryType === 'PAYMENT' && (
+                      <td className='px-4 py-3'>
+                        <div className='flex gap-2'>
+                          <select
+                            value={line.supplierId}
+                            title={selectedSupplier?.name ?? ''}
+                            onChange={event =>
+                              handleSupplierChange(line, event.target.value)
+                            }
+                            className='min-w-0 flex-1 truncate rounded-md border px-3 py-2'
+                          >
+                            <option value=''>Select supplier</option>
+                            {supplierOptions.map(supplier => (
+                              <option key={supplier.id} value={supplier.id}>
+                                {supplier.name}
+                              </option>
+                            ))}
+                          </select>
 
-                        <button
-                          type='button'
-                          onClick={() => openQuickSupplierModal(line.id)}
-                          className='shrink-0 rounded-md border px-2.5 py-2 text-sm font-medium hover:bg-zinc-50'
-                          title='Add supplier'
-                        >
-                          +
-                        </button>
-                      </div>
-                    </td>
+                          <button
+                            type='button'
+                            onClick={() => openQuickSupplierModal(line.id)}
+                            className='shrink-0 rounded-md border px-2.5 py-2 text-sm font-medium hover:bg-zinc-50'
+                            title='Add supplier'
+                          >
+                            +
+                          </button>
+                        </div>
+                      </td>
+                    )}
 
                     <td className='px-4 py-3'>
                       <input
@@ -818,7 +822,7 @@ export function BankEntryForm({
                         placeholder={
                           entryType === 'PAYMENT'
                             ? 'e.g. Goods/service'
-                            : 'e.g. Receipt reference / payer'
+                            : 'e.g. Hall hire, cemetery fee, allotment rent'
                         }
                         className='w-full rounded-md border px-3 py-2'
                       />
@@ -959,8 +963,12 @@ export function BankEntryForm({
                           className='rounded-md p-2 text-zinc-500 hover:bg-zinc-100'
                           title={
                             line.showDetails
-                              ? 'Hide VAT126 details'
-                              : 'Show VAT126 details'
+                              ? entryType === 'PAYMENT'
+                                ? 'Hide VAT126 details'
+                                : 'Hide VAT details'
+                              : entryType === 'PAYMENT'
+                                ? 'Show VAT126 details'
+                                : 'Show VAT details'
                           }
                         >
                           {line.showDetails ? (
@@ -1004,57 +1012,61 @@ export function BankEntryForm({
                         </select>
                       </td>
 
-                      <td className='px-4 py-3'>
-                        <label className='mb-1 block text-xs font-medium text-zinc-500'>
-                          Goods supplied
-                        </label>
-                        <input
-                          value={line.goodsSupplied}
-                          onChange={event =>
-                            updateLine(line.id, {
-                              goodsSupplied: event.target.value
-                            })
-                          }
-                          placeholder='For VAT126'
-                          className='w-full rounded-md border bg-white px-3 py-2'
-                        />
-                      </td>
+                      {entryType === 'PAYMENT' && (
+                        <>
+                          <td className='px-4 py-3'>
+                            <label className='mb-1 block text-xs font-medium text-zinc-500'>
+                              Goods supplied
+                            </label>
+                            <input
+                              value={line.goodsSupplied}
+                              onChange={event =>
+                                updateLine(line.id, {
+                                  goodsSupplied: event.target.value
+                                })
+                              }
+                              placeholder='For VAT126'
+                              className='w-full rounded-md border bg-white px-3 py-2'
+                            />
+                          </td>
 
-                      <td className='px-4 py-3'>
-                        <label className='mb-1 block text-xs font-medium text-zinc-500'>
-                          Supplier VAT number
-                        </label>
-                        <input
-                          value={line.supplierVatNumberSnapshot}
-                          onChange={event =>
-                            updateLine(line.id, {
-                              supplierVatNumberSnapshot: event.target.value
-                            })
-                          }
-                          placeholder='Snapshot'
-                          className='w-full rounded-md border bg-white px-3 py-2'
-                        />
-                      </td>
+                          <td className='px-4 py-3'>
+                            <label className='mb-1 block text-xs font-medium text-zinc-500'>
+                              Supplier VAT number
+                            </label>
+                            <input
+                              value={line.supplierVatNumberSnapshot}
+                              onChange={event =>
+                                updateLine(line.id, {
+                                  supplierVatNumberSnapshot: event.target.value
+                                })
+                              }
+                              placeholder='Snapshot'
+                              className='w-full rounded-md border bg-white px-3 py-2'
+                            />
+                          </td>
 
-                      <td className='px-4 py-3'>
-                        <label className='mb-1 block text-xs font-medium text-zinc-500'>
-                          Invoice ref
-                        </label>
-                        <input
-                          value={line.invoiceReference}
-                          onChange={event =>
-                            updateLine(line.id, {
-                              invoiceReference: event.target.value
-                            })
-                          }
-                          placeholder='Optional'
-                          className='w-full rounded-md border bg-white px-3 py-2'
-                        />
-                      </td>
+                          <td className='px-4 py-3'>
+                            <label className='mb-1 block text-xs font-medium text-zinc-500'>
+                              Invoice ref
+                            </label>
+                            <input
+                              value={line.invoiceReference}
+                              onChange={event =>
+                                updateLine(line.id, {
+                                  invoiceReference: event.target.value
+                                })
+                              }
+                              placeholder='Optional'
+                              className='w-full rounded-md border bg-white px-3 py-2'
+                            />
+                          </td>
+                        </>
+                      )}
 
                       <td
                         className='px-4 py-3 text-right text-xs text-zinc-500'
-                        colSpan={5}
+                        colSpan={entryType === 'PAYMENT' ? 5 : 7}
                       >
                         Net: £
                         {formatMoney(
@@ -1071,7 +1083,10 @@ export function BankEntryForm({
 
           <tfoot className='border-t bg-zinc-50 font-semibold'>
             <tr>
-              <td className='px-4 py-3' colSpan={5}>
+              <td
+                className='px-4 py-3'
+                colSpan={entryType === 'PAYMENT' ? 5 : 4}
+              >
                 Total {entryType === 'PAYMENT' ? 'payments' : 'receipts'}
               </td>
               <td className='px-4 py-3 text-right'>

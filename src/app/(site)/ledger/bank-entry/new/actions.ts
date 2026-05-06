@@ -490,11 +490,18 @@ export async function createBankEntryAction(input: {
             )
           }
 
+          const inputVatCodeId = inputVatNominalCodeId
+
           lineValues.push({
             parishCouncilId,
             journalEntryId: entry.id,
-            nominalCodeId: inputVatNominalCodeId,
+            nominalCodeId: inputVatCodeId,
+            supplierId: line.supplierId,
             reserveId: line.reserveId,
+            projectId: line.projectId,
+            invoiceReference: line.invoiceReference,
+            goodsSupplied: line.goodsSupplied,
+            supplierVatNumberSnapshot: line.supplierVatNumberSnapshot,
             debit: formatPence(line.vatPence),
             credit: '0.00',
             description: `Recoverable VAT - ${description}`
@@ -551,11 +558,18 @@ export async function createBankEntryAction(input: {
             )
           }
 
+          const outputVatCodeId = outputVatNominalCodeId
+
           lineValues.push({
             parishCouncilId,
             journalEntryId: entry.id,
-            nominalCodeId: outputVatNominalCodeId,
+            nominalCodeId: outputVatCodeId,
+            supplierId: line.supplierId,
             reserveId: line.reserveId,
+            projectId: line.projectId,
+            invoiceReference: line.invoiceReference,
+            goodsSupplied: line.goodsSupplied,
+            supplierVatNumberSnapshot: line.supplierVatNumberSnapshot,
             debit: '0.00',
             credit: formatPence(line.vatPence),
             description: `Output VAT - ${description}`
@@ -566,6 +580,7 @@ export async function createBankEntryAction(input: {
       }
     }
   })
+
   return {
     success: true
   }

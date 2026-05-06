@@ -4,7 +4,7 @@
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
-import { and, eq, gte, lte, sql, desc } from 'drizzle-orm'
+import { and, desc, eq, gt, gte, lte, sql } from 'drizzle-orm'
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
@@ -13,6 +13,8 @@ import {
   journalEntries,
   journalLines,
   nominalCodes,
+  reserves,
+  suppliers,
   vatReturns
 } from '@/db/schema'
 
@@ -20,6 +22,23 @@ type VatTotals = {
   inputVat: number
   outputVat: number
   netVat: number
+  box6OutputsNet: number
+  box7InputsNet: number
+}
+
+export type Vat126InvoiceLine = {
+  journalLineId: string
+  journalEntryId: string
+  invoiceDate: string
+  reference: string
+  supplierName: string | null
+  supplierVatNumberSnapshot: string | null
+  goodsSupplied: string | null
+  invoiceReference: string | null
+  nominalCode: string
+  nominalName: string
+  description: string
+  vatPaid: number
 }
 
 async function requireParishCouncil() {
@@ -62,24 +81,50 @@ export async function getVatReturnTotals(params: {
   const [row] = await db
     .select({
       inputVat: sql<string>`
-        coalesce(sum(
-          case
-            when ${nominalCodes.isVatRecoverable} = true
-            then ${journalLines.debit}
-            else 0
-          end
-        ), 0)
-      `,
+      coalesce(sum(
+        case
+          when ${nominalCodes.isVatRecoverable} = true
+           and ${journalLines.debit} > 0
+          then ${journalLines.debit}
+          else 0
+        end
+      ), 0)
+    `,
 
       outputVat: sql<string>`
-        coalesce(sum(
-          case
-            when ${nominalCodes.isVatPayable} = true
-            then ${journalLines.credit}
-            else 0
-          end
-        ), 0)
-      `
+      coalesce(sum(
+        case
+          when ${nominalCodes.isVatPayable} = true
+           and ${journalLines.credit} > 0
+          then ${journalLines.credit}
+          else 0
+        end
+      ), 0)
+    `,
+
+      box6OutputsNet: sql<string>`
+      coalesce(sum(
+        case
+          when ${nominalCodes.isVatPayable} = false
+           and ${nominalCodes.isVatRecoverable} = false
+           and ${journalLines.credit} > 0
+          then ${journalLines.credit}
+          else 0
+        end
+      ), 0)
+    `,
+
+      box7InputsNet: sql<string>`
+      coalesce(sum(
+        case
+          when ${nominalCodes.isVatPayable} = false
+           and ${nominalCodes.isVatRecoverable} = false
+           and ${journalLines.debit} > 0
+          then ${journalLines.debit}
+          else 0
+        end
+      ), 0)
+    `
     })
     .from(journalLines)
     .innerJoin(
@@ -102,7 +147,9 @@ export async function getVatReturnTotals(params: {
   return {
     inputVat,
     outputVat,
-    netVat: outputVat - inputVat
+    netVat: outputVat - inputVat,
+    box6OutputsNet: toMoneyNumber(row?.box6OutputsNet),
+    box7InputsNet: toMoneyNumber(row?.box7InputsNet)
   }
 }
 
@@ -114,6 +161,21 @@ export async function submitVatReturn(params: {
   const { parishCouncilId, userId } = await requireParishCouncil()
 
   return db.transaction(async tx => {
+    const [generalReserve] = await tx
+      .select()
+      .from(reserves)
+      .where(
+        and(
+          eq(reserves.parishCouncilId, parishCouncilId),
+          eq(reserves.name, 'General reserve')
+        )
+      )
+
+    if (!generalReserve) {
+      throw new Error(
+        'General reserve is required before submitting a VAT return.'
+      )
+    }
     const existing = await tx.query.vatReturns.findFirst({
       where: and(
         eq(vatReturns.parishCouncilId, parishCouncilId),
@@ -136,21 +198,45 @@ export async function submitVatReturn(params: {
           coalesce(sum(
             case
               when ${nominalCodes.isVatRecoverable} = true
+               and ${journalLines.debit} > 0
               then ${journalLines.debit}
               else 0
             end
           ), 0)
         `,
-
         outputVat: sql<string>`
           coalesce(sum(
             case
               when ${nominalCodes.isVatPayable} = true
+               and ${journalLines.credit} > 0
               then ${journalLines.credit}
               else 0
             end
           ), 0)
-        `
+        `,
+        box6OutputsNet: sql<string>`
+  coalesce(sum(
+    case
+      when ${nominalCodes.isVatPayable} = false
+       and ${nominalCodes.isVatRecoverable} = false
+       and ${journalLines.credit} > 0
+      then ${journalLines.credit}
+      else 0
+    end
+  ), 0)
+`,
+
+        box7InputsNet: sql<string>`
+  coalesce(sum(
+    case
+      when ${nominalCodes.isVatPayable} = false
+       and ${nominalCodes.isVatRecoverable} = false
+       and ${journalLines.debit} > 0
+      then ${journalLines.debit}
+      else 0
+    end
+  ), 0)
+`
       })
       .from(journalLines)
       .innerJoin(
@@ -173,7 +259,9 @@ export async function submitVatReturn(params: {
     const totals: VatTotals = {
       inputVat,
       outputVat,
-      netVat: outputVat - inputVat
+      netVat: outputVat - inputVat,
+      box6OutputsNet: toMoneyNumber(totalsRow?.box6OutputsNet),
+      box7InputsNet: toMoneyNumber(totalsRow?.box7InputsNet)
     }
 
     const [vatControl] = await tx
@@ -258,6 +346,7 @@ export async function submitVatReturn(params: {
         parishCouncilId,
         journalEntryId: clearingJournal.id,
         nominalCodeId: outputVatCode.id,
+        reserveId: generalReserve.id,
         debit: money(totals.outputVat),
         credit: '0.00',
         description: 'Clear output VAT'
@@ -269,6 +358,7 @@ export async function submitVatReturn(params: {
         parishCouncilId,
         journalEntryId: clearingJournal.id,
         nominalCodeId: inputVatCode.id,
+        reserveId: generalReserve.id,
         debit: '0.00',
         credit: money(totals.inputVat),
         description: 'Clear input VAT'
@@ -280,6 +370,7 @@ export async function submitVatReturn(params: {
         parishCouncilId,
         journalEntryId: clearingJournal.id,
         nominalCodeId: vatControl.id,
+        reserveId: generalReserve.id,
         debit: '0.00',
         credit: money(totals.netVat),
         description: 'VAT payable transferred to VAT control'
@@ -291,6 +382,7 @@ export async function submitVatReturn(params: {
         parishCouncilId,
         journalEntryId: clearingJournal.id,
         nominalCodeId: vatControl.id,
+        reserveId: generalReserve.id,
         debit: money(Math.abs(totals.netVat)),
         credit: '0.00',
         description: 'VAT reclaimable transferred to VAT control'
@@ -330,14 +422,6 @@ export async function getCurrentFinancialYearForVatReturns() {
   return year ?? null
 }
 
-export type Vat126InvoiceLine = {
-  invoiceDate: string
-  supplierVatNumber: string
-  description: string
-  addressedTo: string
-  vatPaid: number
-}
-
 export async function getVat126InvoiceLines(params: {
   financialYearId: string
   periodStart: Date
@@ -350,10 +434,90 @@ export async function getVat126InvoiceLines(params: {
 
   const rows = await db
     .select({
+      journalLineId: journalLines.id,
+      journalEntryId: journalEntries.id,
       invoiceDate: journalEntries.date,
+      reference: journalEntries.reference,
       journalDescription: journalEntries.description,
       lineDescription: journalLines.description,
+      supplierName: suppliers.name,
+      supplierVatNumberSnapshot: journalLines.supplierVatNumberSnapshot,
+      goodsSupplied: journalLines.goodsSupplied,
+      invoiceReference: journalLines.invoiceReference,
+      nominalCode: nominalCodes.code,
+      nominalName: nominalCodes.name,
       vatPaid: journalLines.debit
+    })
+    .from(journalLines)
+    .innerJoin(
+      journalEntries,
+      eq(journalLines.journalEntryId, journalEntries.id)
+    )
+    .innerJoin(nominalCodes, eq(journalLines.nominalCodeId, nominalCodes.id))
+    .leftJoin(suppliers, eq(journalLines.supplierId, suppliers.id))
+    .where(
+      and(
+        eq(journalEntries.parishCouncilId, parishCouncilId),
+        eq(journalEntries.financialYearId, params.financialYearId),
+        eq(nominalCodes.isVatRecoverable, true),
+        gt(journalLines.debit, '0'),
+        gte(journalEntries.date, periodStart),
+        lte(journalEntries.date, periodEnd)
+      )
+    )
+    .orderBy(desc(journalEntries.date), desc(journalEntries.createdAt))
+
+  return rows.map(row => ({
+    journalLineId: row.journalLineId,
+    journalEntryId: row.journalEntryId,
+    invoiceDate: row.invoiceDate,
+    reference: row.reference,
+    supplierName: row.supplierName,
+    supplierVatNumberSnapshot: row.supplierVatNumberSnapshot,
+    goodsSupplied: row.goodsSupplied,
+    invoiceReference: row.invoiceReference,
+    nominalCode: row.nominalCode,
+    nominalName: row.nominalName,
+    description: row.lineDescription ?? row.journalDescription,
+    vatPaid: Number(row.vatPaid ?? 0)
+  }))
+}
+
+export type VatReturnTransactionLine = {
+  journalLineId: string
+  journalEntryId: string
+  date: string
+  reference: string
+  description: string | null
+  nominalCode: string
+  nominalName: string
+  type: 'INPUT' | 'OUTPUT'
+  vatAmount: number
+}
+
+export async function getVatReturnTransactionLines(params: {
+  financialYearId: string
+  periodStart: Date
+  periodEnd: Date
+}): Promise<VatReturnTransactionLine[]> {
+  const { parishCouncilId } = await requireParishCouncil()
+
+  const periodStart = dateToInputDate(params.periodStart)
+  const periodEnd = dateToInputDate(params.periodEnd)
+
+  const rows = await db
+    .select({
+      journalLineId: journalLines.id,
+      journalEntryId: journalEntries.id,
+      date: journalEntries.date,
+      reference: journalEntries.reference,
+      description: journalLines.description,
+      nominalCode: nominalCodes.code,
+      nominalName: nominalCodes.name,
+      isVatRecoverable: nominalCodes.isVatRecoverable,
+      isVatPayable: nominalCodes.isVatPayable,
+      debit: journalLines.debit,
+      credit: journalLines.credit
     })
     .from(journalLines)
     .innerJoin(
@@ -365,18 +529,31 @@ export async function getVat126InvoiceLines(params: {
       and(
         eq(journalEntries.parishCouncilId, parishCouncilId),
         eq(journalEntries.financialYearId, params.financialYearId),
-        eq(nominalCodes.isVatRecoverable, true),
         gte(journalEntries.date, periodStart),
         lte(journalEntries.date, periodEnd)
       )
     )
-    .orderBy(desc(journalEntries.date))
+    .orderBy(desc(journalEntries.date), desc(journalEntries.createdAt))
 
-  return rows.map(row => ({
-    invoiceDate: row.invoiceDate,
-    supplierVatNumber: '',
-    description: row.lineDescription ?? row.journalDescription,
-    addressedTo: '',
-    vatPaid: Number(row.vatPaid ?? 0)
-  }))
+  return rows
+    .filter(
+      row =>
+        (row.isVatRecoverable && Number(row.debit ?? 0) > 0) ||
+        (row.isVatPayable && Number(row.credit ?? 0) > 0)
+    )
+    .map(row => {
+      const isInput = row.isVatRecoverable
+
+      return {
+        journalLineId: row.journalLineId,
+        journalEntryId: row.journalEntryId,
+        date: row.date,
+        reference: row.reference,
+        description: row.description,
+        nominalCode: row.nominalCode,
+        nominalName: row.nominalName,
+        type: isInput ? 'INPUT' : 'OUTPUT',
+        vatAmount: isInput ? Number(row.debit ?? 0) : Number(row.credit ?? 0)
+      }
+    })
 }

@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/alert-dialog'
 
 import { createBankEntryAction, quickCreateSupplierAction } from '../actions'
+import { InvoiceUpload } from './invoice-upload'
 
 type BankEntryType = 'PAYMENT' | 'RECEIPT'
 
@@ -265,6 +266,11 @@ export function BankEntryForm({
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
+  const [uploadedInvoice, setUploadedInvoice] = useState<{
+    url: string
+    name: string
+    key: string
+  } | null>(null)
 
   const fallbackReserveId =
     defaultReserveId || reserves.find(reserve => reserve.isDefault)?.id || ''
@@ -284,9 +290,7 @@ export function BankEntryForm({
     bankAccounts[0]?.connectionId ?? ''
   )
   const [reference, setReference] = useState('')
-  const [attachmentUrl] = useState('')
-  const [attachmentName] = useState('')
-  const [attachmentKey] = useState('')
+
   const [showVat126Warning, setShowVat126Warning] = useState(false)
 
   const [supplierOptions, setSupplierOptions] =
@@ -550,9 +554,9 @@ export function BankEntryForm({
           bankConnectionId,
           entryType,
           reference,
-          attachmentUrl: attachmentUrl || undefined,
-          attachmentName: attachmentName || undefined,
-          attachmentKey: attachmentKey || undefined,
+          attachmentUrl: uploadedInvoice?.url,
+          attachmentName: uploadedInvoice?.name,
+          attachmentKey: uploadedInvoice?.key,
           lines: activeLines.map(line => ({
             nominalCodeId: line.nominalCodeId,
             supplierId: line.supplierId || undefined,
@@ -682,10 +686,10 @@ export function BankEntryForm({
 
         <div className='rounded-md border bg-zinc-50 p-3'>
           <label className='text-sm font-medium'>Supporting document</label>
-          <p className='mt-1 text-xs text-zinc-500'>
-            PDF upload can be wired here using your UploadThing component. The
-            form already supports attachment URL, name and key.
-          </p>
+          <InvoiceUpload
+            value={uploadedInvoice}
+            onChange={setUploadedInvoice}
+          />
         </div>
       </div>
 

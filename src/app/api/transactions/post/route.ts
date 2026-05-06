@@ -14,6 +14,7 @@ import {
   journalLines,
   nominalCodes
 } from '@/db/schema/nominalLedger'
+import { reserves } from '@/db/schema'
 
 export async function POST(request: NextRequest) {
   const session = await auth.api.getSession({
@@ -103,6 +104,21 @@ export async function POST(request: NextRequest) {
           )
         }
 
+        const [defaultReserve] = await trx
+          .select({ id: reserves.id })
+          .from(reserves)
+          .where(
+            and(
+              eq(reserves.parishCouncilId, parishCouncilId),
+              eq(reserves.isDefault, true),
+              eq(reserves.isActive, true)
+            )
+          )
+          .limit(1)
+
+        if (!defaultReserve) {
+          throw new Error('No active default reserve has been configured.')
+        }
         const [bankCode] = await trx
           .select({
             id: nominalCodes.id
@@ -159,6 +175,7 @@ export async function POST(request: NextRequest) {
               parishCouncilId,
               journalEntryId: entry.id,
               nominalCodeId: bankCode.id,
+              reserveId: defaultReserve.id,
               debit: absoluteAmount,
               credit: '0.00',
               description: tx.description
@@ -167,6 +184,7 @@ export async function POST(request: NextRequest) {
               parishCouncilId,
               journalEntryId: entry.id,
               nominalCodeId,
+              reserveId: defaultReserve.id,
               debit: '0.00',
               credit: absoluteAmount,
               description: tx.description
@@ -180,6 +198,7 @@ export async function POST(request: NextRequest) {
               journalEntryId: entry.id,
               nominalCodeId,
               debit: absoluteAmount,
+              reserveId: defaultReserve.id,
               credit: '0.00',
               description: tx.description
             },
@@ -187,6 +206,7 @@ export async function POST(request: NextRequest) {
               parishCouncilId,
               journalEntryId: entry.id,
               nominalCodeId: bankCode.id,
+              reserveId: defaultReserve.id,
               debit: '0.00',
               credit: absoluteAmount,
               description: tx.description

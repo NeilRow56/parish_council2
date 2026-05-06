@@ -34,9 +34,8 @@ export async function GET(request: NextRequest) {
 
   const rows = lines.map(line => [
     line.invoiceDate,
-    line.supplierVatNumber,
+    line.supplierVatNumberSnapshot ?? '',
     line.description,
-    line.addressedTo,
     line.vatPaid.toFixed(2)
   ])
 

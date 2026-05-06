@@ -7,6 +7,7 @@ import { useRouter } from 'next/navigation'
 import { ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { z } from 'zod'
+
 import {
   AlertDialog,
   AlertDialogAction,
@@ -75,6 +76,12 @@ type VatRateOption = {
   ratePercent: string
 }
 
+type UploadedInvoice = {
+  url: string
+  name: string
+  key: string
+}
+
 type BankEntryLine = {
   id: string
   nominalCodeId: string
@@ -91,6 +98,9 @@ type BankEntryLine = {
   vatAmount: string
   vatManuallyEdited: boolean
   showDetails: boolean
+  attachmentUrl: string
+  attachmentName: string
+  attachmentKey: string
 }
 
 const bankEntrySchema = z.object({
@@ -128,7 +138,10 @@ function createEmptyLine(
     vatTreatment: 'OUTSIDE_SCOPE',
     vatAmount: '',
     vatManuallyEdited: false,
-    showDetails: false
+    showDetails: false,
+    attachmentUrl: '',
+    attachmentName: '',
+    attachmentKey: ''
   }
 }
 
@@ -266,11 +279,6 @@ export function BankEntryForm({
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [error, setError] = useState<string | null>(null)
-  const [uploadedInvoice, setUploadedInvoice] = useState<{
-    url: string
-    name: string
-    key: string
-  } | null>(null)
 
   const fallbackReserveId =
     defaultReserveId || reserves.find(reserve => reserve.isDefault)?.id || ''
@@ -345,6 +353,14 @@ export function BankEntryForm({
     )
   }
 
+  function updateLineAttachment(id: string, invoice: UploadedInvoice | null) {
+    updateLine(id, {
+      attachmentUrl: invoice?.url ?? '',
+      attachmentName: invoice?.name ?? '',
+      attachmentKey: invoice?.key ?? ''
+    })
+  }
+
   function addLine() {
     setLines(current => [
       ...current,
@@ -362,6 +378,11 @@ export function BankEntryForm({
     setLines(current =>
       current.map(line => ({
         ...line,
+        supplierId: value === 'RECEIPT' ? '' : line.supplierId,
+        invoiceReference: value === 'RECEIPT' ? '' : line.invoiceReference,
+        goodsSupplied: value === 'RECEIPT' ? '' : line.goodsSupplied,
+        supplierVatNumberSnapshot:
+          value === 'RECEIPT' ? '' : line.supplierVatNumberSnapshot,
         vatRateId: defaultVatRateId,
         vatTreatment: 'OUTSIDE_SCOPE',
         vatAmount: '',
@@ -499,7 +520,12 @@ export function BankEntryForm({
 
     const activeLines = lines.filter(
       line =>
-        line.nominalCodeId || line.description.trim() || line.amount.trim()
+        line.nominalCodeId ||
+        line.description.trim() ||
+        line.amount.trim() ||
+        line.attachmentUrl ||
+        line.attachmentName ||
+        line.attachmentKey
     )
 
     const validation = bankEntrySchema.safeParse({
@@ -554,18 +580,29 @@ export function BankEntryForm({
           bankConnectionId,
           entryType,
           reference,
-          attachmentUrl: uploadedInvoice?.url,
-          attachmentName: uploadedInvoice?.name,
-          attachmentKey: uploadedInvoice?.key,
           lines: activeLines.map(line => ({
             nominalCodeId: line.nominalCodeId,
-            supplierId: line.supplierId || undefined,
+            supplierId:
+              entryType === 'PAYMENT'
+                ? line.supplierId || undefined
+                : undefined,
             reserveId: line.reserveId,
             projectId: line.projectId || undefined,
-            invoiceReference: line.invoiceReference || undefined,
-            goodsSupplied: line.goodsSupplied || undefined,
+            invoiceReference:
+              entryType === 'PAYMENT'
+                ? line.invoiceReference || undefined
+                : undefined,
+            goodsSupplied:
+              entryType === 'PAYMENT'
+                ? line.goodsSupplied || undefined
+                : undefined,
             supplierVatNumberSnapshot:
-              line.supplierVatNumberSnapshot || undefined,
+              entryType === 'PAYMENT'
+                ? line.supplierVatNumberSnapshot || undefined
+                : undefined,
+            attachmentUrl: line.attachmentUrl || undefined,
+            attachmentName: line.attachmentName || undefined,
+            attachmentKey: line.attachmentKey || undefined,
             description: line.description,
             amount: line.amount,
             vatRateId: getValidVatRateId(line.vatRateId),
@@ -629,7 +666,7 @@ export function BankEntryForm({
           </p>
         )}
 
-        <div className='grid gap-4 md:grid-cols-[1fr_1fr_2fr_1fr]'>
+        <div className='grid gap-4 border-b p-4 md:grid-cols-[260px_220px_minmax(360px,1fr)_260px]'>
           <div>
             <label className='text-sm font-medium'>Date</label>
             <input
@@ -683,20 +720,15 @@ export function BankEntryForm({
             />
           </div>
         </div>
-
-        <div className='rounded-md border bg-zinc-50 p-3'>
-          <label className='text-sm font-medium'>Supporting document</label>
-          <InvoiceUpload
-            value={uploadedInvoice}
-            onChange={setUploadedInvoice}
-          />
-        </div>
       </div>
 
       <div className='overflow-x-auto'>
         <div className='flex flex-wrap items-center justify-between gap-3 border-b bg-zinc-50 px-4 py-3 text-sm'>
-          <p className='text-zinc-600'>
-            Code each line to a nominal code, reserve and optional project.
+          <p className='text-sm text-blue-600'>
+            Code each line to a nominal code, reserve and optional project. Use
+            the <ChevronRight className='inline h-4 w-4 align-[-2px]' /> details
+            button to add VAT126 information and upload a supporting PDF invoice
+            or receipt.
           </p>
 
           <div className='flex items-center gap-2'>
@@ -997,86 +1029,116 @@ export function BankEntryForm({
 
                   {line.showDetails && (
                     <tr className='border-t bg-zinc-50/50'>
-                      <td className='px-4 py-3'>
-                        <label className='mb-1 block text-xs font-medium text-zinc-500'>
-                          VAT rate
-                        </label>
-                        <select
-                          value={getValidVatRateId(line.vatRateId)}
-                          onChange={event =>
-                            handleVatRateChange(line.id, event.target.value)
-                          }
-                          className='w-full rounded-md border bg-white px-3 py-2'
-                        >
-                          {vatRates.map(rate => (
-                            <option key={rate.id} value={rate.id}>
-                              {rate.name}
-                            </option>
-                          ))}
-                        </select>
-                      </td>
-
-                      {entryType === 'PAYMENT' && (
-                        <>
-                          <td className='px-4 py-3'>
-                            <label className='mb-1 block text-xs font-medium text-zinc-500'>
-                              Goods supplied
-                            </label>
-                            <input
-                              value={line.goodsSupplied}
-                              onChange={event =>
-                                updateLine(line.id, {
-                                  goodsSupplied: event.target.value
-                                })
-                              }
-                              placeholder='For VAT126'
-                              className='w-full rounded-md border bg-white px-3 py-2'
-                            />
-                          </td>
-
-                          <td className='px-4 py-3'>
-                            <label className='mb-1 block text-xs font-medium text-zinc-500'>
-                              Supplier VAT number
-                            </label>
-                            <input
-                              value={line.supplierVatNumberSnapshot}
-                              onChange={event =>
-                                updateLine(line.id, {
-                                  supplierVatNumberSnapshot: event.target.value
-                                })
-                              }
-                              placeholder='Snapshot'
-                              className='w-full rounded-md border bg-white px-3 py-2'
-                            />
-                          </td>
-
-                          <td className='px-4 py-3'>
-                            <label className='mb-1 block text-xs font-medium text-zinc-500'>
-                              Invoice ref
-                            </label>
-                            <input
-                              value={line.invoiceReference}
-                              onChange={event =>
-                                updateLine(line.id, {
-                                  invoiceReference: event.target.value
-                                })
-                              }
-                              placeholder='Optional'
-                              className='w-full rounded-md border bg-white px-3 py-2'
-                            />
-                          </td>
-                        </>
-                      )}
-
                       <td
-                        className='px-4 py-3 text-right text-xs text-zinc-500'
-                        colSpan={entryType === 'PAYMENT' ? 5 : 7}
+                        className='px-4 py-4'
+                        colSpan={entryType === 'PAYMENT' ? 9 : 8}
                       >
-                        Net: £
-                        {formatMoney(
-                          parseAmount(line.amount) -
-                            (shouldUseVat(entryType, line) ? vat : 0)
-                        )}
+                        <div className='grid gap-4 md:grid-cols-12'>
+                          <div className='md:col-span-2'>
+                            <label className='mb-1 block text-xs font-medium text-zinc-500'>
+                              VAT rate
+                            </label>
+
+                            <select
+                              value={getValidVatRateId(line.vatRateId)}
+                              onChange={event =>
+                                handleVatRateChange(line.id, event.target.value)
+                              }
+                              className='w-full rounded-md border bg-white px-3 py-2'
+                            >
+                              {vatRates.map(rate => (
+                                <option key={rate.id} value={rate.id}>
+                                  {rate.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          {entryType === 'PAYMENT' && (
+                            <>
+                              <div className='md:col-span-3'>
+                                <label className='mb-1 block text-xs font-medium text-zinc-500'>
+                                  Goods supplied
+                                </label>
+
+                                <input
+                                  value={line.goodsSupplied}
+                                  onChange={event =>
+                                    updateLine(line.id, {
+                                      goodsSupplied: event.target.value
+                                    })
+                                  }
+                                  placeholder='For VAT126'
+                                  className='w-full rounded-md border bg-white px-3 py-2'
+                                />
+                              </div>
+
+                              <div className='md:col-span-2'>
+                                <label className='mb-1 block text-xs font-medium text-zinc-500'>
+                                  Supplier VAT number
+                                </label>
+
+                                <input
+                                  value={line.supplierVatNumberSnapshot}
+                                  onChange={event =>
+                                    updateLine(line.id, {
+                                      supplierVatNumberSnapshot:
+                                        event.target.value
+                                    })
+                                  }
+                                  placeholder='Snapshot'
+                                  className='w-full rounded-md border bg-white px-3 py-2'
+                                />
+                              </div>
+
+                              <div className='md:col-span-2'>
+                                <label className='mb-1 block text-xs font-medium text-zinc-500'>
+                                  Invoice ref
+                                </label>
+
+                                <input
+                                  value={line.invoiceReference}
+                                  onChange={event =>
+                                    updateLine(line.id, {
+                                      invoiceReference: event.target.value
+                                    })
+                                  }
+                                  placeholder='Optional'
+                                  className='w-full rounded-md border bg-white px-3 py-2'
+                                />
+                              </div>
+                            </>
+                          )}
+
+                          <div className='md:col-span-3'>
+                            <label className='mb-1 block text-xs font-medium text-zinc-500'>
+                              Supporting document
+                            </label>
+
+                            <InvoiceUpload
+                              value={
+                                line.attachmentUrl
+                                  ? {
+                                      url: line.attachmentUrl,
+                                      name: line.attachmentName,
+                                      key: line.attachmentKey
+                                    }
+                                  : null
+                              }
+                              onChange={invoice =>
+                                updateLineAttachment(line.id, invoice)
+                              }
+                            />
+                          </div>
+                        </div>
+
+                        <div className='mt-3 text-right text-xs text-zinc-500'>
+                          Net: £
+                          {formatMoney(
+                            parseAmount(line.amount) -
+                              (shouldUseVat(entryType, line) ? vat : 0)
+                          )}
+                        </div>
                       </td>
                     </tr>
                   )}

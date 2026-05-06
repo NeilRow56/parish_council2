@@ -14,6 +14,7 @@ import {
   nominalCodes
 } from '@/db/schema/nominalLedger'
 import { projects, reserves, suppliers } from '@/db/schema'
+import { utapi } from '@/server/uploadthing'
 
 type BankEntryType = 'PAYMENT' | 'RECEIPT'
 type VatRate = 'NO_VAT' | 'STANDARD_20' | 'REDUCED_5'
@@ -626,4 +627,10 @@ export async function quickCreateSupplierAction(input: {
     })
 
   return supplier
+}
+
+export async function deleteUploadedFileAction(fileKey: string) {
+  if (!fileKey) return
+
+  await utapi.deleteFiles(fileKey)
 }

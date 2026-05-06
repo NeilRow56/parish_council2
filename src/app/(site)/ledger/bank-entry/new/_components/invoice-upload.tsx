@@ -1,7 +1,10 @@
 // src/app/(site)/ledger/bank-entry/new/_components/invoice-upload.tsx
 'use client'
 
+import { useState } from 'react'
+import { Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
+import { deleteUploadedFileAction } from '../actions'
 
 import { UploadButton } from '@/lib/uploadthing'
 
@@ -18,67 +21,92 @@ export function InvoiceUpload({
   value: UploadedInvoice | null
   onChange: (value: UploadedInvoice | null) => void
 }) {
-  return (
-    <div className='rounded-lg border bg-white p-3'>
-      <div className='flex items-center justify-between gap-3'>
-        <div className='min-w-0'>
-          <p className='text-sm font-medium'>Supporting document</p>
+  const [isUploading, setIsUploading] = useState(false)
 
+  return (
+    <div className='rounded-lg border bg-white p-2'>
+      <div className='flex items-center justify-between gap-2'>
+        <div className='min-w-0 flex-1'>
           {value ? (
             <a
               href={value.url}
               target='_blank'
               rel='noreferrer'
-              className='mt-1 block truncate text-sm text-blue-600 hover:underline'
+              title={value.name}
+              className='block truncate text-sm text-blue-600 hover:underline'
             >
               {value.name}
             </a>
           ) : (
-            <p className='mt-1 text-sm text-slate-500'>
-              Optional PDF invoice or receipt.
-            </p>
+            <p className='text-sm text-slate-500'>Optional PDF</p>
           )}
         </div>
 
-        <div className='flex shrink-0 items-center gap-2'>
-          {value && (
-            <button
-              type='button'
-              onClick={() => onChange(null)}
-              className='rounded-md border px-3 py-2 text-sm hover:bg-slate-50'
-            >
-              Remove
-            </button>
-          )}
+        {isUploading && (
+          <Loader2 className='h-4 w-4 shrink-0 animate-spin text-slate-500' />
+        )}
 
-          <UploadButton
-            endpoint='invoicePdfUploader'
-            onClientUploadComplete={files => {
-              const file = files[0]
+        {value && (
+          <button
+            type='button'
+            disabled={isUploading}
+            onClick={async () => {
+              if (value?.key) {
+                try {
+                  await deleteUploadedFileAction(value.key)
+                } catch {
+                  toast.error('Could not remove file')
+                  return
+                }
+              }
 
-              if (!file) return
+              onChange(null)
 
-              onChange({
-                url: file.url,
-                name: file.name,
-                key: file.key
-              })
+              toast.success('File removed')
+            }}
+            className='shrink-0 rounded-md border px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50'
+          >
+            Remove
+          </button>
+        )}
 
-              toast.success('PDF uploaded')
-            }}
-            onUploadError={error => {
-              toast.error(error.message || 'Upload failed')
-            }}
-            appearance={{
-              button:
-                'rounded-md bg-slate-950 px-3 py-2 text-sm font-medium text-white',
-              allowedContent: 'hidden'
-            }}
-            content={{
-              button: value ? 'Replace PDF' : 'Upload PDF'
-            }}
-          />
-        </div>
+        <UploadButton
+          endpoint='invoicePdfUploader'
+          onUploadBegin={() => {
+            setIsUploading(true)
+          }}
+          onClientUploadComplete={files => {
+            const file = files[0]
+
+            setIsUploading(false)
+
+            if (!file) return
+
+            onChange({
+              url: file.url,
+              name: file.name,
+              key: file.key
+            })
+
+            toast.success('PDF uploaded')
+          }}
+          onUploadError={error => {
+            setIsUploading(false)
+            toast.error(error.message || 'Upload failed')
+          }}
+          appearance={{
+            button:
+              'shrink-0 rounded-md bg-slate-950 px-4 py-2 text-sm font-medium text-white',
+            allowedContent: 'hidden'
+          }}
+          content={{
+            button: isUploading
+              ? 'Uploading...'
+              : value
+                ? 'Replace PDF'
+                : 'Upload PDF'
+          }}
+        />
       </div>
     </div>
   )

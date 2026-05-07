@@ -142,7 +142,9 @@ export default async function LedgerPage({ searchParams }: LedgerPageProps) {
 
         <div className='grid gap-4 sm:grid-cols-3'>
           <div className='rounded-lg border bg-white p-4'>
-            <p className='text-sm text-slate-500'>Journal lines shown</p>
+            <p className='text-sm text-slate-600'>
+              Showing up to 100 {query ? 'matching' : 'latest'} journal lines.
+            </p>
             <p className='mt-1 text-2xl font-semibold'>{rows.length}</p>
           </div>
 

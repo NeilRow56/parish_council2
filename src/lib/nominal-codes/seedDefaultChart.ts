@@ -70,6 +70,7 @@ export async function seedDefaultChart({
         name: item.name,
         type: item.type,
         category: item.category,
+        agarBox: item.agarBox ?? null,
         isBank: item.isBank ?? false,
         isVatRecoverable: item.isVatRecoverable ?? false,
         isVatPayable: item.isVatPayable ?? false,

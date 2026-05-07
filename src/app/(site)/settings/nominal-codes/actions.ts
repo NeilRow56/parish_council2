@@ -11,12 +11,27 @@ import { nominalCodes } from '@/db/schema/nominalLedger'
 
 const nominalCodeTypeSchema = z.enum(['INCOME', 'EXPENDITURE', 'BALANCE_SHEET'])
 
+const agarBoxSchema = z
+  .enum([
+    'BOX_2_PRECEPT',
+    'BOX_3_OTHER_RECEIPTS',
+    'BOX_4_STAFF_COSTS',
+    'BOX_5_LOAN_REPAYMENTS',
+    'BOX_6_OTHER_PAYMENTS',
+    'BOX_8_CASH_AND_SHORT_TERM_INVESTMENTS',
+    'BOX_9_FIXED_ASSETS',
+    'BOX_10_BORROWINGS'
+  ])
+  .nullable()
+  .optional()
+
 const createNominalCodeSchema = z.object({
   financialYearId: z.string().min(1, 'Financial year is required'),
   code: z.string().trim().min(1, 'Code is required').max(20),
   name: z.string().trim().min(1, 'Name is required').max(120),
   type: nominalCodeTypeSchema,
   category: z.string().trim().max(80).optional(),
+  agarBox: agarBoxSchema,
   isBank: z.boolean().default(false)
 })
 
@@ -24,6 +39,7 @@ const updateNominalCodeSchema = z.object({
   id: z.string().min(1, 'Nominal code id is required'),
   name: z.string().trim().min(1, 'Name is required').max(120),
   category: z.string().trim().max(80).optional(),
+  agarBox: agarBoxSchema,
   isActive: z.boolean()
 })
 
@@ -84,6 +100,7 @@ export async function createNominalCodeAction(input: unknown) {
     name: parsed.name,
     type: parsed.type,
     category: normaliseOptionalText(parsed.category),
+    agarBox: parsed.agarBox ?? null,
     isBank: parsed.isBank,
     isActive: true
   })
@@ -115,6 +132,7 @@ export async function updateNominalCodeAction(input: unknown) {
     .set({
       name: parsed.name,
       category: normaliseOptionalText(parsed.category),
+      agarBox: parsed.agarBox ?? null,
       isActive: parsed.isActive
     })
     .where(

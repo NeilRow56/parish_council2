@@ -6,7 +6,7 @@ import { eq } from 'drizzle-orm'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
 import { parishCouncils, user } from '@/db/schema/authSchema'
-import { seedDefaultChart } from '@/lib/nominal-codes/seedDefaulChart'
+import { seedDefaultChart } from '@/lib/nominal-codes/seedDefaultChart'
 
 export async function POST(request: NextRequest) {
   const session = await auth.api.getSession({

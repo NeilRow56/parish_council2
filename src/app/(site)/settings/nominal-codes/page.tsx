@@ -43,6 +43,7 @@ export default async function NominalCodesSettingsPage() {
       name: nominalCodes.name,
       type: nominalCodes.type,
       category: nominalCodes.category,
+      agarBox: nominalCodes.agarBox,
       isBank: nominalCodes.isBank,
       isActive: nominalCodes.isActive
     })

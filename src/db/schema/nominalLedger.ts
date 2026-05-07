@@ -31,6 +31,17 @@ export const journalSourceEnum = pgEnum('journal_source', [
   'VAT_RETURN'
 ])
 
+export const agarBoxEnum = pgEnum('agar_box', [
+  'BOX_2_PRECEPT',
+  'BOX_3_OTHER_RECEIPTS',
+  'BOX_4_STAFF_COSTS',
+  'BOX_5_LOAN_REPAYMENTS',
+  'BOX_6_OTHER_PAYMENTS',
+  'BOX_8_CASH_AND_SHORT_TERM_INVESTMENTS',
+  'BOX_9_FIXED_ASSETS',
+  'BOX_10_BORROWINGS'
+])
+
 export const financialYears = pgTable(
   'financial_years',
   {
@@ -78,7 +89,7 @@ export const nominalCodes = pgTable(
 
     type: accountTypeEnum('type').notNull(),
     category: text('category'),
-
+    agarBox: agarBoxEnum('agar_box'),
     isBank: boolean('is_bank').default(false).notNull(),
     isVatRecoverable: boolean('is_vat_recoverable').default(false).notNull(),
     isVatPayable: boolean('is_vat_payable').default(false).notNull(),
@@ -100,6 +111,12 @@ export const nominalCodes = pgTable(
       t.parishCouncilId,
       t.financialYearId,
       t.isBank
+    ),
+
+    index('nominal_code_agar_box_idx').on(
+      t.parishCouncilId,
+      t.financialYearId,
+      t.agarBox
     ),
 
     index('nominal_code_vat_recoverable_idx').on(

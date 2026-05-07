@@ -174,6 +174,10 @@ export default function AppNav({
                 {
                   href: '/reports/large-payments',
                   label: 'Payments > £100'
+                },
+                {
+                  href: '/reports/agar-summary',
+                  label: 'AGAR Summary'
                 }
               ]}
             />

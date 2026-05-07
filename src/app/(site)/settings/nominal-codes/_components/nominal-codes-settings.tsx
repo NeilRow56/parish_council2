@@ -13,11 +13,40 @@ type NominalCodeRow = {
   name: string
   type: NominalCodeType
   category: string | null
+  agarBox: AgarBox | null
   isBank: boolean
   isActive: boolean
 }
 
 type Filter = 'ALL' | NominalCodeType | 'BANK' | 'INACTIVE'
+
+type AgarBox =
+  | 'BOX_2_PRECEPT'
+  | 'BOX_3_OTHER_RECEIPTS'
+  | 'BOX_4_STAFF_COSTS'
+  | 'BOX_5_LOAN_REPAYMENTS'
+  | 'BOX_6_OTHER_PAYMENTS'
+  | 'BOX_8_CASH_AND_SHORT_TERM_INVESTMENTS'
+  | 'BOX_9_FIXED_ASSETS'
+  | 'BOX_10_BORROWINGS'
+
+const agarBoxOptions: Array<{ value: AgarBox; label: string }> = [
+  { value: 'BOX_2_PRECEPT', label: 'Box 2 — Precept / rates and levies' },
+  { value: 'BOX_3_OTHER_RECEIPTS', label: 'Box 3 — Other receipts' },
+  { value: 'BOX_4_STAFF_COSTS', label: 'Box 4 — Staff costs' },
+  { value: 'BOX_5_LOAN_REPAYMENTS', label: 'Box 5 — Loan repayments' },
+  { value: 'BOX_6_OTHER_PAYMENTS', label: 'Box 6 — Other payments' },
+  {
+    value: 'BOX_8_CASH_AND_SHORT_TERM_INVESTMENTS',
+    label: 'Box 8 — Cash and short-term investments'
+  },
+  { value: 'BOX_9_FIXED_ASSETS', label: 'Box 9 — Fixed assets' },
+  { value: 'BOX_10_BORROWINGS', label: 'Box 10 — Borrowings' }
+]
+
+function agarBoxLabel(value: AgarBox | null) {
+  return agarBoxOptions.find(option => option.value === value)?.label ?? '—'
+}
 
 function typeLabel(type: NominalCodeType) {
   if (type === 'BALANCE_SHEET') return 'Balance sheet'
@@ -96,6 +125,7 @@ export function NominalCodesSettings({
               <th className='px-4 py-3 font-medium'>Name</th>
               <th className='px-4 py-3 font-medium'>Type</th>
               <th className='px-4 py-3 font-medium'>Category</th>
+              <th className='px-4 py-3 font-medium'>AGAR box</th>
               <th className='px-4 py-3 font-medium'>Bank/cash</th>
               <th className='px-4 py-3 font-medium'>Status</th>
               <th className='px-4 py-3 text-right font-medium'>Actions</th>
@@ -116,6 +146,7 @@ export function NominalCodesSettings({
                     <td className='px-4 py-3'>{code.name}</td>
                     <td className='px-4 py-3'>{typeLabel(code.type)}</td>
                     <td className='px-4 py-3'>{code.category ?? '—'}</td>
+                    <td className='px-4 py-3'>{agarBoxLabel(code.agarBox)}</td>
                     <td className='px-4 py-3'>{code.isBank ? 'Yes' : 'No'}</td>
                     <td className='px-4 py-3'>
                       <span
@@ -162,6 +193,7 @@ function CreateNominalCodeForm({
   const [name, setName] = useState('')
   const [type, setType] = useState<NominalCodeType>('EXPENDITURE')
   const [category, setCategory] = useState('')
+  const [agarBox, setAgarBox] = useState<AgarBox | ''>('')
   const [isBank, setIsBank] = useState(false)
 
   function submit() {
@@ -175,6 +207,7 @@ function CreateNominalCodeForm({
           name,
           type,
           category,
+          agarBox: agarBox || null,
           isBank
         })
 
@@ -182,6 +215,7 @@ function CreateNominalCodeForm({
         setName('')
         setType('EXPENDITURE')
         setCategory('')
+        setAgarBox('')
         setIsBank(false)
         onDone()
       } catch (err) {
@@ -202,7 +236,7 @@ function CreateNominalCodeForm({
         </p>
       )}
 
-      <div className='mt-4 grid gap-4 md:grid-cols-[120px_1fr_180px_220px_120px]'>
+      <div className='mt-4 grid gap-4 md:grid-cols-[120px_1fr_180px_220px_260px_120px]'>
         <input
           value={code}
           onChange={event => setCode(event.target.value)}
@@ -233,7 +267,18 @@ function CreateNominalCodeForm({
           placeholder='Category'
           className='rounded-md border px-3 py-2 text-sm'
         />
-
+        <select
+          value={agarBox}
+          onChange={event => setAgarBox(event.target.value as AgarBox | '')}
+          className='rounded-md border px-3 py-2 text-sm'
+        >
+          <option value=''>No AGAR box</option>
+          {agarBoxOptions.map(option => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
         <label className='flex items-center gap-2 text-sm'>
           <input
             type='checkbox'
@@ -278,6 +323,7 @@ function EditNominalCodeRow({
 
   const [name, setName] = useState(code.name)
   const [category, setCategory] = useState(code.category ?? '')
+  const [agarBox, setAgarBox] = useState<AgarBox | ''>(code.agarBox ?? '')
   const [isActive, setIsActive] = useState(code.isActive)
 
   function submit() {
@@ -289,6 +335,7 @@ function EditNominalCodeRow({
           id: code.id,
           name,
           category,
+          agarBox: agarBox || null,
           isActive
         })
 
@@ -323,7 +370,20 @@ function EditNominalCodeRow({
           className='w-full rounded-md border px-3 py-2 text-sm'
         />
       </td>
-
+      <td className='px-4 py-3 align-top'>
+        <select
+          value={agarBox}
+          onChange={event => setAgarBox(event.target.value as AgarBox | '')}
+          className='w-full rounded-md border px-3 py-2 text-sm'
+        >
+          <option value=''>No AGAR box</option>
+          {agarBoxOptions.map(option => (
+            <option key={option.value} value={option.value}>
+              {option.label}
+            </option>
+          ))}
+        </select>
+      </td>
       <td className='px-4 py-3 align-top'>{code.isBank ? 'Yes' : 'No'}</td>
 
       <td className='px-4 py-3 align-top'>

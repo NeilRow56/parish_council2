@@ -33,9 +33,16 @@ export function ProjectRowForm({ project, reserveOptions }: Props) {
     initialState
   )
 
-  const defaultReserveId = useMemo(() => {
+  const selectedReserveId = useMemo(() => {
+    const reserveExists = reserveOptions.some(
+      option => option.id === project.reserveId
+    )
+
+    if (reserveExists && project.reserveId) {
+      return project.reserveId
+    }
+
     return (
-      project.reserveId ??
       reserveOptions.find(option => option.isDefault)?.id ??
       reserveOptions[0]?.id ??
       ''
@@ -77,7 +84,7 @@ export function ProjectRowForm({ project, reserveOptions }: Props) {
 
         <select
           name='reserveId'
-          defaultValue={defaultReserveId}
+          defaultValue={selectedReserveId}
           disabled={reserveOptions.length === 0}
           className='rounded-md border px-3 py-2 text-sm disabled:bg-zinc-50 disabled:text-zinc-500'
         >

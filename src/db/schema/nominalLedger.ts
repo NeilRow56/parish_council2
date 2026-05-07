@@ -196,6 +196,9 @@ export const journalLines = pgTable(
     goodsSupplied: text('goods_supplied'),
 
     supplierVatNumberSnapshot: text('supplier_vat_number_snapshot'),
+    attachmentUrl: text('attachment_url'),
+    attachmentName: text('attachment_name'),
+    attachmentKey: text('attachment_key'),
 
     debit: decimal('debit', { precision: 12, scale: 2 })
       .default('0.00')

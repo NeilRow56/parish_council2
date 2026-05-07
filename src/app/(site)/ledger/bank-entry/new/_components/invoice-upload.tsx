@@ -83,7 +83,7 @@ export function InvoiceUpload({
             if (!file) return
 
             onChange({
-              url: file.url,
+              url: file.ufsUrl,
               name: file.name,
               key: file.key
             })

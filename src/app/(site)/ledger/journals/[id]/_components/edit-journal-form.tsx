@@ -12,6 +12,10 @@ type JournalLineInput = {
   description: string | null
   debit: string | number | null
   credit: string | number | null
+  reserveName?: string | null
+  projectName?: string | null
+  attachmentUrl?: string | null
+  attachmentName?: string | null
 }
 
 function formatAmount(value: string | number | null) {
@@ -110,6 +114,9 @@ export function EditJournalForm({
             <tr>
               <th className='px-4 py-3 font-medium'>Nominal code</th>
               <th className='px-4 py-3 font-medium'>Line description</th>
+              <th className='px-4 py-3 font-medium'>Reserve</th>
+              <th className='px-4 py-3 font-medium'>Project</th>
+              <th className='px-4 py-3 font-medium'>Document</th>
               <th className='px-4 py-3 text-right font-medium'>Debit</th>
               <th className='px-4 py-3 text-right font-medium'>Credit</th>
             </tr>
@@ -135,6 +142,24 @@ export function EditJournalForm({
                       }
                       className='w-full rounded-md border px-3 py-2 text-sm'
                     />
+                  </td>
+                  <td className='px-4 py-3'>{line.reserveName ?? '—'}</td>
+
+                  <td className='px-4 py-3'>{line.projectName ?? '—'}</td>
+
+                  <td className='px-4 py-3'>
+                    {line.attachmentUrl ? (
+                      <a
+                        href={line.attachmentUrl}
+                        target='_blank'
+                        rel='noreferrer'
+                        className='text-blue-600 hover:underline'
+                      >
+                        {line.attachmentName || 'View document'}
+                      </a>
+                    ) : (
+                      '—'
+                    )}
                   </td>
 
                   <td className='px-4 py-3 text-right'>

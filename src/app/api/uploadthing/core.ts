@@ -31,7 +31,7 @@ export const ourFileRouter = {
       return {
         uploadedBy: metadata.userId,
         parishCouncilId: metadata.parishCouncilId,
-        url: file.url,
+        url: file.ufsUrl,
         name: file.name,
         key: file.key
       }

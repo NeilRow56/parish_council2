@@ -7,6 +7,7 @@ import { and, eq } from 'drizzle-orm'
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
+import { projects, reserves } from '@/db/schema'
 import {
   financialYears,
   journalEntries,
@@ -91,10 +92,16 @@ export default async function JournalDetailPage({
       nominalName: nominalCodes.name,
       description: journalLines.description,
       debit: journalLines.debit,
-      credit: journalLines.credit
+      credit: journalLines.credit,
+      reserveName: reserves.name,
+      projectName: projects.name,
+      attachmentUrl: journalLines.attachmentUrl,
+      attachmentName: journalLines.attachmentName
     })
     .from(journalLines)
     .innerJoin(nominalCodes, eq(nominalCodes.id, journalLines.nominalCodeId))
+    .leftJoin(reserves, eq(reserves.id, journalLines.reserveId))
+    .leftJoin(projects, eq(projects.id, journalLines.projectId))
     .where(
       and(
         eq(journalLines.journalEntryId, journal.id),
@@ -176,6 +183,9 @@ export default async function JournalDetailPage({
             <tr>
               <th className='px-4 py-3 font-medium'>Nominal code</th>
               <th className='px-4 py-3 font-medium'>Line description</th>
+              <th className='px-4 py-3 font-medium'>Reserve</th>
+              <th className='px-4 py-3 font-medium'>Project</th>
+              <th className='px-4 py-3 font-medium'>Document</th>
               <th className='px-4 py-3 text-right font-medium'>Debit</th>
               <th className='px-4 py-3 text-right font-medium'>Credit</th>
             </tr>
@@ -187,10 +197,32 @@ export default async function JournalDetailPage({
                 <td className='px-4 py-3 font-medium'>
                   {line.nominalCode} — {line.nominalName}
                 </td>
+
                 <td className='px-4 py-3'>{line.description || '—'}</td>
+
+                <td className='px-4 py-3'>{line.reserveName ?? '—'}</td>
+
+                <td className='px-4 py-3'>{line.projectName ?? '—'}</td>
+
+                <td className='px-4 py-3'>
+                  {line.attachmentUrl ? (
+                    <a
+                      href={line.attachmentUrl}
+                      target='_blank'
+                      rel='noreferrer'
+                      className='text-blue-600 hover:underline'
+                    >
+                      {line.attachmentName || 'View document'}
+                    </a>
+                  ) : (
+                    '—'
+                  )}
+                </td>
+
                 <td className='px-4 py-3 text-right'>
                   {formatAmount(line.debit)}
                 </td>
+
                 <td className='px-4 py-3 text-right'>
                   {formatAmount(line.credit)}
                 </td>
@@ -200,7 +232,7 @@ export default async function JournalDetailPage({
 
           <tfoot className='border-t bg-zinc-50 font-semibold'>
             <tr>
-              <td className='px-4 py-3' colSpan={2}>
+              <td className='px-4 py-3' colSpan={5}>
                 Totals
               </td>
               <td className='px-4 py-3 text-right'>

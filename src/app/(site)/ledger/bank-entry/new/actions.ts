@@ -29,6 +29,9 @@ type BankEntryLineInput = {
   invoiceReference?: string
   goodsSupplied?: string
   supplierVatNumberSnapshot?: string
+  attachmentUrl?: string
+  attachmentName?: string
+  attachmentKey?: string
   description: string
   amount: string
   vatRate?: VatRate
@@ -189,7 +192,10 @@ export async function createBankEntryAction(input: {
       line.projectId ||
       line.invoiceReference?.trim() ||
       line.goodsSupplied?.trim() ||
-      line.supplierVatNumberSnapshot?.trim()
+      line.supplierVatNumberSnapshot?.trim() ||
+      line.attachmentUrl?.trim() ||
+      line.attachmentName?.trim() ||
+      line.attachmentKey?.trim()
   )
 
   const cleanedLines = enteredLines.map(line => {
@@ -237,12 +243,25 @@ export async function createBankEntryAction(input: {
 
     return {
       nominalCodeId: line.nominalCodeId,
-      supplierId: line.supplierId || null,
+      supplierId:
+        input.entryType === 'PAYMENT' ? line.supplierId || null : null,
       reserveId,
       projectId: line.projectId || null,
-      invoiceReference: line.invoiceReference?.trim() || null,
-      goodsSupplied: line.goodsSupplied?.trim() || null,
-      supplierVatNumberSnapshot: line.supplierVatNumberSnapshot?.trim() || null,
+      invoiceReference:
+        input.entryType === 'PAYMENT'
+          ? line.invoiceReference?.trim() || null
+          : null,
+      goodsSupplied:
+        input.entryType === 'PAYMENT'
+          ? line.goodsSupplied?.trim() || null
+          : null,
+      supplierVatNumberSnapshot:
+        input.entryType === 'PAYMENT'
+          ? line.supplierVatNumberSnapshot?.trim() || null
+          : null,
+      attachmentUrl: line.attachmentUrl?.trim() || null,
+      attachmentName: line.attachmentName?.trim() || null,
+      attachmentKey: line.attachmentKey?.trim() || null,
       description: line.description.trim(),
       grossPence,
       netPence,
@@ -476,6 +495,9 @@ export async function createBankEntryAction(input: {
             invoiceReference: line.invoiceReference,
             goodsSupplied: line.goodsSupplied,
             supplierVatNumberSnapshot: line.supplierVatNumberSnapshot,
+            attachmentUrl: line.attachmentUrl,
+            attachmentName: line.attachmentName,
+            attachmentKey: line.attachmentKey,
             debit: formatPence(
               shouldPostRecoverableVat ? line.netPence : line.grossPence
             ),
@@ -491,12 +513,10 @@ export async function createBankEntryAction(input: {
             )
           }
 
-          const inputVatCodeId = inputVatNominalCodeId
-
           lineValues.push({
             parishCouncilId,
             journalEntryId: entry.id,
-            nominalCodeId: inputVatCodeId,
+            nominalCodeId: inputVatNominalCodeId,
             supplierId: line.supplierId,
             reserveId: line.reserveId,
             projectId: line.projectId,
@@ -544,6 +564,9 @@ export async function createBankEntryAction(input: {
             invoiceReference: line.invoiceReference,
             goodsSupplied: line.goodsSupplied,
             supplierVatNumberSnapshot: line.supplierVatNumberSnapshot,
+            attachmentUrl: line.attachmentUrl,
+            attachmentName: line.attachmentName,
+            attachmentKey: line.attachmentKey,
             debit: '0.00',
             credit: formatPence(
               shouldPostOutputVat ? line.netPence : line.grossPence
@@ -559,12 +582,10 @@ export async function createBankEntryAction(input: {
             )
           }
 
-          const outputVatCodeId = outputVatNominalCodeId
-
           lineValues.push({
             parishCouncilId,
             journalEntryId: entry.id,
-            nominalCodeId: outputVatCodeId,
+            nominalCodeId: outputVatNominalCodeId,
             supplierId: line.supplierId,
             reserveId: line.reserveId,
             projectId: line.projectId,

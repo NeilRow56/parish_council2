@@ -256,7 +256,9 @@ export const budgets = pgTable(
       .notNull()
       .references(() => nominalCodes.id, { onDelete: 'cascade' }),
 
-    amount: decimal('amount', { precision: 12, scale: 2 }).notNull()
+    amount: decimal('amount', { precision: 12, scale: 2 }).notNull(),
+    notes: text('notes'),
+    updatedAt: timestamp('updated_at').defaultNow().notNull()
   },
   t => [
     uniqueIndex('budget_council_year_code_idx').on(

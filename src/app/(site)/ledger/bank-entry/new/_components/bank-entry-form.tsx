@@ -726,9 +726,10 @@ export function BankEntryForm({
         <div className='flex flex-wrap items-center justify-between gap-3 border-b bg-zinc-50 px-4 py-3 text-sm'>
           <p className='text-sm text-blue-600'>
             Code each line to a nominal code, reserve and optional project. Use
-            the <ChevronRight className='inline h-4 w-4 align-[-2px]' /> details
-            button to add VAT126 information and upload a supporting PDF invoice
-            or receipt.
+            the{' '}
+            <ChevronRight className='inline h-4 w-4 align-[-2px] text-orange-400' />{' '}
+            details button to add VAT126 information and upload a supporting PDF
+            invoice or receipt.
           </p>
 
           <div className='flex items-center gap-2'>
@@ -1010,7 +1011,7 @@ export function BankEntryForm({
                           {line.showDetails ? (
                             <ChevronDown className='h-4 w-4' />
                           ) : (
-                            <ChevronRight className='h-4 w-4' />
+                            <ChevronRight className='h-4 w-4 text-orange-400' />
                           )}
                         </button>
 

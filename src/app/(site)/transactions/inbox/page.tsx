@@ -987,65 +987,6 @@ export default function TransactionInbox() {
   )
 }
 
-// function NotesEditor({
-//   txId,
-//   initialNotes,
-//   onSave
-// }: {
-//   txId: string
-//   initialNotes: string
-//   onSave: (notes: string) => void
-// }) {
-//   const [notes, setNotes] = useState(initialNotes)
-//   const [saving, setSaving] = useState(false)
-//   const [saved, setSaved] = useState(false)
-
-//   async function save() {
-//     setSaving(true)
-
-//     await fetch(`/api/transactions/staged/${txId}`, {
-//       method: 'PATCH',
-//       headers: { 'Content-Type': 'application/json' },
-//       body: JSON.stringify({ action: 'update_notes', notes })
-//     })
-
-//     setSaving(false)
-//     setSaved(true)
-//     onSave(notes)
-
-//     setTimeout(() => setSaved(false), 2000)
-//   }
-
-//   return (
-//     <div className='flex items-start gap-3'>
-//       <div className='flex-1'>
-//         <label className='mb-1 block text-xs font-medium text-slate-500'>
-//           Notes / memo
-//         </label>
-
-//         <textarea
-//           value={notes}
-//           onChange={event => {
-//             setNotes(event.target.value)
-//             setSaved(false)
-//           }}
-//           rows={2}
-//           placeholder='Add a note for the internal audit trail…'
-//           className='w-full resize-none rounded-lg border border-slate-200 px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none'
-//         />
-//       </div>
-
-//       <button
-//         onClick={save}
-//         disabled={saving}
-//         className='mt-5 rounded-lg bg-slate-800 px-3 py-2 text-xs font-medium text-white hover:bg-slate-700 disabled:opacity-50'
-//       >
-//         {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save'}
-//       </button>
-//     </div>
-//   )
-// }
-
 function MatchCandidatesPanel({
   candidates,
   loading,

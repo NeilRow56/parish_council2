@@ -1,11 +1,13 @@
+// src/app/(site)/layout.tsx
+
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
+import { eq } from 'drizzle-orm'
 
 import AppNav from '@/components/shared/app-nav'
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
 import { parishCouncils } from '@/db/schema'
-import { eq } from 'drizzle-orm'
 
 export default async function SiteLayout({
   children
@@ -24,6 +26,7 @@ export default async function SiteLayout({
 
   const [council] = await db
     .select({
+      name: parishCouncils.name,
       canRecoverVat: parishCouncils.canRecoverVat,
       vatStatus: parishCouncils.vatStatus
     })
@@ -31,16 +34,27 @@ export default async function SiteLayout({
     .where(eq(parishCouncils.id, parishCouncilId))
     .limit(1)
 
+  if (!council) {
+    redirect('/auth/register')
+  }
+
   return (
-    <div className='h-screen flex-1'>
+    <div className='min-h-screen bg-white'>
       <AppNav
-        canRecoverVat={council?.canRecoverVat ?? false}
+        canRecoverVat={council.canRecoverVat ?? false}
         vatStatus={
-          (council?.vatStatus ?? 'NOT_REGISTERED') as
+          (council.vatStatus ?? 'NOT_REGISTERED') as
             | 'NOT_REGISTERED'
             | 'REGISTERED'
         }
       />
+
+      <div className='border-b bg-zinc-50'>
+        <div className='mx-auto max-w-7xl px-6 py-3'>
+          <p className='text-lg font-medium text-zinc-900'>{council.name}</p>
+        </div>
+      </div>
+
       {children}
     </div>
   )

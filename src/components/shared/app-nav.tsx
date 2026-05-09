@@ -178,6 +178,10 @@ export default function AppNav({
                 {
                   href: '/reports/agar-summary',
                   label: 'AGAR Summary'
+                },
+                {
+                  href: '/reports/budget',
+                  label: 'Budget'
                 }
               ]}
             />

@@ -182,6 +182,10 @@ export default function AppNav({
                 {
                   href: '/reports/budget',
                   label: 'Budget'
+                },
+                {
+                  href: '/reports/asset-register',
+                  label: 'Fixed Asset Register'
                 }
               ]}
             />

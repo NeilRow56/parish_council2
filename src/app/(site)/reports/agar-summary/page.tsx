@@ -8,7 +8,8 @@ import {
   financialYears,
   journalEntries,
   journalLines,
-  nominalCodes
+  nominalCodes,
+  nominalOpeningBalances
 } from '@/db/schema/nominalLedger'
 
 function formatWholePounds(value: number) {
@@ -68,87 +69,141 @@ export default async function AgarSummaryPage() {
     )
   }
 
+  const [openingTotals] = await db
+    .select({
+      reserves: sql<string>`
+        coalesce(sum(
+          case
+            when ${nominalCodes.category} = 'Reserves'
+            then ${nominalOpeningBalances.amount}
+            else 0
+          end
+        ), 0)
+      `,
+
+      cashAndShortTermInvestments: sql<string>`
+        coalesce(sum(
+          case
+            when ${nominalCodes.agarBox} = 'BOX_8_CASH_AND_SHORT_TERM_INVESTMENTS'
+            then ${nominalOpeningBalances.amount}
+            else 0
+          end
+        ), 0)
+      `,
+
+      fixedAssets: sql<string>`
+        coalesce(sum(
+          case
+            when ${nominalCodes.agarBox} = 'BOX_9_FIXED_ASSETS'
+            then ${nominalOpeningBalances.amount}
+            else 0
+          end
+        ), 0)
+      `,
+
+      borrowings: sql<string>`
+        coalesce(sum(
+          case
+            when ${nominalCodes.agarBox} = 'BOX_10_BORROWINGS'
+            then ${nominalOpeningBalances.amount}
+            else 0
+          end
+        ), 0)
+      `
+    })
+    .from(nominalOpeningBalances)
+    .innerJoin(
+      nominalCodes,
+      eq(nominalOpeningBalances.nominalCodeId, nominalCodes.id)
+    )
+    .where(
+      and(
+        eq(nominalOpeningBalances.parishCouncilId, parishCouncilId),
+        eq(nominalOpeningBalances.financialYearId, year.id)
+      )
+    )
+
   const [totals] = await db
     .select({
       precept: sql<string>`
-      coalesce(sum(
-        case
-          when ${nominalCodes.agarBox} = 'BOX_2_PRECEPT'
-          then ${journalLines.credit} - ${journalLines.debit}
-          else 0
-        end
-      ), 0)
-    `,
+        coalesce(sum(
+          case
+            when ${nominalCodes.agarBox} = 'BOX_2_PRECEPT'
+            then ${journalLines.credit} - ${journalLines.debit}
+            else 0
+          end
+        ), 0)
+      `,
 
       otherReceipts: sql<string>`
-      coalesce(sum(
-        case
-          when ${nominalCodes.agarBox} = 'BOX_3_OTHER_RECEIPTS'
-          then ${journalLines.credit} - ${journalLines.debit}
-          else 0
-        end
-      ), 0)
-    `,
+        coalesce(sum(
+          case
+            when ${nominalCodes.agarBox} = 'BOX_3_OTHER_RECEIPTS'
+            then ${journalLines.credit} - ${journalLines.debit}
+            else 0
+          end
+        ), 0)
+      `,
 
       staffCosts: sql<string>`
-      coalesce(sum(
-        case
-          when ${nominalCodes.agarBox} = 'BOX_4_STAFF_COSTS'
-          then ${journalLines.debit} - ${journalLines.credit}
-          else 0
-        end
-      ), 0)
-    `,
+        coalesce(sum(
+          case
+            when ${nominalCodes.agarBox} = 'BOX_4_STAFF_COSTS'
+            then ${journalLines.debit} - ${journalLines.credit}
+            else 0
+          end
+        ), 0)
+      `,
 
       loanRepayments: sql<string>`
-      coalesce(sum(
-        case
-          when ${nominalCodes.agarBox} = 'BOX_5_LOAN_REPAYMENTS'
-          then ${journalLines.debit} - ${journalLines.credit}
-          else 0
-        end
-      ), 0)
-    `,
+        coalesce(sum(
+          case
+            when ${nominalCodes.agarBox} = 'BOX_5_LOAN_REPAYMENTS'
+            then ${journalLines.debit} - ${journalLines.credit}
+            else 0
+          end
+        ), 0)
+      `,
 
       otherPayments: sql<string>`
-      coalesce(sum(
-        case
-          when ${nominalCodes.agarBox} = 'BOX_6_OTHER_PAYMENTS'
-          then ${journalLines.debit} - ${journalLines.credit}
-          else 0
-        end
-      ), 0)
-    `,
+        coalesce(sum(
+          case
+            when ${nominalCodes.agarBox} = 'BOX_6_OTHER_PAYMENTS'
+            then ${journalLines.debit} - ${journalLines.credit}
+            else 0
+          end
+        ), 0)
+      `,
 
       cashAndShortTermInvestments: sql<string>`
-      coalesce(sum(
-        case
-          when ${nominalCodes.agarBox} = 'BOX_8_CASH_AND_SHORT_TERM_INVESTMENTS'
-          then ${journalLines.debit} - ${journalLines.credit}
-          else 0
-        end
-      ), 0)
-    `,
+        coalesce(sum(
+          case
+            when ${nominalCodes.agarBox} = 'BOX_8_CASH_AND_SHORT_TERM_INVESTMENTS'
+            then ${journalLines.debit} - ${journalLines.credit}
+            else 0
+          end
+        ), 0)
+      `,
 
       fixedAssets: sql<string>`
-      coalesce(sum(
-        case
-          when ${nominalCodes.agarBox} = 'BOX_9_FIXED_ASSETS'
-          then ${journalLines.debit} - ${journalLines.credit}
-          else 0
-        end
-      ), 0)
-    `,
+        coalesce(sum(
+          case
+            when ${nominalCodes.agarBox} = 'BOX_9_FIXED_ASSETS'
+            then ${journalLines.debit} - ${journalLines.credit}
+            else 0
+          end
+        ), 0)
+      `,
 
       borrowings: sql<string>`
-      coalesce(sum(
-        case
-          when ${nominalCodes.agarBox} = 'BOX_10_BORROWINGS'
-          then ${journalLines.credit} - ${journalLines.debit}
-          else 0
-        end
-      ), 0)
-    `
+        coalesce(sum(
+          case
+            when ${nominalCodes.agarBox} = 'BOX_10_BORROWINGS'
+            then ${journalLines.credit} - ${journalLines.debit}
+            else 0
+          end
+        ), 0)
+      `
     })
     .from(journalLines)
     .innerJoin(
@@ -165,17 +220,23 @@ export default async function AgarSummaryPage() {
       )
     )
 
-  const balancesBroughtForward = 0 // replace when opening balances are stored
+  const balancesBroughtForward = normalise(openingTotals?.reserves)
+
   const precept = normalise(totals?.precept)
   const otherReceipts = normalise(totals?.otherReceipts)
   const staffCosts = normalise(totals?.staffCosts)
   const loanRepayments = normalise(totals?.loanRepayments)
   const otherPayments = normalise(totals?.otherPayments)
-  const cashAndShortTermInvestments = normalise(
-    totals?.cashAndShortTermInvestments
-  )
-  const fixedAssets = normalise(totals?.fixedAssets)
-  const borrowings = normalise(totals?.borrowings)
+
+  const cashAndShortTermInvestments =
+    normalise(openingTotals?.cashAndShortTermInvestments) +
+    normalise(totals?.cashAndShortTermInvestments)
+
+  const fixedAssets =
+    normalise(openingTotals?.fixedAssets) + normalise(totals?.fixedAssets)
+
+  const borrowings =
+    normalise(openingTotals?.borrowings) + normalise(totals?.borrowings)
 
   const balancesCarriedForward =
     balancesBroughtForward +
@@ -237,19 +298,19 @@ export default async function AgarSummaryPage() {
       box: '8',
       label: 'Total value of cash and short term investments',
       guidance:
-        'Sum of current and deposit bank accounts, cash holdings and short term investments.',
+        'Opening bank balances plus current year bank account movements.',
       amount: cashAndShortTermInvestments
     },
     {
       box: '9',
       label: 'Total fixed assets plus long term investments and assets',
-      guidance: 'Value of property and assets owned by the authority.',
+      guidance: 'Opening fixed assets plus current year fixed asset movements.',
       amount: fixedAssets
     },
     {
       box: '10',
       label: 'Total borrowings',
-      guidance: 'Outstanding capital balance of loans from third parties.',
+      guidance: 'Opening borrowings plus current year borrowing movements.',
       amount: borrowings
     }
   ]
@@ -325,8 +386,9 @@ export default async function AgarSummaryPage() {
         </section>
 
         <p className='rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800'>
-          Draft report: boxes 1, 8, 9 and 10 may need refinement once opening
-          balances, fixed assets and borrowings are finalised.
+          Draft report: boxes 1, 8, 9 and 10 now include opening balances where
+          entered. Borrowings and fixed assets should still be reviewed before
+          final AGAR submission.
         </p>
       </div>
     </main>

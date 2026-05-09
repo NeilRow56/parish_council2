@@ -299,3 +299,41 @@ export const matchingRules = pgTable(
     index('matching_rule_parish_idx').on(t.parishCouncilId)
   ]
 )
+
+export const nominalOpeningBalances = pgTable(
+  'nominal_opening_balances',
+  {
+    id: text('id')
+      .$defaultFn(() => createId())
+      .primaryKey(),
+
+    parishCouncilId: text('parish_council_id')
+      .notNull()
+      .references(() => parishCouncils.id, {
+        onDelete: 'cascade'
+      }),
+
+    financialYearId: text('financial_year_id')
+      .notNull()
+      .references(() => financialYears.id, {
+        onDelete: 'cascade'
+      }),
+
+    nominalCodeId: text('nominal_code_id')
+      .notNull()
+      .references(() => nominalCodes.id, {
+        onDelete: 'cascade'
+      }),
+
+    amount: decimal('amount', {
+      precision: 12,
+      scale: 2
+    }).notNull()
+  },
+  t => [
+    uniqueIndex('nominal_opening_balance_idx').on(
+      t.financialYearId,
+      t.nominalCodeId
+    )
+  ]
+)

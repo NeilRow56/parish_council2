@@ -18,6 +18,7 @@ import {
   SelectValue
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
+import Link from 'next/link'
 
 type VatStatus = 'NOT_REGISTERED' | 'REGISTERED'
 type VatClaimFrequency = 'ANNUAL' | 'QUARTERLY' | 'MONTHLY'
@@ -237,7 +238,20 @@ export function CouncilOnboardingForm({
           </div>
         </CardContent>
       </Card>
+      <section className='rounded-lg border bg-white p-5'>
+        <h2 className='text-lg font-semibold'>Opening balances</h2>
+        <p className='mt-1 text-sm text-zinc-600'>
+          Enter brought-forward balances for bank accounts, reserves, fixed
+          assets and borrowings.
+        </p>
 
+        <Link
+          href='/onboarding/opening-balances'
+          className='mt-4 inline-flex rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800'
+        >
+          Set opening balances
+        </Link>
+      </section>
       <Card>
         <CardHeader>
           <CardTitle className='flex items-center gap-2'>

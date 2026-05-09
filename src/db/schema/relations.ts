@@ -9,10 +9,12 @@ import {
   journalEntries,
   journalLines,
   nominalCodes,
-  matchingRules
+  matchingRules,
+  nominalOpeningBalances
 } from './nominalLedger'
 import { bankOpeningBalances } from './bankOpeningBalances'
 import { vatReturns } from './vatReturns'
+import { fixedAssets } from './fixedAssets'
 import { reserves, projects, suppliers } from './reservesProjectsSuppliers'
 import { vatRates } from './vatRates'
 
@@ -32,7 +34,9 @@ export const parishCouncilsRelations = relations(
     vatRates: many(vatRates),
     reserves: many(reserves),
     projects: many(projects),
-    suppliers: many(suppliers)
+    suppliers: many(suppliers),
+    fixedAssets: many(fixedAssets),
+    nominalOpeningBalances: many(nominalOpeningBalances)
   })
 )
 
@@ -102,7 +106,9 @@ export const financialYearsRelations = relations(
     journalEntries: many(journalEntries),
     bankOpeningBalances: many(bankOpeningBalances),
     budgets: many(budgets),
-    vatReturns: many(vatReturns)
+    vatReturns: many(vatReturns),
+    fixedAssets: many(fixedAssets),
+    nominalOpeningBalances: many(nominalOpeningBalances)
   })
 )
 
@@ -122,7 +128,9 @@ export const nominalCodesRelations = relations(
     bankConnections: many(bankConnections),
     bankOpeningBalances: many(bankOpeningBalances),
     budgets: many(budgets),
-    defaultSuppliers: many(suppliers)
+    fixedAssets: many(fixedAssets),
+    defaultSuppliers: many(suppliers),
+    nominalOpeningBalances: many(nominalOpeningBalances)
   })
 )
 
@@ -289,3 +297,40 @@ export const suppliersRelations = relations(suppliers, ({ one, many }) => ({
 
   journalLines: many(journalLines)
 }))
+
+export const fixedAssetsRelations = relations(fixedAssets, ({ one }) => ({
+  parishCouncil: one(parishCouncils, {
+    fields: [fixedAssets.parishCouncilId],
+    references: [parishCouncils.id]
+  }),
+
+  financialYear: one(financialYears, {
+    fields: [fixedAssets.financialYearId],
+    references: [financialYears.id]
+  }),
+
+  nominalCode: one(nominalCodes, {
+    fields: [fixedAssets.nominalCodeId],
+    references: [nominalCodes.id]
+  })
+}))
+
+export const nominalOpeningBalancesRelations = relations(
+  nominalOpeningBalances,
+  ({ one }) => ({
+    parishCouncil: one(parishCouncils, {
+      fields: [nominalOpeningBalances.parishCouncilId],
+      references: [parishCouncils.id]
+    }),
+
+    financialYear: one(financialYears, {
+      fields: [nominalOpeningBalances.financialYearId],
+      references: [financialYears.id]
+    }),
+
+    nominalCode: one(nominalCodes, {
+      fields: [nominalOpeningBalances.nominalCodeId],
+      references: [nominalCodes.id]
+    })
+  })
+)

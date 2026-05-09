@@ -15,7 +15,7 @@ export type DefaultNominal = {
   name: string
   type: 'INCOME' | 'EXPENDITURE' | 'BALANCE_SHEET'
   category: string
-  agarBox?: AgarBox
+  agarBox?: AgarBox | null
   isBank?: boolean
   isVatRecoverable?: boolean
   isVatPayable?: boolean
@@ -64,6 +64,48 @@ export const defaultChart: DefaultNominal[] = [
     isBank: true
   },
   {
+    code: '1600',
+    name: 'Fixed Assets - Land and Buildings',
+    type: 'BALANCE_SHEET',
+    category: 'Fixed Assets',
+    agarBox: 'BOX_9_FIXED_ASSETS'
+  },
+  {
+    code: '1610',
+    name: 'Fixed Assets - Street Furniture',
+    type: 'BALANCE_SHEET',
+    category: 'Fixed Assets',
+    agarBox: 'BOX_9_FIXED_ASSETS'
+  },
+  {
+    code: '1620',
+    name: 'Fixed Assets - Play Equipment',
+    type: 'BALANCE_SHEET',
+    category: 'Fixed Assets',
+    agarBox: 'BOX_9_FIXED_ASSETS'
+  },
+  {
+    code: '1630',
+    name: 'Fixed Assets - Office Equipment',
+    type: 'BALANCE_SHEET',
+    category: 'Fixed Assets',
+    agarBox: 'BOX_9_FIXED_ASSETS'
+  },
+  {
+    code: '1640',
+    name: 'Fixed Assets - War Memorials',
+    type: 'BALANCE_SHEET',
+    category: 'Fixed Assets',
+    agarBox: 'BOX_9_FIXED_ASSETS'
+  },
+  {
+    code: '1650',
+    name: 'Fixed Assets - Other Community Assets',
+    type: 'BALANCE_SHEET',
+    category: 'Fixed Assets',
+    agarBox: 'BOX_9_FIXED_ASSETS'
+  },
+  {
     code: '2100',
     name: 'VAT / Control Account',
     type: 'BALANCE_SHEET',
@@ -88,6 +130,17 @@ export const defaultChart: DefaultNominal[] = [
     name: 'Creditors',
     type: 'BALANCE_SHEET',
     category: 'Liabilities'
+  },
+  // ─── Reserves ────────────────────────────────────────────────
+  {
+    code: '3000',
+    name: 'General Reserve',
+    type: 'BALANCE_SHEET',
+    category: 'Reserves',
+    isBank: false,
+    isVatRecoverable: false,
+    isVatPayable: false,
+    agarBox: null
   },
 
   // ─── Income ────────────────────────────────────────────────

@@ -1,4 +1,4 @@
-// src/app/(site)/reports/asset-register/fixed-asset-register-client.tsx
+// src/app/(site)/reports/asset-register/_components/fixed-asset-register-client.tsx
 
 'use client'
 
@@ -7,14 +7,15 @@ import { toast } from 'sonner'
 
 import {
   createFixedAsset,
-  updateFixedAsset,
-  disposeFixedAsset
+  disposeFixedAsset,
+  updateFixedAsset
 } from '../actions'
 
 type FixedAssetRow = {
   id: string
   refNo: string | null
   category: string
+  insuranceCategory: string | null
   description: string
   location: string | null
   dateAcquired: string | null
@@ -31,6 +32,17 @@ type NominalCodeOption = {
 }
 
 type ActionResult = { success: true } | { success: false; error: string }
+
+function formatMoney(value: string | null) {
+  const amount = Number(value ?? 0)
+
+  if (amount === 0) return '—'
+
+  return amount.toLocaleString('en-GB', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  })
+}
 
 export function FixedAssetRegisterClient({
   financialYearId,
@@ -74,7 +86,7 @@ export function FixedAssetRegisterClient({
       if (result.success) {
         toast.success('Asset disposed')
       } else {
-        toast.error(result.success ? 'Something went wrong' : result.error)
+        toast.error(result.error)
       }
     })
   }
@@ -131,6 +143,32 @@ export function FixedAssetRegisterClient({
               />
             </div>
 
+            <div>
+              <label className='text-sm font-medium'>Insurance category</label>
+              <input
+                name='insuranceCategory'
+                defaultValue={editingAsset?.insuranceCategory ?? ''}
+                className='mt-1 w-full rounded-md border px-3 py-2 text-sm'
+                placeholder='General Contents'
+              />
+            </div>
+
+            <div>
+              <label className='text-sm font-medium'>Nominal code</label>
+              <select
+                name='nominalCodeId'
+                defaultValue={editingAsset?.nominalCodeId ?? ''}
+                className='mt-1 w-full rounded-md border px-3 py-2 text-sm'
+              >
+                <option value=''>No nominal code</option>
+                {nominalCodes.map(code => (
+                  <option key={code.id} value={code.id}>
+                    {code.code} — {code.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             <div className='md:col-span-2'>
               <label className='text-sm font-medium'>Description</label>
               <input
@@ -158,22 +196,6 @@ export function FixedAssetRegisterClient({
                 defaultValue={editingAsset?.dateAcquired ?? ''}
                 className='mt-1 w-full rounded-md border px-3 py-2 text-sm'
               />
-            </div>
-
-            <div>
-              <label className='text-sm font-medium'>Nominal code</label>
-              <select
-                name='nominalCodeId'
-                defaultValue={editingAsset?.nominalCodeId ?? ''}
-                className='mt-1 w-full rounded-md border px-3 py-2 text-sm'
-              >
-                <option value=''>No nominal code</option>
-                {nominalCodes.map(code => (
-                  <option key={code.id} value={code.id}>
-                    {code.code} — {code.name}
-                  </option>
-                ))}
-              </select>
             </div>
 
             <div>
@@ -236,75 +258,108 @@ export function FixedAssetRegisterClient({
             No fixed assets found.
           </div>
         ) : (
-          <table className='w-full table-fixed border-collapse text-sm'>
-            <thead className='bg-zinc-50 text-left text-zinc-600'>
-              <tr>
-                <th className='px-4 py-3 font-medium'>Ref</th>
-                <th className='px-4 py-3 font-medium'>Category</th>
-                <th className='px-4 py-3 font-medium'>Description</th>
-                <th className='px-4 py-3 font-medium'>Location</th>
-                <th className='px-4 py-3 font-medium'>Date</th>
-                <th className='px-4 py-3 text-right font-medium'>Value</th>
-                <th className='px-4 py-3 text-right font-medium'>Actions</th>
-              </tr>
-            </thead>
+          <div className='overflow-x-auto'>
+            <table className='min-w-375 table-fixed border-collapse text-sm'>
+              <colgroup>
+                <col className='w-20' />
+                <col className='w-40' />
+                <col className='w-44' />
+                <col className='w-80' />
+                <col className='w-72' />
+                <col className='w-32' />
+                <col className='w-40' />
+                <col className='w-36' />
+                <col className='w-24' />
+              </colgroup>
 
-            <tbody>
-              {assets.map(asset => (
-                <tr key={asset.id} className='border-t'>
-                  <td className='px-4 py-3 align-top'>{asset.refNo || '—'}</td>
-
-                  <td className='px-4 py-3 align-top'>{asset.category}</td>
-
-                  <td className='px-4 py-3 align-top'>
-                    <div className='font-medium'>{asset.description}</div>
-                    {asset.notes ? (
-                      <div className='mt-1 text-xs text-zinc-500'>
-                        {asset.notes}
-                      </div>
-                    ) : null}
-                  </td>
-
-                  <td className='px-4 py-3 align-top'>
-                    {asset.location || '—'}
-                  </td>
-
-                  <td className='px-4 py-3 align-top'>
-                    {asset.dateAcquired || 'Not known'}
-                  </td>
-
-                  <td className='px-4 py-3 text-right align-top'>
-                    £
-                    {Number(asset.assetRegisterValue).toLocaleString('en-GB', {
-                      minimumFractionDigits: 2,
-                      maximumFractionDigits: 2
-                    })}
-                  </td>
-
-                  <td className='px-4 py-3 text-right align-top'>
-                    <button
-                      type='button'
-                      onClick={() => {
-                        setEditingAsset(asset)
-                        setShowForm(true)
-                      }}
-                      className='text-sm font-medium text-blue-700 hover:underline'
-                    >
-                      Edit
-                    </button>
-
-                    <button
-                      type='button'
-                      onClick={() => onDispose(asset.id)}
-                      className='ml-4 text-sm font-medium text-red-700 hover:underline'
-                    >
-                      Dispose
-                    </button>
-                  </td>
+              <thead className='bg-zinc-50 text-left text-zinc-600'>
+                <tr>
+                  <th className='px-4 py-3 font-medium'>Ref</th>
+                  <th className='px-4 py-3 font-medium'>Category</th>
+                  <th className='px-4 py-3 font-medium'>Insurance category</th>
+                  <th className='px-4 py-3 font-medium'>Description</th>
+                  <th className='px-4 py-3 font-medium'>Location</th>
+                  <th className='px-4 py-3 font-medium'>Date</th>
+                  <th className='px-4 py-3 text-right font-medium'>
+                    <span className='block'>Purchase cost</span>
+                    <span className='block text-xs font-normal'>
+                      (if known)
+                    </span>
+                  </th>
+                  <th className='px-4 py-3 text-right font-medium'>
+                    Register value
+                  </th>
+                  <th className='px-4 py-3 text-right font-medium'>Actions</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+
+              <tbody>
+                {assets.map(asset => (
+                  <tr key={asset.id} className='border-t'>
+                    <td className='px-4 py-3 align-top'>
+                      {asset.refNo || '—'}
+                    </td>
+
+                    <td className='px-4 py-3 align-top'>{asset.category}</td>
+
+                    <td className='px-4 py-3 align-top'>
+                      {asset.insuranceCategory || '—'}
+                    </td>
+
+                    <td className='px-4 py-3 align-top'>
+                      <div className='wrap-break-words max-w-xs font-medium'>
+                        {asset.description}
+                      </div>
+                      {asset.notes ? (
+                        <div className='wrap-break-words mt-1 max-w-xs text-xs text-zinc-500'>
+                          {asset.notes}
+                        </div>
+                      ) : null}
+                    </td>
+
+                    <td className='px-4 py-3 align-top'>
+                      <div className='wrap-break-words max-w-sm'>
+                        {asset.location || '—'}
+                      </div>
+                    </td>
+
+                    <td className='px-4 py-3 align-top'>
+                      {asset.dateAcquired || 'Not known'}
+                    </td>
+
+                    <td className='px-4 py-3 text-right align-top'>
+                      {formatMoney(asset.purchaseCost)}
+                    </td>
+
+                    <td className='px-4 py-3 text-right align-top'>
+                      {formatMoney(asset.assetRegisterValue)}
+                    </td>
+
+                    <td className='px-4 py-3 text-right align-top'>
+                      <button
+                        type='button'
+                        onClick={() => {
+                          setEditingAsset(asset)
+                          setShowForm(true)
+                        }}
+                        className='text-sm font-medium text-blue-700 hover:underline'
+                      >
+                        Edit
+                      </button>
+
+                      <button
+                        type='button'
+                        onClick={() => onDispose(asset.id)}
+                        className='ml-4 text-sm font-medium text-red-700 hover:underline'
+                      >
+                        Dispose
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
     </div>

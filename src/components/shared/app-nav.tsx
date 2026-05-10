@@ -115,7 +115,7 @@ export default function AppNav({
 
   return (
     <header className='border-b bg-white'>
-      <div className='mx-auto flex h-14 max-w-7xl items-center justify-between px-6'>
+      <div className='mx-auto flex h-14 max-w-400 items-center justify-between px-6'>
         <div className='flex items-center gap-6'>
           <Link href='/' className='font-semibold text-slate-900'>
             WpAccPac

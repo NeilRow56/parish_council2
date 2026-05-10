@@ -35,7 +35,7 @@ export const fixedAssets = pgTable(
     category: text('category').notNull(),
     description: text('description').notNull(),
     location: text('location'),
-
+    insuranceCategory: text('insurance_category'),
     dateAcquired: date('date_acquired'),
 
     purchaseCost: decimal('purchase_cost', {

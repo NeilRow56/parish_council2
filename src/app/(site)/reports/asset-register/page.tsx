@@ -6,8 +6,8 @@ import { and, asc, eq } from 'drizzle-orm'
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
-import { financialYears, nominalCodes } from '@/db/schema/nominalLedger'
 import { fixedAssets } from '@/db/schema'
+import { financialYears, nominalCodes } from '@/db/schema/nominalLedger'
 import { FixedAssetRegisterClient } from './_components/fixed-asset-register-client'
 
 export default async function AssetRegisterPage() {
@@ -49,6 +49,7 @@ export default async function AssetRegisterPage() {
       id: fixedAssets.id,
       refNo: fixedAssets.refNo,
       category: fixedAssets.category,
+      insuranceCategory: fixedAssets.insuranceCategory,
       description: fixedAssets.description,
       location: fixedAssets.location,
       dateAcquired: fixedAssets.dateAcquired,
@@ -64,7 +65,11 @@ export default async function AssetRegisterPage() {
         eq(fixedAssets.isDisposed, false)
       )
     )
-    .orderBy(asc(fixedAssets.category), asc(fixedAssets.refNo))
+    .orderBy(
+      asc(fixedAssets.category),
+      asc(fixedAssets.insuranceCategory),
+      asc(fixedAssets.refNo)
+    )
 
   const nominalCodeOptions = await db
     .select({
@@ -83,7 +88,7 @@ export default async function AssetRegisterPage() {
     .orderBy(nominalCodes.code)
 
   return (
-    <main className='mx-auto max-w-7xl px-6 py-8'>
+    <main className='mx-auto max-w-400 px-6 py-8'>
       <div className='mb-8'>
         <h1 className='text-2xl font-semibold tracking-tight'>
           Fixed Asset Register
@@ -100,24 +105,23 @@ export default async function AssetRegisterPage() {
         </p>
       </div>
 
-      <section className='overflow-hidden rounded-lg border bg-white shadow-sm'>
-        <FixedAssetRegisterClient
-          financialYearId={financialYear.id}
-          assets={assets.map(asset => ({
-            id: asset.id,
-            refNo: asset.refNo,
-            category: asset.category,
-            description: asset.description,
-            location: asset.location,
-            dateAcquired: asset.dateAcquired,
-            purchaseCost: asset.purchaseCost,
-            assetRegisterValue: asset.assetRegisterValue,
-            notes: asset.notes,
-            nominalCodeId: asset.nominalCodeId
-          }))}
-          nominalCodes={nominalCodeOptions}
-        />
-      </section>
+      <FixedAssetRegisterClient
+        financialYearId={financialYear.id}
+        assets={assets.map(asset => ({
+          id: asset.id,
+          refNo: asset.refNo,
+          category: asset.category,
+          insuranceCategory: asset.insuranceCategory,
+          description: asset.description,
+          location: asset.location,
+          dateAcquired: asset.dateAcquired,
+          purchaseCost: asset.purchaseCost,
+          assetRegisterValue: asset.assetRegisterValue,
+          notes: asset.notes,
+          nominalCodeId: asset.nominalCodeId
+        }))}
+        nominalCodes={nominalCodeOptions}
+      />
     </main>
   )
 }

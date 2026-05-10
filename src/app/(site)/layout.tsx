@@ -50,7 +50,7 @@ export default async function SiteLayout({
       />
 
       <div className='border-b bg-zinc-50'>
-        <div className='mx-auto max-w-7xl px-6 py-3'>
+        <div className='mx-auto max-w-400 px-6 py-3'>
           <p className='text-lg font-medium text-zinc-900'>{council.name}</p>
         </div>
       </div>

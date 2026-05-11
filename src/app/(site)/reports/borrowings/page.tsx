@@ -242,6 +242,25 @@ export default async function BorrowingsReportPage() {
       ) : null}
 
       <div className='grid gap-4 md:grid-cols-3'>
+        {loanRegister.length > 0 && closingBorrowings === 0 ? (
+          <Card className='border-amber-200 bg-amber-50'>
+            <CardHeader className='flex flex-row items-start gap-3 space-y-0'>
+              <AlertTriangle className='mt-0.5 h-5 w-5 text-amber-700' />
+              <div>
+                <CardTitle className='text-base text-amber-900'>
+                  Loan register does not affect AGAR until posted
+                </CardTitle>
+                <CardDescription className='text-amber-800'>
+                  The loan details have been added to the register, but no
+                  borrowing movement has been posted to the ledger yet. To
+                  include a new loan in AGAR Box 10, post the loan receipt to
+                  the bank and credit nominal code 2300 Borrowings / Loans
+                  Outstanding.
+                </CardDescription>
+              </div>
+            </CardHeader>
+          </Card>
+        ) : null}
         <Card>
           <CardHeader>
             <CardTitle className='text-sm font-medium'>

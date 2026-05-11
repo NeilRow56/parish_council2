@@ -45,7 +45,15 @@ export function AddBorrowingDialog({
   const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
 
-  const defaultNominalCodeId = nominalCodes[0]?.id ?? ''
+  const defaultNominalCode = nominalCodes[0]
+
+  const [selectedNominalCodeId, setSelectedNominalCodeId] = useState(
+    defaultNominalCode?.id ?? ''
+  )
+
+  const selectedNominalCode = nominalCodes.find(
+    code => code.id === selectedNominalCodeId
+  )
 
   function handleSubmit(formData: FormData) {
     startTransition(async () => {
@@ -147,10 +155,27 @@ export function AddBorrowingDialog({
 
             <div className='space-y-2 sm:col-span-2'>
               <Label htmlFor='nominalCodeId'>Borrowings nominal code</Label>
-              <Select name='nominalCodeId' defaultValue={defaultNominalCodeId}>
+
+              <input
+                type='hidden'
+                name='nominalCodeId'
+                value={selectedNominalCodeId}
+              />
+
+              <Select
+                value={selectedNominalCodeId}
+                onValueChange={value => {
+                  setSelectedNominalCodeId(value ?? '')
+                }}
+              >
                 <SelectTrigger id='nominalCodeId'>
-                  <SelectValue placeholder='Select nominal code' />
+                  <SelectValue>
+                    {selectedNominalCode
+                      ? `${selectedNominalCode.code} ${selectedNominalCode.name}`
+                      : 'Select nominal code'}
+                  </SelectValue>
                 </SelectTrigger>
+
                 <SelectContent>
                   {nominalCodes.map(code => (
                     <SelectItem key={code.id} value={code.id}>

@@ -186,6 +186,10 @@ export default function AppNav({
                 {
                   href: '/reports/asset-register',
                   label: 'Fixed Asset Register'
+                },
+                {
+                  href: '/reports/borrowings',
+                  label: 'Borrowings'
                 }
               ]}
             />

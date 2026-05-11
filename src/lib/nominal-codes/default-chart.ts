@@ -23,6 +23,7 @@ export type DefaultNominal = {
 
 export const defaultChart: DefaultNominal[] = [
   // ─── Balance sheet ─────────────────────────────────────────
+  // ─── Bank ────────────────────────────────────────────────
   {
     code: '1200',
     name: 'Transaction Account 1',
@@ -63,6 +64,7 @@ export const defaultChart: DefaultNominal[] = [
     agarBox: 'BOX_8_CASH_AND_SHORT_TERM_INVESTMENTS',
     isBank: true
   },
+  // ─── Fixed Assets ────────────────────────────────────────────────
   {
     code: '1600',
     name: 'Fixed Assets - Land and Buildings',
@@ -105,6 +107,7 @@ export const defaultChart: DefaultNominal[] = [
     category: 'Fixed Assets',
     agarBox: 'BOX_9_FIXED_ASSETS'
   },
+  // ─── VAT ────────────────────────────────────────────────
   {
     code: '2100',
     name: 'VAT / Control Account',
@@ -130,6 +133,14 @@ export const defaultChart: DefaultNominal[] = [
     name: 'Creditors',
     type: 'BALANCE_SHEET',
     category: 'Liabilities'
+  },
+  // ─── Borrowings ────────────────────────────────────────────────
+  {
+    code: '2300',
+    name: 'Borrowings / Loans Outstanding',
+    type: 'BALANCE_SHEET',
+    category: 'Liabilities',
+    agarBox: 'BOX_10_BORROWINGS'
   },
   // ─── Reserves ────────────────────────────────────────────────
   {
@@ -264,5 +275,19 @@ export const defaultChart: DefaultNominal[] = [
     type: 'EXPENDITURE',
     category: 'IT',
     agarBox: 'BOX_6_OTHER_PAYMENTS'
+  },
+  {
+    code: '5200',
+    name: 'Loan Repayments',
+    type: 'EXPENDITURE',
+    category: 'Finance',
+    agarBox: 'BOX_5_LOAN_REPAYMENTS'
+  },
+  {
+    code: '5210',
+    name: 'Loan Interest',
+    type: 'EXPENDITURE',
+    category: 'Finance',
+    agarBox: 'BOX_5_LOAN_REPAYMENTS'
   }
 ]

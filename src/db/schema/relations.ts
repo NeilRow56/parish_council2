@@ -15,6 +15,7 @@ import {
 import { bankOpeningBalances } from './bankOpeningBalances'
 import { vatReturns } from './vatReturns'
 import { fixedAssets } from './fixedAssets'
+import { borrowings } from './borrowings'
 import { reserves, projects, suppliers } from './reservesProjectsSuppliers'
 import { vatRates } from './vatRates'
 
@@ -36,6 +37,7 @@ export const parishCouncilsRelations = relations(
     projects: many(projects),
     suppliers: many(suppliers),
     fixedAssets: many(fixedAssets),
+    borrowings: many(borrowings),
     nominalOpeningBalances: many(nominalOpeningBalances)
   })
 )
@@ -108,6 +110,7 @@ export const financialYearsRelations = relations(
     budgets: many(budgets),
     vatReturns: many(vatReturns),
     fixedAssets: many(fixedAssets),
+    borrowings: many(borrowings),
     nominalOpeningBalances: many(nominalOpeningBalances)
   })
 )
@@ -129,6 +132,7 @@ export const nominalCodesRelations = relations(
     bankOpeningBalances: many(bankOpeningBalances),
     budgets: many(budgets),
     fixedAssets: many(fixedAssets),
+    borrowings: many(borrowings),
     defaultSuppliers: many(suppliers),
     nominalOpeningBalances: many(nominalOpeningBalances)
   })
@@ -311,6 +315,23 @@ export const fixedAssetsRelations = relations(fixedAssets, ({ one }) => ({
 
   nominalCode: one(nominalCodes, {
     fields: [fixedAssets.nominalCodeId],
+    references: [nominalCodes.id]
+  })
+}))
+
+export const borrowingsRelations = relations(borrowings, ({ one }) => ({
+  parishCouncil: one(parishCouncils, {
+    fields: [borrowings.parishCouncilId],
+    references: [parishCouncils.id]
+  }),
+
+  financialYear: one(financialYears, {
+    fields: [borrowings.financialYearId],
+    references: [financialYears.id]
+  }),
+
+  nominalCode: one(nominalCodes, {
+    fields: [borrowings.nominalCodeId],
     references: [nominalCodes.id]
   })
 }))

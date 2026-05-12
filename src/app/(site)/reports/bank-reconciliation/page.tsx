@@ -1,6 +1,7 @@
 // src/app/reports/bank-reconciliation/page.tsx
 
 import Link from 'next/link'
+import { Fragment } from 'react/jsx-runtime'
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { and, desc, eq, gte, sql } from 'drizzle-orm'
@@ -16,7 +17,6 @@ import {
 } from '@/db/schema/nominalLedger'
 
 import { bankConnections, bankTransactions } from '@/db/schema'
-import { Fragment } from 'react/jsx-runtime'
 
 function formatAmount(value: number) {
   if (value === 0) return '—'
@@ -157,9 +157,7 @@ export default async function BankReconciliationPage() {
     .where(
       and(
         eq(bankTransactions.parishCouncilId, parishCouncilId),
-
         eq(bankTransactions.status, 'PENDING'),
-
         gte(bankTransactions.date, financialYear.startDate)
       )
     )
@@ -192,7 +190,8 @@ export default async function BankReconciliationPage() {
     const ledgerCredit = Number(account.ledgerCredit ?? 0)
     const ledgerBalance = ledgerDebit - ledgerCredit
 
-    const difference = inboxNetMovement + ledgerBalance
+    const adjustedBankBalance = ledgerBalance + inboxNetMovement
+    const difference = ledgerBalance + inboxNetMovement - adjustedBankBalance
 
     return {
       ...account,
@@ -203,6 +202,7 @@ export default async function BankReconciliationPage() {
       inboxReceipts,
       inboxPayments,
       inboxNetMovement,
+      adjustedBankBalance,
       difference
     }
   })
@@ -227,7 +227,13 @@ export default async function BankReconciliationPage() {
     0
   )
 
-  const totalDifference = totalInboxNetMovement + totalLedgerBalance
+  const totalAdjustedBankBalance = rows.reduce(
+    (sum, row) => sum + row.adjustedBankBalance,
+    0
+  )
+
+  const totalDifference =
+    totalLedgerBalance + totalInboxNetMovement - totalAdjustedBankBalance
 
   return (
     <main className='mx-auto max-w-7xl px-6 py-8'>
@@ -237,8 +243,8 @@ export default async function BankReconciliationPage() {
             Bank Reconciliation
           </h1>
           <p className='mt-1 text-sm text-zinc-600'>
-            Compare bank feed inbox movements with the nominal ledger bank
-            balances.
+            Reconcile nominal ledger bank balances to adjusted bank balances
+            after pending inbox movements.
           </p>
           <p className='mt-2 text-sm text-zinc-500'>
             Financial year:{' '}
@@ -250,7 +256,7 @@ export default async function BankReconciliationPage() {
 
         <div className='flex gap-2'>
           <Link
-            href='/inbox'
+            href='/transactions/inbox'
             className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-zinc-50'
           >
             Transaction inbox
@@ -281,9 +287,9 @@ export default async function BankReconciliationPage() {
         </div>
 
         <div className='rounded-lg border bg-white p-4 shadow-sm'>
-          <p className='text-sm text-zinc-500'>Ledger bank balance</p>
+          <p className='text-sm text-zinc-500'>Adjusted bank balance</p>
           <p className='mt-1 text-2xl font-semibold'>
-            {formatCurrency(totalLedgerBalance)}
+            {formatCurrency(totalAdjustedBankBalance)}
           </p>
         </div>
 
@@ -315,7 +321,7 @@ export default async function BankReconciliationPage() {
               <col className='w-40' />
               <col className='w-40' />
               <col className='w-40' />
-              <col className='w-40' />
+              <col className='w-44' />
               <col className='w-32' />
             </colgroup>
 
@@ -333,8 +339,10 @@ export default async function BankReconciliationPage() {
                 <th className='px-4 py-3 text-right font-medium'>
                   Ledger balance
                 </th>
+                <th className='px-4 py-3 text-right font-medium'>
+                  Adjusted bank balance
+                </th>
                 <th className='px-4 py-3 text-right font-medium'>Difference</th>
-                <th className='px-4 py-3 font-medium'>Status</th>
               </tr>
             </thead>
 
@@ -396,6 +404,10 @@ export default async function BankReconciliationPage() {
                         {formatAmount(row.ledgerBalance)}
                       </td>
 
+                      <td className='px-4 py-3 text-right align-top font-medium'>
+                        {formatAmount(row.adjustedBankBalance)}
+                      </td>
+
                       <td
                         className={
                           reconciled
@@ -404,18 +416,6 @@ export default async function BankReconciliationPage() {
                         }
                       >
                         {formatDifference(row.difference).replace('£', '')}
-                      </td>
-
-                      <td className='px-4 py-3 align-top'>
-                        {reconciled ? (
-                          <span className='rounded-full bg-green-50 px-2 py-1 text-xs font-medium text-green-700'>
-                            Reconciled
-                          </span>
-                        ) : (
-                          <span className='rounded-full bg-red-50 px-2 py-1 text-xs font-medium text-red-700'>
-                            Difference
-                          </span>
-                        )}
                       </td>
                     </tr>
                   </Fragment>
@@ -445,6 +445,10 @@ export default async function BankReconciliationPage() {
                   {formatAmount(totalLedgerBalance)}
                 </td>
 
+                <td className='px-4 py-3 text-right'>
+                  {formatAmount(totalAdjustedBankBalance)}
+                </td>
+
                 <td
                   className={
                     Math.round(totalDifference * 100) === 0
@@ -454,8 +458,6 @@ export default async function BankReconciliationPage() {
                 >
                   {formatDifference(totalDifference).replace('£', '')}
                 </td>
-
-                <td className='px-4 py-3' />
               </tr>
             </tfoot>
           </table>

@@ -6,6 +6,11 @@ import { ChevronDown } from 'lucide-react'
 
 import { signOut } from '@/lib/auth-client'
 
+type NavItem = {
+  href: string
+  label: string
+}
+
 function NavLink({
   href,
   label,
@@ -36,10 +41,7 @@ function NavDropdown({
 }: {
   label: string
   active: boolean
-  items: Array<{
-    href: string
-    label: string
-  }>
+  items: NavItem[]
 }) {
   const pathname = usePathname()
 
@@ -59,7 +61,8 @@ function NavDropdown({
 
       <div className='invisible absolute top-full left-0 z-50 mt-1 min-w-56 rounded-md border bg-white p-1 opacity-0 shadow-lg transition-all group-hover:visible group-hover:opacity-100'>
         {items.map(item => {
-          const itemActive = pathname === item.href
+          const itemActive =
+            pathname === item.href || pathname.startsWith(`${item.href}/`)
 
           return (
             <Link
@@ -80,6 +83,40 @@ function NavDropdown({
   )
 }
 
+// function getSettingsItems(financialYearId?: string | null): NavItem[] {
+function getSettingsItems() {
+  return [
+    {
+      href: '/settings/nominal-codes',
+      label: 'Nominal codes'
+    },
+    {
+      href: '/onboarding/council-details',
+      label: 'Parish council details'
+    },
+    {
+      href: '/settings/projects',
+      label: 'Projects'
+    },
+    {
+      href: '/settings/reserves',
+      label: 'Reserves'
+    },
+    {
+      href: '/settings/suppliers',
+      label: 'Suppliers'
+    },
+    {
+      href: '/settings/vat-rates',
+      label: 'VAT rates'
+    },
+    {
+      href: '/settings/financial-years',
+      label: 'Financial years'
+    }
+  ]
+}
+
 export default function AppNav({
   canRecoverVat,
   vatStatus
@@ -95,10 +132,9 @@ export default function AppNav({
     router.push('/')
   }
 
-  // ✅ VAT menu logic
   const showVatNav = canRecoverVat
 
-  const vatItems =
+  const vatItems: NavItem[] =
     vatStatus === 'NOT_REGISTERED'
       ? [
           {
@@ -112,6 +148,58 @@ export default function AppNav({
             label: 'VAT returns'
           }
         ]
+
+  const ledgerItems: NavItem[] = [
+    {
+      href: '/ledger',
+      label: 'Ledger'
+    },
+    {
+      href: '/ledger/bank-entry/new',
+      label: 'New payment or receipt'
+    },
+    {
+      href: '/ledger/journals/new',
+      label: 'New manual journal'
+    }
+  ]
+
+  const reportItems: NavItem[] = [
+    {
+      href: '/reports/trial-balance',
+      label: 'Trial Balance'
+    },
+    {
+      href: '/reports/income-expenditure',
+      label: 'Income & Expenditure'
+    },
+    {
+      href: '/reports/bank-reconciliation',
+      label: 'Bank Reconciliation'
+    },
+    {
+      href: '/reports/large-payments',
+      label: 'Payments > £100'
+    },
+    {
+      href: '/reports/agar-summary',
+      label: 'AGAR Summary'
+    },
+    {
+      href: '/reports/budget',
+      label: 'Budget'
+    },
+    {
+      href: '/reports/asset-register',
+      label: 'Fixed Asset Register'
+    },
+    {
+      href: '/reports/borrowings',
+      label: 'Borrowings'
+    }
+  ]
+
+  const settingsItems = getSettingsItems()
 
   return (
     <header className='border-b bg-white'>
@@ -139,99 +227,31 @@ export default function AppNav({
             <NavDropdown
               label='Ledger'
               active={pathname.startsWith('/ledger')}
-              items={[
-                {
-                  href: '/ledger',
-                  label: 'Ledger'
-                },
-                {
-                  href: '/ledger/bank-entry/new',
-                  label: 'New payment or receipt'
-                },
-                {
-                  href: '/ledger/journals/new',
-                  label: 'New manual journal'
-                }
-              ]}
+              items={ledgerItems}
             />
 
             <NavDropdown
               label='Reports'
               active={pathname.startsWith('/reports')}
-              items={[
-                {
-                  href: '/reports/trial-balance',
-                  label: 'Trial Balance'
-                },
-                {
-                  href: '/reports/income-expenditure',
-                  label: 'Income & Expenditure'
-                },
-                {
-                  href: '/reports/bank-reconciliation',
-                  label: 'Bank Reconciliation'
-                },
-                {
-                  href: '/reports/large-payments',
-                  label: 'Payments > £100'
-                },
-                {
-                  href: '/reports/agar-summary',
-                  label: 'AGAR Summary'
-                },
-                {
-                  href: '/reports/budget',
-                  label: 'Budget'
-                },
-                {
-                  href: '/reports/asset-register',
-                  label: 'Fixed Asset Register'
-                },
-                {
-                  href: '/reports/borrowings',
-                  label: 'Borrowings'
-                }
-              ]}
+              items={reportItems}
             />
 
             <NavDropdown
               label='Settings'
-              active={pathname.startsWith('/settings')}
-              items={[
-                {
-                  href: '/settings/nominal-codes',
-                  label: 'Nominal codes'
-                },
-                {
-                  href: '/onboarding/council-details',
-                  label: 'Parish council details'
-                },
-                {
-                  href: '/settings/projects',
-                  label: 'Projects'
-                },
-                {
-                  href: '/settings/reserves',
-                  label: 'Reserves'
-                },
-                {
-                  href: '/settings/suppliers',
-                  label: 'Suppliers'
-                },
-                {
-                  href: '/settings/vat-rates',
-                  label: 'VAT rates'
-                }
-              ]}
+              active={
+                pathname.startsWith('/settings') ||
+                pathname.startsWith('/onboarding')
+              }
+              items={settingsItems}
             />
 
-            {showVatNav && (
+            {showVatNav ? (
               <NavDropdown
                 label='VAT'
                 active={pathname.startsWith('/vat')}
                 items={vatItems}
               />
-            )}
+            ) : null}
           </nav>
         </div>
 

@@ -12,7 +12,7 @@ import {
 } from 'drizzle-orm/pg-core'
 
 import { createId } from '@paralleldrive/cuid2'
-import { parishCouncils } from './authSchema'
+import { parishCouncils, user } from './authSchema'
 import { projects, reserves, suppliers } from './reservesProjectsSuppliers'
 
 export const userRoleEnum = pgEnum('user_role', ['CLERK', 'RFO', 'COUNCILLOR'])
@@ -42,6 +42,12 @@ export const agarBoxEnum = pgEnum('agar_box', [
   'BOX_10_BORROWINGS'
 ])
 
+export const yearEndRunStatusEnum = pgEnum('year_end_run_status', [
+  'DRAFT',
+  'COMPLETED',
+  'FAILED'
+])
+
 export const financialYears = pgTable(
   'financial_years',
   {
@@ -66,6 +72,49 @@ export const financialYears = pgTable(
       t.label
     ),
     index('financial_year_parish_idx').on(t.parishCouncilId)
+  ]
+)
+
+export const yearEndRuns = pgTable(
+  'year_end_runs',
+  {
+    id: text('id')
+      .$defaultFn(() => createId())
+      .primaryKey(),
+
+    parishCouncilId: text('parish_council_id')
+      .notNull()
+      .references(() => parishCouncils.id, { onDelete: 'cascade' }),
+
+    fromFinancialYearId: text('from_financial_year_id')
+      .notNull()
+      .references(() => financialYears.id, { onDelete: 'restrict' }),
+
+    toFinancialYearId: text('to_financial_year_id').references(
+      () => financialYears.id,
+      { onDelete: 'set null' }
+    ),
+
+    status: yearEndRunStatusEnum('status').default('DRAFT').notNull(),
+
+    startedAt: timestamp('started_at').defaultNow().notNull(),
+    completedAt: timestamp('completed_at'),
+    failedAt: timestamp('failed_at'),
+
+    createdByUserId: text('created_by_user_id').references(() => user.id, {
+      onDelete: 'set null'
+    }),
+
+    notes: text('notes'),
+    errorMessage: text('error_message')
+  },
+  t => [
+    uniqueIndex('year_end_run_from_year_unique_idx').on(
+      t.parishCouncilId,
+      t.fromFinancialYearId
+    ),
+    index('year_end_run_parish_idx').on(t.parishCouncilId),
+    index('year_end_run_status_idx').on(t.status)
   ]
 )
 

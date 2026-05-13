@@ -5,15 +5,49 @@ import { db } from '@/db'
 import { reserves } from '@/db/schema'
 
 export async function ensureDefaultReserve(parishCouncilId: string) {
-  const existing = await db.query.reserves.findFirst({
+  const existingDefault = await db.query.reserves.findFirst({
     where: and(
       eq(reserves.parishCouncilId, parishCouncilId),
       eq(reserves.isDefault, true)
     )
   })
 
-  if (existing) {
-    return existing
+  if (existingDefault) {
+    if (existingDefault.isActive) {
+      return existingDefault
+    }
+
+    const [updated] = await db
+      .update(reserves)
+      .set({
+        isActive: true,
+        updatedAt: new Date()
+      })
+      .where(eq(reserves.id, existingDefault.id))
+      .returning()
+
+    return updated
+  }
+
+  const existingGeneral = await db.query.reserves.findFirst({
+    where: and(
+      eq(reserves.parishCouncilId, parishCouncilId),
+      eq(reserves.code, 'GENERAL')
+    )
+  })
+
+  if (existingGeneral) {
+    const [updated] = await db
+      .update(reserves)
+      .set({
+        isDefault: true,
+        isActive: true,
+        updatedAt: new Date()
+      })
+      .where(eq(reserves.id, existingGeneral.id))
+      .returning()
+
+    return updated
   }
 
   const [created] = await db
@@ -25,23 +59,7 @@ export async function ensureDefaultReserve(parishCouncilId: string) {
       isDefault: true,
       isActive: true
     })
-    .onConflictDoNothing()
     .returning()
 
-  if (created) {
-    return created
-  }
-
-  const fallback = await db.query.reserves.findFirst({
-    where: and(
-      eq(reserves.parishCouncilId, parishCouncilId),
-      eq(reserves.code, 'GENERAL')
-    )
-  })
-
-  if (!fallback) {
-    throw new Error('Could not create or find General reserve.')
-  }
-
-  return fallback
+  return created
 }

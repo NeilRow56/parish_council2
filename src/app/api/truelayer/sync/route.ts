@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server'
 import { syncAllConnections } from '@/lib/truelayer/sync'
 import { auth } from '@/lib/auth'
 import { headers } from 'next/headers'
+import { ensureDefaultReserve } from '@/lib/reserves/ensure-default-reserves'
 
 export async function POST() {
   // ── Auth: get session ─────────────────────────────────────────────
@@ -29,6 +30,8 @@ export async function POST() {
       { status: 403 }
     )
   }
+
+  await ensureDefaultReserve(parishCouncilId)
 
   // ── Sync (scoped to tenant) ───────────────────────────────────────
   const results = await syncAllConnections({

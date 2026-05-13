@@ -1,10 +1,11 @@
 'use client'
 
 import Link from 'next/link'
-import { usePathname, useRouter } from 'next/navigation'
+import { usePathname } from 'next/navigation'
 import { ChevronDown } from 'lucide-react'
 
-import { signOut } from '@/lib/auth-client'
+// import { signOut } from '@/lib/auth-client'
+import { SignOutButton } from './sign-out-button'
 
 type NavItem = {
   href: string
@@ -125,12 +126,12 @@ export default function AppNav({
   vatStatus: 'NOT_REGISTERED' | 'REGISTERED'
 }) {
   const pathname = usePathname()
-  const router = useRouter()
+  // const router = useRouter()
 
-  async function handleSignOut() {
-    await signOut()
-    router.push('/')
-  }
+  // async function handleSignOut() {
+  //   await signOut()
+  //   router.push('/')
+  // }
 
   const showVatNav = canRecoverVat
 
@@ -256,13 +257,14 @@ export default function AppNav({
         </div>
 
         <div className='flex items-center gap-3'>
-          <button
+          {/* <button
             type='button'
             onClick={handleSignOut}
             className='text-sm text-slate-600 hover:text-slate-900'
           >
             Sign out
-          </button>
+          </button> */}
+          <SignOutButton />
         </div>
       </div>
     </header>

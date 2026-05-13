@@ -42,11 +42,10 @@ export async function GET() {
       'info',
       'accounts',
       'balance',
-      'cards',
       'transactions',
       'offline_access'
     ].join(' '),
-    providers: 'uk-cs-mock uk-ob-all uk-oauth-all'
+    providers: 'uk-ob-all uk-oauth-all'
   })
 
   const authUrl = `${authBaseUrl}/?${params.toString()}`

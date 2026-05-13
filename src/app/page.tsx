@@ -35,7 +35,7 @@ export default async function HomePage() {
           )}
         </div>
 
-        <div className='flex flex-wrap gap-3'>
+        <div className='flex flex-wrap items-center gap-3'>
           {isSignedIn ? (
             <>
               <Link

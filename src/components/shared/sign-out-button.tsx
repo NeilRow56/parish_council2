@@ -1,23 +1,46 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
+import { Button } from '@/components/ui/button'
 import { authClient } from '@/lib/auth-client'
 
-export function SignOutButton() {
+import { useRouter } from 'next/navigation'
+import { useState } from 'react'
+import { toast } from 'sonner'
+
+export const SignOutButton = () => {
+  const [isPending, setIsPending] = useState(false)
   const router = useRouter()
 
-  async function handleSignOut() {
-    await authClient.signOut()
-    router.refresh()
-    router.push('/auth/login')
+  async function handleClick() {
+    await authClient.signOut({
+      fetchOptions: {
+        onRequest: () => {
+          setIsPending(true)
+        },
+        onResponse: () => {
+          setIsPending(false)
+        },
+        onError: ctx => {
+          toast.error(ctx.error.message)
+        },
+        onSuccess: () => {
+          toast.success('You’ve logged out. See you soon!', {
+            duration: 5000
+          })
+          router.push('/')
+        }
+      }
+    })
   }
 
   return (
-    <button
-      onClick={handleSignOut}
-      className='rounded bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-700'
+    <Button
+      onClick={handleClick}
+      size='sm'
+      className='bg-red-500'
+      disabled={isPending}
     >
       Sign out
-    </button>
+    </Button>
   )
 }

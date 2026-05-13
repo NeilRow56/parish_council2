@@ -232,13 +232,17 @@ export default async function YearEndPage({ params }: PageProps) {
     preReserveBalanceSheetTotal - expectedReservesCarriedForward
 
   const yearEndBalances = Math.abs(balancingDifference) < 0.01
+  const hasAnyMovement =
+    rollforwardRows.some(row => Math.abs(row.movement) > 0.01) ||
+    incomeExpenditureRows.some(row => Math.abs(row.movement) > 0.01)
 
   const canRunYearEnd =
     !financialYear.isClosed &&
     !existingYearEndRun &&
     codes.length > 0 &&
     balanceSheetCodes.length > 0 &&
-    yearEndBalances
+    yearEndBalances &&
+    hasAnyMovement
 
   return (
     <div className='mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 sm:p-6'>
@@ -250,6 +254,23 @@ export default async function YearEndPage({ params }: PageProps) {
               Year end routine
             </h1>
           </div>
+          {!hasAnyMovement && !financialYear.isClosed && (
+            <Card className='border-amber-200 bg-amber-50'>
+              <CardHeader className='flex flex-row items-start gap-3 space-y-0'>
+                <AlertTriangle className='mt-0.5 h-5 w-5 text-amber-700' />
+                <div>
+                  <CardTitle className='text-base text-amber-900'>
+                    No transactions found for this financial year
+                  </CardTitle>
+                  <CardDescription className='text-amber-800'>
+                    This year has no ledger movement yet. Year end should
+                    normally only be run after the financial year has activity
+                    and the closing balances have been reviewed.
+                  </CardDescription>
+                </div>
+              </CardHeader>
+            </Card>
+          )}
 
           <p className='text-muted-foreground max-w-3xl text-sm'>
             Review the closing balances for {financialYear.label}. Running year

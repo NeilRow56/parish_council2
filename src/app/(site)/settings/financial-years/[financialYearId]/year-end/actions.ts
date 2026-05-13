@@ -332,10 +332,12 @@ export async function runYearEndRollforward(formData: FormData) {
     return nextYear.id
   })
 
+  void nextFinancialYearId
+
   revalidatePath('/settings')
   revalidatePath('/settings/nominal-codes')
   revalidatePath('/reports/agar-summary')
   revalidatePath('/reports/borrowings')
 
-  redirect(`/settings/financial-years/${nextFinancialYearId}/year-end`)
+  redirect('/settings/financial-years?rolledForward=1')
 }

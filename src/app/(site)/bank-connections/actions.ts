@@ -10,6 +10,7 @@ import { db } from '@/db'
 import { auth } from '@/lib/auth'
 import { bankConnections } from '@/db/schema/bankConnection'
 import { syncConnection } from '@/lib/truelayer/sync'
+import { ensureDefaultReserve } from '@/lib/reserves/ensure-default-reserves'
 
 export async function syncBankConnectionAction(connectionId: string) {
   const session = await auth.api.getSession({
@@ -36,6 +37,8 @@ export async function syncBankConnectionAction(connectionId: string) {
   if (!connection) {
     throw new Error('Bank connection not found.')
   }
+
+  await ensureDefaultReserve(parishCouncilId)
 
   const result = await syncConnection({
     connection,

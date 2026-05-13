@@ -36,10 +36,19 @@ export async function syncConnection({
   parishCouncilId
 }: SyncConnectionInput): Promise<SyncResult> {
   // Fetch from 1 day before last sync to catch any late-arriving transactions.
-  // Fall back to 90 days on the first-ever sync.
+  // Fall back to current financial year start on the first-ever sync.
+  const currentFinancialYear = await getCurrentFinancialYear(parishCouncilId)
+
+  if (!currentFinancialYear) {
+    throw new Error('No open current financial year has been configured.')
+  }
+
   const from = connection.lastSyncAt
-    ? subDays(new Date(connection.lastSyncAt), 1)
-    : subDays(new Date(), 90)
+    ? maxDate(
+        subDays(new Date(connection.lastSyncAt), 1),
+        new Date(currentFinancialYear.startDate)
+      )
+    : new Date(currentFinancialYear.startDate)
 
   const to = new Date()
 
@@ -57,8 +66,7 @@ export async function syncConnection({
     return { imported: 0, skipped: 0 }
   }
 
-  // Resolve current financial year for this parish council only.
-  const currentYearId = await getCurrentFinancialYearId(parishCouncilId)
+  const currentYearId = currentFinancialYear.id
 
   const [defaultReserve] = await db
     .select({ id: reserves.id })
@@ -211,13 +219,21 @@ async function touchLastSync({
     )
 }
 
-async function getCurrentFinancialYearId(
+function maxDate(a: Date, b: Date) {
+  return a > b ? a : b
+}
+
+async function getCurrentFinancialYear(
   parishCouncilId: string
-): Promise<string | null> {
+): Promise<{ id: string; startDate: string; endDate: string } | null> {
   const today = new Date().toISOString().split('T')[0]
 
   const [year] = await db
-    .select({ id: financialYears.id })
+    .select({
+      id: financialYears.id,
+      startDate: financialYears.startDate,
+      endDate: financialYears.endDate
+    })
     .from(financialYears)
     .where(
       and(
@@ -229,5 +245,5 @@ async function getCurrentFinancialYearId(
     )
     .limit(1)
 
-  return year?.id ?? null
+  return year ?? null
 }

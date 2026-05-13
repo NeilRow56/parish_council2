@@ -1,13 +1,14 @@
 // src/app/bank-connections/page.tsx
 
-import { db } from '@/db'
-import { bankConnections } from '@/db/schema/bankConnection'
-import { nominalCodes } from '@/db/schema/nominalLedger'
-import { auth } from '@/lib/auth'
+import Link from 'next/link'
 import { headers } from 'next/headers'
 import { and, asc, eq } from 'drizzle-orm'
+
+import { db } from '@/db'
+import { auth } from '@/lib/auth'
+import { bankConnections } from '@/db/schema/bankConnection'
+import { nominalCodes } from '@/db/schema/nominalLedger'
 import { SyncBankButton } from './_components/sync-button'
-import Link from 'next/link'
 
 export default async function BankConnectionsPage() {
   const session = await auth.api.getSession({
@@ -54,8 +55,15 @@ export default async function BankConnectionsPage() {
   return (
     <main className='space-y-6 p-6'>
       <div className='mx-auto max-w-7xl space-y-6'>
-        <h1 className='text-2xl font-semibold'>Bank connections</h1>
-        <div className='flex justify-between'>
+        <div className='space-y-1'>
+          <h1 className='text-2xl font-semibold'>Bank connections</h1>
+          <p className='text-sm text-slate-600'>
+            Connect bank accounts, link them to nominal ledger bank codes, and
+            sync transactions into the inbox.
+          </p>
+        </div>
+
+        <div className='flex flex-wrap items-center justify-between gap-3'>
           <Link
             href='/api/bank/connect'
             className='inline-flex rounded bg-black px-4 py-2 text-white'
@@ -71,68 +79,118 @@ export default async function BankConnectionsPage() {
           </Link>
         </div>
 
+        {bankNominalCodes.length === 0 && (
+          <div className='rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800'>
+            <p className='font-medium'>No active bank nominal codes found</p>
+            <p className='mt-1'>
+              Create or activate a bank nominal code before syncing bank
+              transactions.
+            </p>
+          </div>
+        )}
+
+        {connections.length > 0 && (
+          <div className='rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900'>
+            <p className='font-medium'>Sync shortly after connecting</p>
+            <p className='mt-1'>
+              Some banks require transaction data to be imported soon after you
+              approve the Open Banking connection. After connecting a bank
+              account, select and save the ledger code, then click{' '}
+              <strong>Sync now</strong> before leaving this page.
+            </p>
+          </div>
+        )}
+
         <div className='space-y-3'>
           {connections.length === 0 ? (
-            <p>No bank accounts connected yet.</p>
+            <div className='rounded border p-4 text-sm text-slate-600'>
+              No bank accounts connected yet.
+            </div>
           ) : (
-            connections.map(connection => (
-              <div key={connection.id} className='space-y-3 rounded border p-4'>
-                <div>
-                  <p className='font-medium'>
-                    {connection.accountName}{' '}
-                    {connection.accountLast4
-                      ? `****${connection.accountLast4}`
-                      : ''}
-                  </p>
+            connections.map(connection => {
+              const hasLedgerCode = Boolean(connection.nominalCodeId)
 
-                  <p className='text-sm text-gray-600'>
-                    Status: {connection.status}
-                  </p>
-
-                  <p className='text-sm text-gray-600'>
-                    Ledger code:{' '}
-                    {connection.nominalCode
-                      ? `${connection.nominalCode} — ${connection.nominalName}`
-                      : 'Not linked'}
-                  </p>
-                </div>
-
-                <form
-                  action='/api/bank-connections/ledger-link-code'
-                  method='post'
-                  className='flex flex-wrap gap-2'
+              return (
+                <div
+                  key={connection.id}
+                  className='space-y-3 rounded border p-4'
                 >
-                  <input
-                    type='hidden'
-                    name='connectionId'
-                    value={connection.id}
-                  />
+                  <div>
+                    <p className='font-medium'>
+                      {connection.accountName}{' '}
+                      {connection.accountLast4
+                        ? `****${connection.accountLast4}`
+                        : ''}
+                    </p>
 
-                  <select
-                    name='nominalCodeId'
-                    defaultValue={connection.nominalCodeId ?? ''}
-                    className='rounded border px-3 py-2 text-sm'
+                    <p className='text-sm text-gray-600'>
+                      Status: {connection.status}
+                    </p>
+
+                    <p className='text-sm text-gray-600'>
+                      Ledger code:{' '}
+                      {connection.nominalCode
+                        ? `${connection.nominalCode} — ${connection.nominalName}`
+                        : 'Not linked'}
+                    </p>
+
+                    {!hasLedgerCode && (
+                      <p className='mt-1 text-sm text-amber-700'>
+                        Select and save a bank ledger code before syncing this
+                        account.
+                      </p>
+                    )}
+                  </div>
+
+                  <form
+                    action='/api/bank-connections/ledger-link-code'
+                    method='post'
+                    className='flex flex-wrap gap-2'
                   >
-                    <option value=''>Select bank ledger code...</option>
+                    <input
+                      type='hidden'
+                      name='connectionId'
+                      value={connection.id}
+                    />
 
-                    {bankNominalCodes.map(code => (
-                      <option key={code.id} value={code.id}>
-                        {code.code} — {code.name}
-                      </option>
-                    ))}
-                  </select>
+                    <select
+                      name='nominalCodeId'
+                      defaultValue={connection.nominalCodeId ?? ''}
+                      required
+                      className='rounded border px-3 py-2 text-sm'
+                    >
+                      <option value=''>Select bank ledger code...</option>
 
-                  <button
-                    type='submit'
-                    className='rounded border px-3 py-2 text-sm'
-                  >
-                    Save ledger code
-                  </button>
-                </form>
+                      {bankNominalCodes.map(code => (
+                        <option key={code.id} value={code.id}>
+                          {code.code} — {code.name}
+                        </option>
+                      ))}
+                    </select>
 
-                <SyncBankButton connectionId={connection.id} />
-              </div>
-            ))
+                    <button
+                      type='submit'
+                      disabled={bankNominalCodes.length === 0}
+                      className='rounded border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50'
+                    >
+                      Save ledger code
+                    </button>
+                  </form>
+
+                  {hasLedgerCode ? (
+                    <SyncBankButton connectionId={connection.id} />
+                  ) : (
+                    <button
+                      type='button'
+                      disabled
+                      className='rounded border px-3 py-2 text-sm text-slate-400 disabled:cursor-not-allowed disabled:opacity-60'
+                    >
+                      Sync now
+                    </button>
+                  )}
+                </div>
+              )
+            })
           )}
         </div>
       </div>

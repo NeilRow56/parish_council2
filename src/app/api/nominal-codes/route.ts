@@ -1,4 +1,4 @@
-import { NextRequest, NextResponse } from 'next/server'
+import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { headers } from 'next/headers'
 
@@ -9,7 +9,7 @@ import { financialYears, nominalCodes } from '@/db/schema/nominalLedger'
 // GET /api/nominal-codes
 // Returns all active nominal codes for the current parish council's open year.
 
-export async function GET(request: NextRequest) {
+export async function GET() {
   const session = await auth.api.getSession({
     headers: await headers()
   })

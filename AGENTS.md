@@ -1,28 +1,40 @@
 <!-- BEGIN:nextjs-agent-rules -->
 
-# Project: WpAccPac (UK Accounts Working Papers SaaS)
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may
+all differ from your training data. Read the relevant guide in
+`node_modules/next/dist/docs/` before writing any code. Heed deprecation
+notices.
+
+# Parish Council App
+
+UK parish council bookkeeping, reporting, and AGAR preparation SaaS.
 
 ## Stack
 
 - Next.js 16 App Router
 - TypeScript strict
-- Drizzle ORM + Postgres (Neon)
-- Tailwind + shadcn/ui
+- Bun
+- Tailwind CSS
+- shadcn/ui
+- Drizzle ORM
+- Neon Postgres
+- Better Auth
+- Vercel
+- TrueLayer bank feeds
 
 ## Rules
 
-- NEVER use `any`
-- Period CLOSED = fully read-only
-- Use server actions for mutations
-
-## UI Conventions
-
-- Use modal dialogs for schedule drilldowns
-- Currency formatting uses £ but not inline in inputs
-- Tables follow consistent structure
-
-## Domain Rules
-
-- Rollforward must be idempotent
+- Make minimal changes.
+- Do not rewrite working business logic.
+- Preserve existing database schema unless explicitly asked.
+- Keep TypeScript strict.
+- Closed financial years are read-only.
+- Journals are immutable after posting.
+- Corrections use reversal and repost.
+- AGAR reports derive from nominal code mappings.
+- Bank feed imports go through inbox/review before posting.
+- Explain every file changed.
 
 <!-- END:nextjs-agent-rules -->

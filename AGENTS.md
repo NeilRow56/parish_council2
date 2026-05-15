@@ -12,11 +12,6 @@
 ## Rules
 
 - NEVER use `any`
-- Always use canonical asset fields:
-  - originalCost
-  - acquisitionDate
-  - depreciationRate
-  - depreciationMethod
 - Period CLOSED = fully read-only
 - Use server actions for mutations
 
@@ -28,7 +23,6 @@
 
 ## Domain Rules
 
-- Depreciation is period-based
 - Rollforward must be idempotent
 
 <!-- END:nextjs-agent-rules -->

@@ -2,7 +2,7 @@
 
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, desc, eq } from 'drizzle-orm'
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
@@ -10,7 +10,17 @@ import { fixedAssets } from '@/db/schema'
 import { financialYears, nominalCodes } from '@/db/schema/nominalLedger'
 import { FixedAssetRegisterClient } from './_components/fixed-asset-register-client'
 
-export default async function AssetRegisterPage() {
+type SearchParams = {
+  financialYearId?: string
+}
+
+export default async function AssetRegisterPage({
+  searchParams
+}: {
+  searchParams?: Promise<SearchParams>
+}) {
+  const params = await searchParams
+
   const session = await auth.api.getSession({
     headers: await headers()
   })
@@ -25,20 +35,38 @@ export default async function AssetRegisterPage() {
     redirect('/auth/register')
   }
 
-  const [financialYear] = await db
-    .select({
-      id: financialYears.id,
-      label: financialYears.label,
-      endDate: financialYears.endDate
-    })
-    .from(financialYears)
-    .where(
-      and(
-        eq(financialYears.parishCouncilId, parishCouncilId),
-        eq(financialYears.isClosed, false)
-      )
-    )
-    .limit(1)
+  const [financialYear] = params?.financialYearId
+    ? await db
+        .select({
+          id: financialYears.id,
+          label: financialYears.label,
+          endDate: financialYears.endDate,
+          isClosed: financialYears.isClosed
+        })
+        .from(financialYears)
+        .where(
+          and(
+            eq(financialYears.parishCouncilId, parishCouncilId),
+            eq(financialYears.id, params.financialYearId)
+          )
+        )
+        .limit(1)
+    : await db
+        .select({
+          id: financialYears.id,
+          label: financialYears.label,
+          endDate: financialYears.endDate,
+          isClosed: financialYears.isClosed
+        })
+        .from(financialYears)
+        .where(
+          and(
+            eq(financialYears.parishCouncilId, parishCouncilId),
+            eq(financialYears.isClosed, false)
+          )
+        )
+        .orderBy(desc(financialYears.startDate))
+        .limit(1)
 
   if (!financialYear) {
     redirect('/')
@@ -62,6 +90,7 @@ export default async function AssetRegisterPage() {
     .where(
       and(
         eq(fixedAssets.parishCouncilId, parishCouncilId),
+        eq(fixedAssets.financialYearId, financialYear.id),
         eq(fixedAssets.isDisposed, false)
       )
     )
@@ -103,6 +132,11 @@ export default async function AssetRegisterPage() {
             {financialYear.label}
           </span>
         </p>
+        {financialYear.isClosed ? (
+          <p className='mt-1 text-sm text-zinc-500'>
+            Closed year: this register is read-only.
+          </p>
+        ) : null}
       </div>
 
       <FixedAssetRegisterClient
@@ -121,6 +155,7 @@ export default async function AssetRegisterPage() {
           nominalCodeId: asset.nominalCodeId
         }))}
         nominalCodes={nominalCodeOptions}
+        readOnly={financialYear.isClosed}
       />
     </main>
   )

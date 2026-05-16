@@ -2,7 +2,7 @@
 
 import { SubmitVatReturnButton } from '../returns/_components/submit-vat-return-button'
 import {
-  getCurrentFinancialYearForVatReturns,
+  getFinancialYearForVatReports,
   getVat126InvoiceLines,
   getVatReturnTotals
 } from '../returns/actions'
@@ -27,11 +27,10 @@ export default async function VatReturnsPage({
 }) {
   const params = await searchParams
 
-  const currentFinancialYear = params.financialYearId
-    ? null
-    : await getCurrentFinancialYearForVatReturns()
-
-  const financialYearId = params.financialYearId ?? currentFinancialYear?.id
+  const financialYear = await getFinancialYearForVatReports(
+    params.financialYearId
+  )
+  const financialYearId = financialYear?.id
 
   if (!financialYearId) {
     return (
@@ -48,15 +47,11 @@ export default async function VatReturnsPage({
 
   const periodStart = params.periodStart
     ? new Date(params.periodStart)
-    : currentFinancialYear
-      ? new Date(currentFinancialYear.startDate)
-      : new Date('2025-04-01')
+    : new Date(financialYear.startDate)
 
   const periodEnd = params.periodEnd
     ? new Date(params.periodEnd)
-    : currentFinancialYear
-      ? new Date(currentFinancialYear.endDate)
-      : new Date('2025-06-30')
+    : new Date(financialYear.endDate)
 
   const totals = await getVatReturnTotals({
     financialYearId,
@@ -87,6 +82,10 @@ export default async function VatReturnsPage({
           <p className='text-muted-foreground text-sm'>
             Prepare a VAT126-style reclaim pack for HMRC using recoverable VAT
             from purchase transactions.
+          </p>
+          <p className='text-muted-foreground mt-1 text-sm'>
+            Financial year: {financialYear.label}
+            {financialYear.isClosed ? ' (closed / read-only)' : ''}
           </p>
         </div>
 
@@ -237,12 +236,14 @@ export default async function VatReturnsPage({
             Export VAT126 CSV
           </a>
 
-          <SubmitVatReturnButton
-            financialYearId={financialYearId}
-            periodStart={periodStart.toISOString()}
-            periodEnd={periodEnd.toISOString()}
-            netVat={-totals.inputVat}
-          />
+          {!financialYear.isClosed ? (
+            <SubmitVatReturnButton
+              financialYearId={financialYearId}
+              periodStart={periodStart.toISOString()}
+              periodEnd={periodEnd.toISOString()}
+              netVat={-totals.inputVat}
+            />
+          ) : null}
         </div>
       </div>
     </div>

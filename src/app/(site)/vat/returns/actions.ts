@@ -4,7 +4,7 @@
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { revalidatePath } from 'next/cache'
-import { and, desc, eq, gt, gte, lte, sql } from 'drizzle-orm'
+import { and, desc, eq, gt, gte, lte, ne, sql } from 'drizzle-orm'
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
@@ -105,9 +105,8 @@ export async function getVatReturnTotals(params: {
       box6OutputsNet: sql<string>`
       coalesce(sum(
         case
-          when ${nominalCodes.isVatPayable} = false
-           and ${nominalCodes.isVatRecoverable} = false
-           and ${journalLines.credit} > 0
+          when ${nominalCodes.type} = 'INCOME'
+            and ${journalLines.credit} > 0
           then ${journalLines.credit}
           else 0
         end
@@ -117,9 +116,8 @@ export async function getVatReturnTotals(params: {
       box7InputsNet: sql<string>`
       coalesce(sum(
         case
-          when ${nominalCodes.isVatPayable} = false
-           and ${nominalCodes.isVatRecoverable} = false
-           and ${journalLines.debit} > 0
+          when ${nominalCodes.type} = 'EXPENDITURE'
+            and ${journalLines.debit} > 0
           then ${journalLines.debit}
           else 0
         end
@@ -136,6 +134,7 @@ export async function getVatReturnTotals(params: {
       and(
         eq(journalEntries.parishCouncilId, parishCouncilId),
         eq(journalEntries.financialYearId, params.financialYearId),
+        ne(journalEntries.source, 'VAT_RETURN'),
         gte(journalEntries.date, periodStart),
         lte(journalEntries.date, periodEnd)
       )
@@ -161,6 +160,17 @@ export async function submitVatReturn(params: {
   const { parishCouncilId, userId } = await requireParishCouncil()
 
   return db.transaction(async tx => {
+    const financialYear = await tx.query.financialYears.findFirst({
+      where: and(
+        eq(financialYears.id, params.financialYearId),
+        eq(financialYears.parishCouncilId, parishCouncilId)
+      )
+    })
+
+    if (!financialYear || financialYear.isClosed) {
+      throw new Error('VAT returns cannot be submitted for a closed year.')
+    }
+
     const [generalReserve] = await tx
       .select()
       .from(reserves)
@@ -217,8 +227,7 @@ export async function submitVatReturn(params: {
         box6OutputsNet: sql<string>`
   coalesce(sum(
     case
-      when ${nominalCodes.isVatPayable} = false
-       and ${nominalCodes.isVatRecoverable} = false
+      when ${nominalCodes.type} = 'INCOME'
        and ${journalLines.credit} > 0
       then ${journalLines.credit}
       else 0
@@ -229,8 +238,7 @@ export async function submitVatReturn(params: {
         box7InputsNet: sql<string>`
   coalesce(sum(
     case
-      when ${nominalCodes.isVatPayable} = false
-       and ${nominalCodes.isVatRecoverable} = false
+      when ${nominalCodes.type} = 'EXPENDITURE'
        and ${journalLines.debit} > 0
       then ${journalLines.debit}
       else 0
@@ -248,6 +256,7 @@ export async function submitVatReturn(params: {
         and(
           eq(journalEntries.parishCouncilId, parishCouncilId),
           eq(journalEntries.financialYearId, params.financialYearId),
+          ne(journalEntries.source, 'VAT_RETURN'),
           gte(journalEntries.date, periodStart),
           lte(journalEntries.date, periodEnd)
         )
@@ -418,6 +427,35 @@ export async function getCurrentFinancialYearForVatReturns() {
       )
     )
     .limit(1)
+
+  return year ?? null
+}
+
+export async function getFinancialYearForVatReports(financialYearId?: string) {
+  const { parishCouncilId } = await requireParishCouncil()
+
+  const [year] = financialYearId
+    ? await db
+        .select()
+        .from(financialYears)
+        .where(
+          and(
+            eq(financialYears.parishCouncilId, parishCouncilId),
+            eq(financialYears.id, financialYearId)
+          )
+        )
+        .limit(1)
+    : await db
+        .select()
+        .from(financialYears)
+        .where(
+          and(
+            eq(financialYears.parishCouncilId, parishCouncilId),
+            eq(financialYears.isClosed, false)
+          )
+        )
+        .orderBy(desc(financialYears.startDate))
+        .limit(1)
 
   return year ?? null
 }

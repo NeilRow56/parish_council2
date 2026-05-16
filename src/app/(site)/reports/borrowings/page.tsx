@@ -46,7 +46,17 @@ function toNumber(value: unknown) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
-export default async function BorrowingsReportPage() {
+type SearchParams = {
+  financialYearId?: string
+}
+
+export default async function BorrowingsReportPage({
+  searchParams
+}: {
+  searchParams?: Promise<SearchParams>
+}) {
+  const params = await searchParams
+
   const session = await auth.api.getSession({
     headers: await headers()
   })
@@ -61,13 +71,20 @@ export default async function BorrowingsReportPage() {
     redirect('/auth/register')
   }
 
-  const financialYear = await db.query.financialYears.findFirst({
-    where: and(
-      eq(financialYears.parishCouncilId, parishCouncilId),
-      eq(financialYears.isClosed, false)
-    ),
-    orderBy: desc(financialYears.startDate)
-  })
+  const financialYear = params?.financialYearId
+    ? await db.query.financialYears.findFirst({
+        where: and(
+          eq(financialYears.parishCouncilId, parishCouncilId),
+          eq(financialYears.id, params.financialYearId)
+        )
+      })
+    : await db.query.financialYears.findFirst({
+        where: and(
+          eq(financialYears.parishCouncilId, parishCouncilId),
+          eq(financialYears.isClosed, false)
+        ),
+        orderBy: desc(financialYears.startDate)
+      })
 
   if (!financialYear) {
     redirect('/onboarding/council-details')
@@ -214,14 +231,20 @@ export default async function BorrowingsReportPage() {
             Loan balances are driven from nominal opening balances and
             current-year postings to nominal codes mapped to AGAR Box 10.
           </p>
+          <p className='text-muted-foreground text-sm'>
+            Financial year: {financialYear.label}
+            {financialYear.isClosed ? ' (closed / read-only)' : ''}
+          </p>
         </div>
 
-        <div className='shrink-0'>
-          <AddBorrowingDialog
-            financialYearId={financialYear.id}
-            nominalCodes={borrowingNominalCodes}
-          />
-        </div>
+        {!financialYear.isClosed ? (
+          <div className='shrink-0'>
+            <AddBorrowingDialog
+              financialYearId={financialYear.id}
+              nominalCodes={borrowingNominalCodes}
+            />
+          </div>
+        ) : null}
       </div>
 
       {borrowingNominalCodes.length === 0 ? (

@@ -1,6 +1,6 @@
 import Link from 'next/link'
 import { and, eq } from 'drizzle-orm'
-import { BarChart3, FileText, Scale } from 'lucide-react'
+import { BarChart3, FileText, Landmark, Scale } from 'lucide-react'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 
@@ -91,6 +91,37 @@ export default async function FinancialYearReportsPage({ params }: PageProps) {
         'Income, expenditure and surplus or deficit for this financial year.',
       href: `/reports/income-expenditure?financialYearId=${financialYear.id}`,
       icon: BarChart3
+    },
+    {
+      title: 'Asset Register',
+      description:
+        'Fixed asset register and AGAR fixed asset support for this year.',
+      href: `/reports/asset-register?financialYearId=${financialYear.id}`,
+      icon: FileText
+    },
+    {
+      title: 'Borrowings',
+      description: 'Loan balances and AGAR Box 10 borrowing reconciliation.',
+      href: `/reports/borrowings?financialYearId=${financialYear.id}`,
+      icon: Landmark
+    },
+    {
+      title: 'Budget',
+      description: 'Budget, actuals and variance for income and expenditure.',
+      href: `/reports/budget?financialYearId=${financialYear.id}`,
+      icon: BarChart3
+    },
+    {
+      title: 'VAT Return',
+      description: 'VAT return summary for the selected financial year.',
+      href: `/vat/returns?financialYearId=${financialYear.id}`,
+      icon: FileText
+    },
+    {
+      title: 'VAT126 Reclaim',
+      description: 'VAT126-style recoverable VAT claim support.',
+      href: `/vat/vat-claim-126?financialYearId=${financialYear.id}`,
+      icon: FileText
     }
   ]
 

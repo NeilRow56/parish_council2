@@ -47,11 +47,13 @@ function formatMoney(value: string | null) {
 export function FixedAssetRegisterClient({
   financialYearId,
   assets,
-  nominalCodes
+  nominalCodes,
+  readOnly
 }: {
   financialYearId: string
   assets: FixedAssetRow[]
   nominalCodes: NominalCodeOption[]
+  readOnly: boolean
 }) {
   const [editingAsset, setEditingAsset] = useState<FixedAssetRow | null>(null)
   const [showForm, setShowForm] = useState(false)
@@ -93,18 +95,20 @@ export function FixedAssetRegisterClient({
 
   return (
     <div className='space-y-6'>
-      <div className='flex justify-end'>
-        <button
-          type='button'
-          onClick={() => {
-            setEditingAsset(null)
-            setShowForm(true)
-          }}
-          className='rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800'
-        >
-          Add asset
-        </button>
-      </div>
+      {!readOnly ? (
+        <div className='flex justify-end'>
+          <button
+            type='button'
+            onClick={() => {
+              setEditingAsset(null)
+              setShowForm(true)
+            }}
+            className='rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800'
+          >
+            Add asset
+          </button>
+        </div>
+      ) : null}
 
       {showForm ? (
         <section className='rounded-lg border bg-white p-5 shadow-sm'>
@@ -269,7 +273,7 @@ export function FixedAssetRegisterClient({
                 <col className='w-32' />
                 <col className='w-40' />
                 <col className='w-36' />
-                <col className='w-24' />
+                {!readOnly ? <col className='w-24' /> : null}
               </colgroup>
 
               <thead className='bg-zinc-50 text-left text-zinc-600'>
@@ -289,7 +293,11 @@ export function FixedAssetRegisterClient({
                   <th className='px-4 py-3 text-right font-medium'>
                     Register value
                   </th>
-                  <th className='px-4 py-3 text-right font-medium'>Actions</th>
+                  {!readOnly ? (
+                    <th className='px-4 py-3 text-right font-medium'>
+                      Actions
+                    </th>
+                  ) : null}
                 </tr>
               </thead>
 
@@ -335,26 +343,28 @@ export function FixedAssetRegisterClient({
                       {formatMoney(asset.assetRegisterValue)}
                     </td>
 
-                    <td className='px-4 py-3 text-right align-top'>
-                      <button
-                        type='button'
-                        onClick={() => {
-                          setEditingAsset(asset)
-                          setShowForm(true)
-                        }}
-                        className='text-sm font-medium text-blue-700 hover:underline'
-                      >
-                        Edit
-                      </button>
+                    {!readOnly ? (
+                      <td className='px-4 py-3 text-right align-top'>
+                        <button
+                          type='button'
+                          onClick={() => {
+                            setEditingAsset(asset)
+                            setShowForm(true)
+                          }}
+                          className='text-sm font-medium text-blue-700 hover:underline'
+                        >
+                          Edit
+                        </button>
 
-                      <button
-                        type='button'
-                        onClick={() => onDispose(asset.id)}
-                        className='ml-4 text-sm font-medium text-red-700 hover:underline'
-                      >
-                        Dispose
-                      </button>
-                    </td>
+                        <button
+                          type='button'
+                          onClick={() => onDispose(asset.id)}
+                          className='ml-4 text-sm font-medium text-red-700 hover:underline'
+                        >
+                          Dispose
+                        </button>
+                      </td>
+                    ) : null}
                   </tr>
                 ))}
               </tbody>

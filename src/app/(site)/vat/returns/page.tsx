@@ -8,7 +8,7 @@ import { db } from '@/db'
 import { auth } from '@/lib/auth'
 import { parishCouncils } from '@/db/schema'
 import {
-  getCurrentFinancialYearForVatReturns,
+  getFinancialYearForVatReports,
   getVatReturnTotals,
   getVatReturnTransactionLines
 } from './actions'
@@ -135,10 +135,12 @@ export default async function VatReturnsPage({
   const vatReturnFrequency = (council?.vatReturnFrequency ??
     'QUARTERLY') as VatReturnFrequency
 
-  const currentFinancialYear = await getCurrentFinancialYearForVatReturns()
-  const financialYearId = params.financialYearId ?? currentFinancialYear?.id
+  const financialYear = await getFinancialYearForVatReports(
+    params.financialYearId
+  )
+  const financialYearId = financialYear?.id
 
-  if (!financialYearId || !currentFinancialYear) {
+  if (!financialYearId || !financialYear) {
     return (
       <div className='mx-auto max-w-5xl px-4 py-6'>
         <h1 className='text-2xl font-semibold'>VAT Return</h1>
@@ -150,8 +152,8 @@ export default async function VatReturnsPage({
   }
 
   const periodOptions = getVatPeriodOptions({
-    financialYearStart: new Date(currentFinancialYear.startDate),
-    financialYearEnd: new Date(currentFinancialYear.endDate),
+    financialYearStart: new Date(financialYear.startDate),
+    financialYearEnd: new Date(financialYear.endDate),
     frequency: vatReturnFrequency
   })
 
@@ -189,6 +191,10 @@ export default async function VatReturnsPage({
         <h1 className='text-2xl font-semibold'>VAT Return</h1>
         <p className='text-muted-foreground text-sm'>
           Summary of VAT for the selected period.
+        </p>
+        <p className='text-muted-foreground mt-1 text-sm'>
+          Financial year: {financialYear.label}
+          {financialYear.isClosed ? ' (closed / read-only)' : ''}
         </p>
       </div>
 
@@ -407,12 +413,14 @@ export default async function VatReturnsPage({
         </div>
       </div>
 
-      <SubmitVatReturnButton
-        financialYearId={financialYearId}
-        periodStart={periodStart.toISOString()}
-        periodEnd={periodEnd.toISOString()}
-        netVat={totals.netVat}
-      />
+      {!financialYear.isClosed ? (
+        <SubmitVatReturnButton
+          financialYearId={financialYearId}
+          periodStart={periodStart.toISOString()}
+          periodEnd={periodEnd.toISOString()}
+          netVat={totals.netVat}
+        />
+      ) : null}
     </div>
   )
 }

@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
-import { and, eq, inArray, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
@@ -74,6 +74,22 @@ async function saveBudget(formData: FormData) {
     throw new Error('Missing financial year')
   }
 
+  const [financialYear] = await db
+    .select({ id: financialYears.id })
+    .from(financialYears)
+    .where(
+      and(
+        eq(financialYears.id, financialYearId),
+        eq(financialYears.parishCouncilId, parishCouncilId),
+        eq(financialYears.isClosed, false)
+      )
+    )
+    .limit(1)
+
+  if (!financialYear) {
+    throw new Error('Budgets cannot be changed for a closed financial year.')
+  }
+
   const entries = Array.from(formData.entries()).filter(([key]) =>
     key.startsWith('budget:')
   )
@@ -106,7 +122,17 @@ async function saveBudget(formData: FormData) {
   revalidatePath('/reports/budget')
 }
 
-export default async function BudgetPage() {
+type SearchParams = {
+  financialYearId?: string
+}
+
+export default async function BudgetPage({
+  searchParams
+}: {
+  searchParams?: Promise<SearchParams>
+}) {
+  const params = await searchParams
+
   const session = await auth.api.getSession({
     headers: await headers()
   })
@@ -121,19 +147,36 @@ export default async function BudgetPage() {
     redirect('/auth/register')
   }
 
-  const [financialYear] = await db
-    .select({
-      id: financialYears.id,
-      label: financialYears.label
-    })
-    .from(financialYears)
-    .where(
-      and(
-        eq(financialYears.parishCouncilId, parishCouncilId),
-        eq(financialYears.isClosed, false)
-      )
-    )
-    .limit(1)
+  const [financialYear] = params?.financialYearId
+    ? await db
+        .select({
+          id: financialYears.id,
+          label: financialYears.label,
+          isClosed: financialYears.isClosed
+        })
+        .from(financialYears)
+        .where(
+          and(
+            eq(financialYears.parishCouncilId, parishCouncilId),
+            eq(financialYears.id, params.financialYearId)
+          )
+        )
+        .limit(1)
+    : await db
+        .select({
+          id: financialYears.id,
+          label: financialYears.label,
+          isClosed: financialYears.isClosed
+        })
+        .from(financialYears)
+        .where(
+          and(
+            eq(financialYears.parishCouncilId, parishCouncilId),
+            eq(financialYears.isClosed, false)
+          )
+        )
+        .orderBy(desc(financialYears.startDate))
+        .limit(1)
 
   if (!financialYear) {
     redirect('/')
@@ -151,6 +194,7 @@ export default async function BudgetPage() {
     .where(
       and(
         eq(nominalCodes.parishCouncilId, parishCouncilId),
+        eq(nominalCodes.financialYearId, financialYear.id),
         inArray(nominalCodes.type, ['INCOME', 'EXPENDITURE'])
       )
     )
@@ -270,25 +314,40 @@ export default async function BudgetPage() {
             {financialYear.label}
           </span>
         </p>
+        {financialYear.isClosed ? (
+          <p className='mt-1 text-sm text-zinc-500'>
+            Closed year: budgets are read-only.
+          </p>
+        ) : null}
       </div>
 
       <form action={saveBudget}>
         <input type='hidden' name='financialYearId' value={financialYear.id} />
 
-        <div className='mb-6 flex justify-end'>
-          <button
-            type='submit'
-            className='rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800'
-          >
-            Save budget
-          </button>
-        </div>
+        {!financialYear.isClosed ? (
+          <div className='mb-6 flex justify-end'>
+            <button
+              type='submit'
+              className='rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800'
+            >
+              Save budget
+            </button>
+          </div>
+        ) : null}
 
-        <BudgetSection title='Receipts' rows={receiptRows} />
+        <BudgetSection
+          title='Receipts'
+          rows={receiptRows}
+          readOnly={financialYear.isClosed}
+        />
 
         <div className='my-8' />
 
-        <BudgetSection title='Payments' rows={paymentRows} />
+        <BudgetSection
+          title='Payments'
+          rows={paymentRows}
+          readOnly={financialYear.isClosed}
+        />
 
         <section className='mt-8 overflow-hidden rounded-lg border bg-white shadow-sm'>
           <table className='w-full table-fixed border-collapse text-sm'>
@@ -372,6 +431,7 @@ export default async function BudgetPage() {
                   name={`notes:${row.id}`}
                   defaultValue={row.notes ?? ''}
                   rows={2}
+                  disabled={financialYear.isClosed}
                   className='w-full rounded-md border px-3 py-2 text-sm'
                   placeholder='Budget assumptions or commentary...'
                 />
@@ -384,7 +444,15 @@ export default async function BudgetPage() {
   )
 }
 
-function BudgetSection({ title, rows }: { title: string; rows: BudgetRow[] }) {
+function BudgetSection({
+  title,
+  rows,
+  readOnly
+}: {
+  title: string
+  rows: BudgetRow[]
+  readOnly: boolean
+}) {
   const totalActual = rows.reduce((sum, row) => sum + row.actualAmount, 0)
   const totalBudget = rows.reduce((sum, row) => sum + row.budget, 0)
   const totalVariance = totalActual - totalBudget
@@ -446,6 +514,7 @@ function BudgetSection({ title, rows }: { title: string; rows: BudgetRow[] }) {
                     step='0.01'
                     min='0'
                     defaultValue={row.budget === 0 ? '' : row.budget}
+                    disabled={readOnly}
                     className='w-40 rounded-md border px-3 py-2 text-right text-sm'
                     placeholder='0.00'
                   />

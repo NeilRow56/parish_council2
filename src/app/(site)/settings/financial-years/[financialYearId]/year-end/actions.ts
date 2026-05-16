@@ -14,6 +14,7 @@ import {
   nominalOpeningBalances,
   yearEndRuns
 } from '@/db/schema/nominalLedger'
+import { bankConnections } from '@/db/schema/bankConnection'
 import { borrowings } from '@/db/schema/borrowings'
 import { auth } from '@/lib/auth'
 
@@ -167,6 +168,29 @@ export async function runYearEndRollforward(formData: FormData) {
     const nextCodeIdByCode = new Map(
       copiedCodes.map(code => [code.code, code.id])
     )
+
+    const bankCodes = currentCodes.filter(code => code.isBank)
+
+    for (const code of bankCodes) {
+      const nextNominalCodeId = nextCodeIdByCode.get(code.code)
+
+      if (!nextNominalCodeId) {
+        throw new Error(`Could not map bank nominal code ${code.code}`)
+      }
+
+      await tx
+        .update(bankConnections)
+        .set({
+          nominalCodeId: nextNominalCodeId,
+          updatedAt: new Date()
+        })
+        .where(
+          and(
+            eq(bankConnections.parishCouncilId, parishCouncilId),
+            eq(bankConnections.nominalCodeId, code.id)
+          )
+        )
+    }
 
     const openingRows = await tx
       .select({

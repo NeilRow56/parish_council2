@@ -2,12 +2,12 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
-import { and, eq } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
 import { bankConnections } from '@/db/schema/bankConnection'
-import { nominalCodes } from '@/db/schema/nominalLedger'
+import { financialYears, nominalCodes } from '@/db/schema/nominalLedger'
 
 export async function POST(request: NextRequest) {
   const session = await auth.api.getSession({
@@ -27,6 +27,27 @@ export async function POST(request: NextRequest) {
   if (!connectionId || !nominalCodeId) {
     return NextResponse.json(
       { error: 'Connection and nominal code are required' },
+      { status: 400 }
+    )
+  }
+
+  const [currentYear] = await db
+    .select({
+      id: financialYears.id
+    })
+    .from(financialYears)
+    .where(
+      and(
+        eq(financialYears.parishCouncilId, parishCouncilId),
+        eq(financialYears.isClosed, false)
+      )
+    )
+    .orderBy(desc(financialYears.startDate))
+    .limit(1)
+
+  if (!currentYear) {
+    return NextResponse.json(
+      { error: 'No open financial year found' },
       { status: 400 }
     )
   }
@@ -56,6 +77,7 @@ export async function POST(request: NextRequest) {
       and(
         eq(nominalCodes.id, nominalCodeId),
         eq(nominalCodes.parishCouncilId, parishCouncilId),
+        eq(nominalCodes.financialYearId, currentYear.id),
         eq(nominalCodes.isBank, true),
         eq(nominalCodes.isActive, true)
       )

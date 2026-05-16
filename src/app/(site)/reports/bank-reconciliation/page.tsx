@@ -13,7 +13,8 @@ import {
   financialYears,
   journalEntries,
   journalLines,
-  nominalCodes
+  nominalCodes,
+  nominalOpeningBalances
 } from '@/db/schema/nominalLedger'
 
 import { bankConnections, bankTransactions } from '@/db/schema'
@@ -76,6 +77,7 @@ export default async function BankReconciliationPage() {
         eq(financialYears.isClosed, false)
       )
     )
+    .orderBy(desc(financialYears.startDate))
     .limit(1)
 
   if (!financialYear) {
@@ -89,9 +91,10 @@ export default async function BankReconciliationPage() {
       accountName: bankConnections.accountName,
       sortCode: bankConnections.sortCode,
       accountLast4: bankConnections.accountLast4,
-      nominalCodeId: bankConnections.nominalCodeId,
+      nominalCodeId: nominalCodes.id,
       nominalCode: nominalCodes.code,
       nominalName: nominalCodes.name,
+      openingBalance: sql<number>`coalesce(max(${nominalOpeningBalances.amount}), 0)`,
 
       ledgerDebit: sql<number>`
         coalesce(
@@ -120,7 +123,21 @@ export default async function BankReconciliationPage() {
       `
     })
     .from(bankConnections)
-    .leftJoin(nominalCodes, eq(nominalCodes.id, bankConnections.nominalCodeId))
+    .leftJoin(
+      nominalCodes,
+      and(
+        eq(nominalCodes.id, bankConnections.nominalCodeId),
+        eq(nominalCodes.financialYearId, financialYear.id)
+      )
+    )
+    .leftJoin(
+      nominalOpeningBalances,
+      and(
+        eq(nominalOpeningBalances.nominalCodeId, nominalCodes.id),
+        eq(nominalOpeningBalances.financialYearId, financialYear.id),
+        eq(nominalOpeningBalances.parishCouncilId, parishCouncilId)
+      )
+    )
     .leftJoin(journalLines, eq(journalLines.nominalCodeId, nominalCodes.id))
     .leftJoin(
       journalEntries,
@@ -138,6 +155,7 @@ export default async function BankReconciliationPage() {
       bankConnections.sortCode,
       bankConnections.accountLast4,
       bankConnections.nominalCodeId,
+      nominalCodes.id,
       nominalCodes.code,
       nominalCodes.name
     )
@@ -188,7 +206,8 @@ export default async function BankReconciliationPage() {
 
     const ledgerDebit = Number(account.ledgerDebit ?? 0)
     const ledgerCredit = Number(account.ledgerCredit ?? 0)
-    const ledgerBalance = ledgerDebit - ledgerCredit
+    const openingBalance = Number(account.openingBalance ?? 0)
+    const ledgerBalance = openingBalance + ledgerDebit - ledgerCredit
 
     const adjustedBankBalance = ledgerBalance + inboxNetMovement
     const difference = ledgerBalance + inboxNetMovement - adjustedBankBalance

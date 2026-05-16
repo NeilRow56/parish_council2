@@ -2,12 +2,12 @@
 
 import Link from 'next/link'
 import { headers } from 'next/headers'
-import { and, asc, eq } from 'drizzle-orm'
+import { and, asc, desc, eq } from 'drizzle-orm'
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
 import { bankConnections } from '@/db/schema/bankConnection'
-import { nominalCodes } from '@/db/schema/nominalLedger'
+import { financialYears, nominalCodes } from '@/db/schema/nominalLedger'
 import { SyncBankButton } from './_components/sync-button'
 
 export default async function BankConnectionsPage() {
@@ -20,6 +20,20 @@ export default async function BankConnectionsPage() {
   }
 
   const parishCouncilId = session.user.parishCouncilId
+
+  const [currentYear] = await db
+    .select({
+      id: financialYears.id
+    })
+    .from(financialYears)
+    .where(
+      and(
+        eq(financialYears.parishCouncilId, parishCouncilId),
+        eq(financialYears.isClosed, false)
+      )
+    )
+    .orderBy(desc(financialYears.startDate))
+    .limit(1)
 
   const connections = await db
     .select({
@@ -46,6 +60,7 @@ export default async function BankConnectionsPage() {
     .where(
       and(
         eq(nominalCodes.parishCouncilId, parishCouncilId),
+        eq(nominalCodes.financialYearId, currentYear?.id ?? ''),
         eq(nominalCodes.isBank, true),
         eq(nominalCodes.isActive, true)
       )

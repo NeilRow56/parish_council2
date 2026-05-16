@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
@@ -72,7 +72,13 @@ export default async function TrialBalancePage() {
       endDate: financialYears.endDate
     })
     .from(financialYears)
-    .where(eq(financialYears.parishCouncilId, parishCouncilId))
+    .where(
+      and(
+        eq(financialYears.parishCouncilId, parishCouncilId),
+        eq(financialYears.isClosed, false)
+      )
+    )
+    .orderBy(desc(financialYears.startDate))
     .limit(1)
 
   if (!financialYear) {
@@ -85,8 +91,24 @@ export default async function TrialBalancePage() {
       code: nominalCodes.code,
       name: nominalCodes.name,
       type: nominalCodes.type,
-      debit: sql<number>`coalesce(sum(${journalLines.debit}), 0)`,
-      credit: sql<number>`coalesce(sum(${journalLines.credit}), 0)`
+      debit: sql<number>`
+        coalesce(sum(
+          case
+            when ${journalEntries.id} is not null
+            then ${journalLines.debit}
+            else 0
+          end
+        ), 0)
+      `,
+      credit: sql<number>`
+        coalesce(sum(
+          case
+            when ${journalEntries.id} is not null
+            then ${journalLines.credit}
+            else 0
+          end
+        ), 0)
+      `
     })
     .from(nominalCodes)
     .leftJoin(journalLines, eq(journalLines.nominalCodeId, nominalCodes.id))
@@ -98,7 +120,12 @@ export default async function TrialBalancePage() {
         eq(journalEntries.financialYearId, financialYear.id)
       )
     )
-    .where(eq(nominalCodes.parishCouncilId, parishCouncilId))
+    .where(
+      and(
+        eq(nominalCodes.parishCouncilId, parishCouncilId),
+        eq(nominalCodes.financialYearId, financialYear.id)
+      )
+    )
     .groupBy(
       nominalCodes.id,
       nominalCodes.code,

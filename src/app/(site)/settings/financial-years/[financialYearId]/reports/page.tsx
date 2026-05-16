@@ -112,6 +112,19 @@ export default async function FinancialYearReportsPage({ params }: PageProps) {
       icon: BarChart3
     },
     {
+      title: 'Bank Reconciliation',
+      description:
+        'Bank nominal balances and pending open-year inbox movements.',
+      href: `/reports/bank-reconciliation?financialYearId=${financialYear.id}`,
+      icon: Landmark
+    },
+    {
+      title: 'Large Payments',
+      description: 'Payments over £100 for publication and CSV export.',
+      href: `/reports/large-payments?financialYearId=${financialYear.id}`,
+      icon: FileText
+    },
+    {
       title: 'VAT Return',
       description: 'VAT return summary for the selected financial year.',
       href: `/vat/returns?financialYearId=${financialYear.id}`,

@@ -1,9 +1,8 @@
 // src/app/(site)/reports/large-payments/lib.ts
 
-import { and, asc, eq, gte, lte } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, lte } from 'drizzle-orm'
 
 import { db } from '@/db'
-import { bankConnections } from '@/db/schema/bankConnection'
 import {
   financialYears,
   journalEntries,
@@ -150,20 +149,34 @@ function buildLargePaymentsReport({
 }
 
 export async function getCurrentFinancialYearForLargePaymentsReport({
-  parishCouncilId
+  parishCouncilId,
+  financialYearId
 }: {
   parishCouncilId: string
+  financialYearId?: string
 }) {
-  const [currentYear] = await db
-    .select()
-    .from(financialYears)
-    .where(
-      and(
-        eq(financialYears.parishCouncilId, parishCouncilId),
-        eq(financialYears.isClosed, false)
-      )
-    )
-    .limit(1)
+  const [currentYear] = financialYearId
+    ? await db
+        .select()
+        .from(financialYears)
+        .where(
+          and(
+            eq(financialYears.id, financialYearId),
+            eq(financialYears.parishCouncilId, parishCouncilId)
+          )
+        )
+        .limit(1)
+    : await db
+        .select()
+        .from(financialYears)
+        .where(
+          and(
+            eq(financialYears.parishCouncilId, parishCouncilId),
+            eq(financialYears.isClosed, false)
+          )
+        )
+        .orderBy(desc(financialYears.startDate))
+        .limit(1)
 
   return currentYear ?? null
 }
@@ -181,15 +194,19 @@ export async function getLargePaymentsReport({
 }) {
   const bankNominalCodes = await db
     .select({
-      nominalCodeId: bankConnections.nominalCodeId
+      nominalCodeId: nominalCodes.id
     })
-    .from(bankConnections)
-    .where(eq(bankConnections.parishCouncilId, parishCouncilId))
+    .from(nominalCodes)
+    .where(
+      and(
+        eq(nominalCodes.parishCouncilId, parishCouncilId),
+        eq(nominalCodes.financialYearId, financialYearId),
+        eq(nominalCodes.isBank, true)
+      )
+    )
 
   const bankNominalCodeIds = new Set(
-    bankNominalCodes
-      .map(row => row.nominalCodeId)
-      .filter((id): id is string => Boolean(id))
+    bankNominalCodes.map(row => row.nominalCodeId)
   )
 
   const rawRows = await db

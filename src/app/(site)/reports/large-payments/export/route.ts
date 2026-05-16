@@ -22,16 +22,17 @@ export async function GET(request: NextRequest) {
 
   const parishCouncilId = session.user.parishCouncilId
 
-  // Get current financial year (same logic as page)
+  const financialYearId = request.nextUrl.searchParams.get('financialYearId')
+
   const currentYear = await getCurrentFinancialYearForLargePaymentsReport({
-    parishCouncilId
+    parishCouncilId,
+    financialYearId: financialYearId ?? undefined
   })
 
   if (!currentYear) {
     return new Response('No financial year found', { status: 400 })
   }
 
-  // Get query params
   const fromParam = request.nextUrl.searchParams.get('from')
   const toParam = request.nextUrl.searchParams.get('to')
 
@@ -39,7 +40,6 @@ export async function GET(request: NextRequest) {
 
   const to = toParam ?? dateToInputDate(currentYear.endDate)
 
-  // Get report data
   const rows = await getLargePaymentsReport({
     parishCouncilId,
     financialYearId: currentYear.id,
@@ -47,7 +47,6 @@ export async function GET(request: NextRequest) {
     to
   })
 
-  // Build CSV
   const csv = buildLargePaymentsCsv(rows)
 
   const filename = `payments-over-100-${from}-to-${to}.csv`

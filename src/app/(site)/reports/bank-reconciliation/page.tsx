@@ -37,6 +37,10 @@ function formatCurrency(value: number) {
   }).format(value)
 }
 
+type SearchParams = {
+  financialYearId?: string
+}
+
 function formatDifference(value: number) {
   if (value === 0) return '£—'
 
@@ -48,7 +52,13 @@ function formatDifference(value: number) {
   return value < 0 ? `£(${amount})` : `£${amount}`
 }
 
-export default async function BankReconciliationPage() {
+export default async function BankReconciliationPage({
+  searchParams
+}: {
+  searchParams?: Promise<SearchParams>
+}) {
+  const params = await searchParams
+
   const session = await auth.api.getSession({
     headers: await headers()
   })
@@ -63,22 +73,40 @@ export default async function BankReconciliationPage() {
     redirect('/auth/register')
   }
 
-  const [financialYear] = await db
-    .select({
-      id: financialYears.id,
-      label: financialYears.label,
-      startDate: financialYears.startDate,
-      endDate: financialYears.endDate
-    })
-    .from(financialYears)
-    .where(
-      and(
-        eq(financialYears.parishCouncilId, parishCouncilId),
-        eq(financialYears.isClosed, false)
-      )
-    )
-    .orderBy(desc(financialYears.startDate))
-    .limit(1)
+  const [financialYear] = params?.financialYearId
+    ? await db
+        .select({
+          id: financialYears.id,
+          label: financialYears.label,
+          startDate: financialYears.startDate,
+          endDate: financialYears.endDate,
+          isClosed: financialYears.isClosed
+        })
+        .from(financialYears)
+        .where(
+          and(
+            eq(financialYears.id, params.financialYearId),
+            eq(financialYears.parishCouncilId, parishCouncilId)
+          )
+        )
+        .limit(1)
+    : await db
+        .select({
+          id: financialYears.id,
+          label: financialYears.label,
+          startDate: financialYears.startDate,
+          endDate: financialYears.endDate,
+          isClosed: financialYears.isClosed
+        })
+        .from(financialYears)
+        .where(
+          and(
+            eq(financialYears.parishCouncilId, parishCouncilId),
+            eq(financialYears.isClosed, false)
+          )
+        )
+        .orderBy(desc(financialYears.startDate))
+        .limit(1)
 
   if (!financialYear) {
     redirect('/')
@@ -122,13 +150,10 @@ export default async function BankReconciliationPage() {
         )
       `
     })
-    .from(bankConnections)
+    .from(nominalCodes)
     .leftJoin(
-      nominalCodes,
-      and(
-        eq(nominalCodes.id, bankConnections.nominalCodeId),
-        eq(nominalCodes.financialYearId, financialYear.id)
-      )
+      bankConnections,
+      eq(bankConnections.nominalCodeId, nominalCodes.id)
     )
     .leftJoin(
       nominalOpeningBalances,
@@ -147,7 +172,13 @@ export default async function BankReconciliationPage() {
         eq(journalEntries.financialYearId, financialYear.id)
       )
     )
-    .where(eq(bankConnections.parishCouncilId, parishCouncilId))
+    .where(
+      and(
+        eq(nominalCodes.parishCouncilId, parishCouncilId),
+        eq(nominalCodes.financialYearId, financialYear.id),
+        eq(nominalCodes.isBank, true)
+      )
+    )
     .groupBy(
       bankConnections.id,
       bankConnections.providerName,
@@ -159,34 +190,54 @@ export default async function BankReconciliationPage() {
       nominalCodes.code,
       nominalCodes.name
     )
-    .orderBy(bankConnections.accountName)
+    .orderBy(nominalCodes.code)
 
-  const inboxItems = await db
-    .select({
-      id: bankTransactions.id,
-      connectionId: bankTransactions.connectionId,
-      transactionDate: bankTransactions.date,
-      description: bankTransactions.description,
-      amount: bankTransactions.amount,
-      transactionType: bankTransactions.transactionType,
-      status: bankTransactions.status
-    })
-    .from(bankTransactions)
-    .where(
-      and(
-        eq(bankTransactions.parishCouncilId, parishCouncilId),
-        eq(bankTransactions.status, 'PENDING'),
-        gte(bankTransactions.date, financialYear.startDate)
-      )
-    )
-    .orderBy(desc(bankTransactions.date), desc(bankTransactions.importedAt))
+  const inboxItems = financialYear.isClosed
+    ? []
+    : await db
+        .select({
+          id: bankTransactions.id,
+          connectionId: bankTransactions.connectionId,
+          transactionDate: bankTransactions.date,
+          description: bankTransactions.description,
+          amount: bankTransactions.amount,
+          transactionType: bankTransactions.transactionType,
+          status: bankTransactions.status
+        })
+        .from(bankTransactions)
+        .where(
+          and(
+            eq(bankTransactions.parishCouncilId, parishCouncilId),
+            eq(bankTransactions.status, 'PENDING'),
+            gte(bankTransactions.date, financialYear.startDate)
+          )
+        )
+        .orderBy(desc(bankTransactions.date), desc(bankTransactions.importedAt))
+
+  const showOpenYearActions = !financialYear.isClosed
+  const ledgerLinkSuffix = params?.financialYearId
+    ? `?financialYearId=${financialYear.id}`
+    : ''
 
   const rows = accounts.map(account => {
-    const accountConnectionId = String(account.connectionId)
+    const accountInboxItems =
+      showOpenYearActions && account.connectionId
+        ? inboxItems.filter(
+            item => String(item.connectionId) === String(account.connectionId)
+          )
+        : []
 
-    const accountInboxItems = inboxItems.filter(
-      item => String(item.connectionId) === accountConnectionId
-    )
+    const accountLabel =
+      account.accountName ||
+      (account.nominalCode
+        ? `${account.nominalCode} — ${account.nominalName}`
+        : 'Bank account')
+
+    const providerLabel = account.providerName
+      ? `${account.providerName}${account.accountLast4 ? ` · ${account.accountLast4}` : ''}`
+      : financialYear.isClosed
+        ? 'Historic bank nominal code'
+        : 'No linked bank connection'
 
     const inboxReceipts = accountInboxItems.reduce((sum, item) => {
       const amount = Number(item.amount ?? 0)
@@ -214,6 +265,8 @@ export default async function BankReconciliationPage() {
 
     return {
       ...account,
+      accountLabel,
+      providerLabel,
       ledgerDebit,
       ledgerCredit,
       ledgerBalance,
@@ -270,24 +323,31 @@ export default async function BankReconciliationPage() {
             <span className='font-medium text-zinc-700'>
               {financialYear.label}
             </span>
+            {financialYear.isClosed ? (
+              <span className='ml-2 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700'>
+                Closed / read-only
+              </span>
+            ) : null}
           </p>
         </div>
 
-        <div className='flex gap-2'>
-          <Link
-            href='/transactions/inbox'
-            className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-zinc-50'
-          >
-            Transaction inbox
-          </Link>
+        {showOpenYearActions ? (
+          <div className='flex gap-2'>
+            <Link
+              href='/transactions/inbox'
+              className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-zinc-50'
+            >
+              Transaction inbox
+            </Link>
 
-          <Link
-            href='/bank-connections'
-            className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-zinc-50'
-          >
-            Bank connections
-          </Link>
-        </div>
+            <Link
+              href='/bank-connections'
+              className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-zinc-50'
+            >
+              Bank connections
+            </Link>
+          </div>
+        ) : null}
       </div>
 
       <div className='mb-6 grid gap-4 md:grid-cols-4'>
@@ -329,7 +389,7 @@ export default async function BankReconciliationPage() {
       <section className='overflow-hidden rounded-lg border bg-white shadow-sm'>
         {rows.length === 0 ? (
           <div className='p-10 text-center text-sm text-zinc-500'>
-            No bank connections found.
+            No bank nominal codes found for this financial year.
           </div>
         ) : (
           <table className='w-full table-fixed border-collapse text-sm'>
@@ -370,31 +430,38 @@ export default async function BankReconciliationPage() {
                 const reconciled = Math.round(row.difference * 100) === 0
 
                 return (
-                  <Fragment key={row.connectionId}>
+                  <Fragment
+                    key={
+                      row.connectionId ??
+                      row.nominalCodeId ??
+                      `bank-code-${row.nominalCode}`
+                    }
+                  >
                     <tr className='border-t'>
                       <td className='px-4 py-3 align-top'>
                         <div className='font-medium'>
-                          {row.accountName || 'Bank account'}
+                          {row.accountLabel}
                         </div>
 
                         <div className='text-xs text-zinc-500'>
-                          {row.providerName}
-                          {row.accountLast4 ? ` · ${row.accountLast4}` : ''}
+                          {row.providerLabel}
                         </div>
 
-                        <Link
-                          href={`/transactions/inbox?connectionId=${row.connectionId}`}
-                          className='mt-2 inline-block text-xs font-medium text-blue-700 hover:underline'
-                        >
-                          View {row.inboxItems.length} inbox item
-                          {row.inboxItems.length === 1 ? '' : 's'}
-                        </Link>
+                        {showOpenYearActions && row.connectionId ? (
+                          <Link
+                            href={`/transactions/inbox?connectionId=${row.connectionId}`}
+                            className='mt-2 inline-block text-xs font-medium text-blue-700 hover:underline'
+                          >
+                            View {row.inboxItems.length} inbox item
+                            {row.inboxItems.length === 1 ? '' : 's'}
+                          </Link>
+                        ) : null}
                       </td>
 
                       <td className='px-4 py-3 align-top'>
                         {row.nominalCodeId ? (
                           <Link
-                            href={`/ledger/${row.nominalCodeId}`}
+                            href={`/ledger/${row.nominalCodeId}${ledgerLinkSuffix}`}
                             className='text-zinc-700 hover:underline'
                           >
                             {row.nominalCode} — {row.nominalName}

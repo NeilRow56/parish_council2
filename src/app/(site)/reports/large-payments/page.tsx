@@ -17,6 +17,7 @@ import {
 type SearchParams = {
   from?: string
   to?: string
+  financialYearId?: string
 }
 
 export default async function LargePaymentsReportPage({
@@ -37,7 +38,8 @@ export default async function LargePaymentsReportPage({
   const parishCouncilId = session.user.parishCouncilId
 
   const currentYear = await getCurrentFinancialYearForLargePaymentsReport({
-    parishCouncilId
+    parishCouncilId,
+    financialYearId: params?.financialYearId
   })
 
   if (!currentYear) {
@@ -53,6 +55,7 @@ export default async function LargePaymentsReportPage({
 
   const from = params?.from ?? dateToInputDate(currentYear.startDate)
   const to = params?.to ?? dateToInputDate(currentYear.endDate)
+  const financialYearQuery = `financialYearId=${currentYear.id}`
 
   const rows = await getLargePaymentsReport({
     parishCouncilId,
@@ -63,7 +66,8 @@ export default async function LargePaymentsReportPage({
 
   const totals = getLargePaymentTotals(rows)
 
-  const csvHref = `/reports/large-payments/export?from=${from}&to=${to}`
+  const csvHref = `/reports/large-payments/export?${financialYearQuery}&from=${from}&to=${to}`
+  const resetHref = `/reports/large-payments?${financialYearQuery}`
 
   return (
     <main className='min-h-screen bg-slate-50 p-6 print:bg-white'>
@@ -100,11 +104,18 @@ export default async function LargePaymentsReportPage({
           <p className='mt-1 text-sm text-slate-600'>
             Statutory payment disclosure report for financial year{' '}
             {currentYear.label}.
+            {currentYear.isClosed ? ' Closed / read-only.' : ''}
           </p>
         </div>
 
         <div className='rounded-xl border bg-white p-4 shadow-sm print:hidden'>
           <form className='flex flex-col gap-3 sm:flex-row sm:items-end'>
+            <input
+              type='hidden'
+              name='financialYearId'
+              value={currentYear.id}
+            />
+
             <div>
               <label className='mb-1 block text-sm font-medium text-slate-700'>
                 From
@@ -137,7 +148,7 @@ export default async function LargePaymentsReportPage({
             </button>
 
             <Link
-              href='/reports/large-payments'
+              href={resetHref}
               className='rounded-md border bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50'
             >
               Reset

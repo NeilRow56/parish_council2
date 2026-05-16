@@ -70,6 +70,11 @@ function getNumericCode(code: string) {
   return Number.isFinite(parsed) ? parsed : 0
 }
 
+function isReserveCode(code: string) {
+  const numericCode = getNumericCode(code)
+  return numericCode >= 3000 && numericCode < 4000
+}
+
 export default async function YearEndPage({ params }: PageProps) {
   const { financialYearId } = await params
 
@@ -134,10 +139,11 @@ export default async function YearEndPage({ params }: PageProps) {
   })
 
   const bankCodes = balanceSheetCodes.filter(code => code.isBank)
-  const reserveCodes = balanceSheetCodes.filter(code => {
-    const numericCode = getNumericCode(code.code)
-    return numericCode >= 3000 && numericCode < 4000
-  })
+  const reserveCodes = balanceSheetCodes.filter(code =>
+    isReserveCode(code.code)
+  )
+  const generalReserveCode =
+    reserveCodes.find(code => code.code === '3000') ?? reserveCodes[0]
 
   const openingRows = await db
     .select({
@@ -184,7 +190,7 @@ export default async function YearEndPage({ params }: PageProps) {
     })
   )
 
-  const rollforwardRows = balanceSheetCodes.map(code => {
+  const baseRollforwardRows = balanceSheetCodes.map(code => {
     const openingBalance = openingByNominalCode.get(code.id) ?? 0
     const movement = movementByNominalCode.get(code.id) ?? 0
     const closingBalance = openingBalance + movement
@@ -197,41 +203,42 @@ export default async function YearEndPage({ params }: PageProps) {
     }
   })
 
-  const incomeExpenditureRows = incomeExpenditureCodes.map(code => {
-    const movement = movementByNominalCode.get(code.id) ?? 0
+  const incomeExpenditureRows = incomeExpenditureCodes.map(code => ({
+    ...code,
+    movement: movementByNominalCode.get(code.id) ?? 0
+  }))
 
-    return {
-      ...code,
-      movement
-    }
-  })
-
-  const preReserveBalanceSheetTotal = rollforwardRows
-    .filter(row => {
-      const numericCode = getNumericCode(row.code)
-      return numericCode < 3000
-    })
+  const nonReserveOpeningTotal = baseRollforwardRows
+    .filter(row => !isReserveCode(row.code))
     .reduce((total, row) => total + row.closingBalance, 0)
 
-  const reservesOpeningTotal = rollforwardRows
-    .filter(row => {
-      const numericCode = getNumericCode(row.code)
-      return numericCode >= 3000 && numericCode < 4000
-    })
-    .reduce((total, row) => total + row.openingBalance, 0)
+  const otherReserveOpeningTotal = baseRollforwardRows
+    .filter(row => isReserveCode(row.code) && row.id !== generalReserveCode?.id)
+    .reduce((total, row) => total + row.closingBalance, 0)
+
+  const expectedGeneralReserveOpening = generalReserveCode
+    ? -(nonReserveOpeningTotal + otherReserveOpeningTotal)
+    : 0
+
+  const rollforwardRows = baseRollforwardRows.map(row => ({
+    ...row,
+    nextOpeningBalance:
+      row.id === generalReserveCode?.id
+        ? expectedGeneralReserveOpening
+        : row.closingBalance
+  }))
 
   const currentYearSurplusDeficit = incomeExpenditureRows.reduce(
     (total, row) => total - row.movement,
     0
   )
 
-  const expectedReservesCarriedForward =
-    reservesOpeningTotal + currentYearSurplusDeficit
+  const nextOpeningBalanceTotal = rollforwardRows.reduce(
+    (total, row) => total + row.nextOpeningBalance,
+    0
+  )
 
-  const balancingDifference =
-    preReserveBalanceSheetTotal - expectedReservesCarriedForward
-
-  const yearEndBalances = Math.abs(balancingDifference) < 0.01
+  const yearEndBalances = Math.abs(nextOpeningBalanceTotal) < 0.01
   const hasAnyMovement =
     rollforwardRows.some(row => Math.abs(row.movement) > 0.01) ||
     incomeExpenditureRows.some(row => Math.abs(row.movement) > 0.01)
@@ -325,9 +332,9 @@ export default async function YearEndPage({ params }: PageProps) {
                   yearEndBalances ? 'text-emerald-800' : 'text-amber-800'
                 }
               >
-                This reconciliation confirms that the total for non-reserve
-                balance sheet codes agrees to reserves brought forward after
-                applying the current-year surplus or deficit.
+                This reconciliation derives General Reserve as the balancing
+                figure required for next year&apos;s opening balance sheet to
+                sum to zero.
               </CardDescription>
             </div>
           </div>
@@ -336,13 +343,13 @@ export default async function YearEndPage({ params }: PageProps) {
         <CardContent>
           <div className='grid gap-3 text-sm md:grid-cols-2'>
             <BalancingLine
-              label='Total of balance sheet balances excluding reserves'
-              value={preReserveBalanceSheetTotal}
+              label='Non-reserve opening balance total'
+              value={nonReserveOpeningTotal}
             />
 
             <BalancingLine
-              label='Reserves brought forward'
-              value={reservesOpeningTotal}
+              label='Other reserve opening balance total'
+              value={otherReserveOpeningTotal}
             />
 
             <BalancingLine
@@ -351,8 +358,14 @@ export default async function YearEndPage({ params }: PageProps) {
             />
 
             <BalancingLine
-              label='Expected closing reserves'
-              value={expectedReservesCarriedForward}
+              label='Derived General Reserve opening'
+              value={expectedGeneralReserveOpening}
+            />
+
+            <BalancingLine
+              label='Total next-year opening balances'
+              value={nextOpeningBalanceTotal}
+              strong
             />
           </div>
         </CardContent>
@@ -416,8 +429,8 @@ export default async function YearEndPage({ params }: PageProps) {
           <CardTitle>Opening balances to create next year</CardTitle>
           <CardDescription>
             Balance sheet nominal codes roll forward. Income and expenditure
-            codes start the next year at nil, with the current-year result
-            carried into reserves.
+            codes start the next year at nil. General Reserve is derived as the
+            balancing figure.
           </CardDescription>
         </CardHeader>
 
@@ -430,7 +443,7 @@ export default async function YearEndPage({ params }: PageProps) {
                 <TableHead>Category</TableHead>
                 <TableHead className='text-right'>Opening</TableHead>
                 <TableHead className='text-right'>Movement</TableHead>
-                <TableHead className='text-right'>Closing</TableHead>
+                <TableHead className='text-right'>Next opening</TableHead>
               </TableRow>
             </TableHeader>
 
@@ -447,7 +460,7 @@ export default async function YearEndPage({ params }: PageProps) {
                     {formatCurrency(row.movement)}
                   </TableCell>
                   <TableCell className='text-right font-medium'>
-                    {formatCurrency(row.closingBalance)}
+                    {formatCurrency(row.nextOpeningBalance)}
                   </TableCell>
                 </TableRow>
               ))}

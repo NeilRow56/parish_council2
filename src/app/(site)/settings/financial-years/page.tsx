@@ -155,7 +155,7 @@ export default async function FinancialYearsPage() {
                     <TableCell className='text-right'>
                       <div className='flex justify-end gap-2'>
                         <Link
-                          href={`/reports/agar-summary?financialYearId=${year.id}`}
+                          href={`/settings/financial-years/${year.id}/reports`}
                           className={cn(
                             buttonVariants({ variant: 'outline', size: 'sm' })
                           )}

@@ -11,7 +11,8 @@ import {
   financialYears,
   journalEntries,
   journalLines,
-  nominalCodes
+  nominalCodes,
+  nominalOpeningBalances
 } from '@/db/schema'
 
 function formatAmount(value: number) {
@@ -27,17 +28,6 @@ function formatCurrency(value: number) {
   return value === 0 ? '£—' : `£${formatAmount(value)}`
 }
 
-function formatBalance(value: number) {
-  if (value === 0) return '—'
-
-  const amount = Math.abs(value).toLocaleString('en-GB', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  })
-
-  return value < 0 ? `(${amount})` : amount
-}
-
 function formatCurrencyBalance(value: number) {
   if (value === 0) return '£—'
 
@@ -49,7 +39,17 @@ function formatCurrencyBalance(value: number) {
   return value < 0 ? `£(${amount})` : `£${amount}`
 }
 
-export default async function TrialBalancePage() {
+type SearchParams = {
+  financialYearId?: string
+}
+
+export default async function TrialBalancePage({
+  searchParams
+}: {
+  searchParams?: Promise<SearchParams>
+}) {
+  const params = await searchParams
+
   const session = await auth.api.getSession({
     headers: await headers()
   })
@@ -64,22 +64,38 @@ export default async function TrialBalancePage() {
     redirect('/auth/register')
   }
 
-  const [financialYear] = await db
-    .select({
-      id: financialYears.id,
-      label: financialYears.label,
-      startDate: financialYears.startDate,
-      endDate: financialYears.endDate
-    })
-    .from(financialYears)
-    .where(
-      and(
-        eq(financialYears.parishCouncilId, parishCouncilId),
-        eq(financialYears.isClosed, false)
-      )
-    )
-    .orderBy(desc(financialYears.startDate))
-    .limit(1)
+  const [financialYear] = params?.financialYearId
+    ? await db
+        .select({
+          id: financialYears.id,
+          label: financialYears.label,
+          startDate: financialYears.startDate,
+          endDate: financialYears.endDate
+        })
+        .from(financialYears)
+        .where(
+          and(
+            eq(financialYears.parishCouncilId, parishCouncilId),
+            eq(financialYears.id, params.financialYearId)
+          )
+        )
+        .limit(1)
+    : await db
+        .select({
+          id: financialYears.id,
+          label: financialYears.label,
+          startDate: financialYears.startDate,
+          endDate: financialYears.endDate
+        })
+        .from(financialYears)
+        .where(
+          and(
+            eq(financialYears.parishCouncilId, parishCouncilId),
+            eq(financialYears.isClosed, false)
+          )
+        )
+        .orderBy(desc(financialYears.startDate))
+        .limit(1)
 
   if (!financialYear) {
     redirect('/')
@@ -91,6 +107,7 @@ export default async function TrialBalancePage() {
       code: nominalCodes.code,
       name: nominalCodes.name,
       type: nominalCodes.type,
+      openingBalance: sql<number>`coalesce(max(${nominalOpeningBalances.amount}), 0)`,
       debit: sql<number>`
         coalesce(sum(
           case
@@ -111,6 +128,14 @@ export default async function TrialBalancePage() {
       `
     })
     .from(nominalCodes)
+    .leftJoin(
+      nominalOpeningBalances,
+      and(
+        eq(nominalOpeningBalances.nominalCodeId, nominalCodes.id),
+        eq(nominalOpeningBalances.financialYearId, financialYear.id),
+        eq(nominalOpeningBalances.parishCouncilId, parishCouncilId)
+      )
+    )
     .leftJoin(journalLines, eq(journalLines.nominalCodeId, nominalCodes.id))
     .leftJoin(
       journalEntries,
@@ -135,10 +160,14 @@ export default async function TrialBalancePage() {
     .orderBy(nominalCodes.code)
 
   const trialBalanceRows = rows.map(row => {
-    const debit = Number(row.debit ?? 0)
-    const credit = Number(row.credit ?? 0)
-    const movement = debit - credit
-    const balance = movement // temporary, until opening balances exist
+    const openingBalance =
+      row.type === 'BALANCE_SHEET' ? Number(row.openingBalance ?? 0) : 0
+    const currentYearDebit = Number(row.debit ?? 0)
+    const currentYearCredit = Number(row.credit ?? 0)
+    const movement = currentYearDebit - currentYearCredit
+    const balance = openingBalance + movement
+    const debit = balance > 0 ? balance : 0
+    const credit = balance < 0 ? Math.abs(balance) : 0
 
     return {
       ...row,
@@ -160,7 +189,12 @@ export default async function TrialBalancePage() {
             Trial Balance
           </h1>
           <p className='mt-1 text-sm text-zinc-600'>
-            Summary of debit and credit movements by nominal code.
+            Summary of opening balances and current-year movements by nominal
+            code.
+          </p>
+          <p className='mt-1 text-sm text-zinc-500'>
+            Positive balances are shown as debits; negative balances are shown
+            as credits.
           </p>
           <p className='mt-2 text-sm text-zinc-500'>
             Financial year:{' '}
@@ -216,7 +250,6 @@ export default async function TrialBalancePage() {
               <th className='px-4 py-3 font-medium'>Type</th>
               <th className='px-4 py-3 text-right font-medium'>Debit</th>
               <th className='px-4 py-3 text-right font-medium'>Credit</th>
-              <th className='px-4 py-3 text-right font-medium'>Balance</th>
             </tr>
           </thead>
 
@@ -250,15 +283,6 @@ export default async function TrialBalancePage() {
                 <td className='px-4 py-3 text-right'>
                   {formatAmount(row.credit)}
                 </td>
-                <td
-                  className={
-                    row.balance < 0
-                      ? 'px-4 py-3 text-right text-red-600'
-                      : 'px-4 py-3 text-right'
-                  }
-                >
-                  {formatBalance(row.balance)}
-                </td>
               </tr>
             ))}
           </tbody>
@@ -273,15 +297,6 @@ export default async function TrialBalancePage() {
               </td>
               <td className='px-4 py-3 text-right'>
                 {formatAmount(totalCredit)}
-              </td>
-              <td
-                className={
-                  difference < 0
-                    ? 'px-4 py-3 text-right text-red-600'
-                    : 'px-4 py-3 text-right'
-                }
-              >
-                {formatBalance(difference)}
               </td>
             </tr>
           </tfoot>

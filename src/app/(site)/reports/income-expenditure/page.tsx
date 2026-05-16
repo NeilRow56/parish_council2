@@ -36,7 +36,17 @@ function formatCurrency(value: number) {
   return value < 0 ? `£(${amount})` : `£${amount}`
 }
 
-export default async function IncomeExpenditurePage() {
+type SearchParams = {
+  financialYearId?: string
+}
+
+export default async function IncomeExpenditurePage({
+  searchParams
+}: {
+  searchParams?: Promise<SearchParams>
+}) {
+  const params = await searchParams
+
   const session = await auth.api.getSession({
     headers: await headers()
   })
@@ -51,20 +61,34 @@ export default async function IncomeExpenditurePage() {
     redirect('/auth/register')
   }
 
-  const [financialYear] = await db
-    .select({
-      id: financialYears.id,
-      label: financialYears.label
-    })
-    .from(financialYears)
-    .where(
-      and(
-        eq(financialYears.parishCouncilId, parishCouncilId),
-        eq(financialYears.isClosed, false)
-      )
-    )
-    .orderBy(desc(financialYears.startDate))
-    .limit(1)
+  const [financialYear] = params?.financialYearId
+    ? await db
+        .select({
+          id: financialYears.id,
+          label: financialYears.label
+        })
+        .from(financialYears)
+        .where(
+          and(
+            eq(financialYears.parishCouncilId, parishCouncilId),
+            eq(financialYears.id, params.financialYearId)
+          )
+        )
+        .limit(1)
+    : await db
+        .select({
+          id: financialYears.id,
+          label: financialYears.label
+        })
+        .from(financialYears)
+        .where(
+          and(
+            eq(financialYears.parishCouncilId, parishCouncilId),
+            eq(financialYears.isClosed, false)
+          )
+        )
+        .orderBy(desc(financialYears.startDate))
+        .limit(1)
 
   if (!financialYear) {
     redirect('/')

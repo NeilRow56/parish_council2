@@ -1,5 +1,5 @@
 import { headers } from 'next/headers'
-import { and, eq, gte, lte, sql } from 'drizzle-orm'
+import { and, desc, eq, gte, lte, sql } from 'drizzle-orm'
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
@@ -30,7 +30,17 @@ function normalise(value: unknown) {
   return Number(value ?? 0)
 }
 
-export default async function AgarSummaryPage() {
+type SearchParams = {
+  financialYearId?: string
+}
+
+export default async function AgarSummaryPage({
+  searchParams
+}: {
+  searchParams?: Promise<SearchParams>
+}) {
+  const params = await searchParams
+
   const session = await auth.api.getSession({
     headers: await headers()
   })
@@ -47,16 +57,28 @@ export default async function AgarSummaryPage() {
     .where(eq(parishCouncils.id, parishCouncilId))
     .limit(1)
 
-  const [year] = await db
-    .select()
-    .from(financialYears)
-    .where(
-      and(
-        eq(financialYears.parishCouncilId, parishCouncilId),
-        eq(financialYears.isClosed, false)
-      )
-    )
-    .limit(1)
+  const [year] = params?.financialYearId
+    ? await db
+        .select()
+        .from(financialYears)
+        .where(
+          and(
+            eq(financialYears.parishCouncilId, parishCouncilId),
+            eq(financialYears.id, params.financialYearId)
+          )
+        )
+        .limit(1)
+    : await db
+        .select()
+        .from(financialYears)
+        .where(
+          and(
+            eq(financialYears.parishCouncilId, parishCouncilId),
+            eq(financialYears.isClosed, false)
+          )
+        )
+        .orderBy(desc(financialYears.startDate))
+        .limit(1)
 
   if (!year) {
     return (

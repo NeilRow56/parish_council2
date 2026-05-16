@@ -38,6 +38,14 @@ function createFinancialYearLabel(startDate: string, endDate: string) {
   return `${startYear}/${endYear}`
 }
 
+function isReserveCode(code: string) {
+  const numericCode = Number.parseInt(code, 10)
+
+  return (
+    Number.isFinite(numericCode) && numericCode >= 3000 && numericCode < 4000
+  )
+}
+
 export async function runYearEndRollforward(formData: FormData) {
   const session = await auth.api.getSession({
     headers: await headers()
@@ -237,38 +245,52 @@ export async function runYearEndRollforward(formData: FormData) {
       })
     )
 
-    const incomeExpenditureCodes = currentCodes.filter(
-      code => code.type === 'INCOME' || code.type === 'EXPENDITURE'
-    )
-
-    const currentYearSurplusDeficit = incomeExpenditureCodes.reduce(
-      (total, code) => total - (movementByNominalCode.get(code.id) ?? 0),
-      0
-    )
-
     const balanceSheetCodes = currentCodes.filter(
       code => code.type === 'BALANCE_SHEET'
     )
 
-    const reserveCodes = balanceSheetCodes.filter(code => {
-      const numericCode = Number.parseInt(code.code, 10)
-      return (
-        Number.isFinite(numericCode) &&
-        numericCode >= 3000 &&
-        numericCode < 4000
-      )
-    })
+    const reserveCodes = balanceSheetCodes.filter(code =>
+      isReserveCode(code.code)
+    )
 
     const generalReserveCode =
       reserveCodes.find(code => code.code === '3000') ?? reserveCodes[0]
+
+    const normalOpeningBalanceByCodeId = new Map(
+      balanceSheetCodes.map(code => {
+        const openingBalance = openingByNominalCode.get(code.id) ?? 0
+        const movement = movementByNominalCode.get(code.id) ?? 0
+
+        return [code.id, openingBalance + movement]
+      })
+    )
+
+    const nonReserveOpeningTotal = balanceSheetCodes
+      .filter(code => !isReserveCode(code.code))
+      .reduce(
+        (total, code) => total + (normalOpeningBalanceByCodeId.get(code.id) ?? 0),
+        0
+      )
+
+    const otherReserveOpeningTotal = reserveCodes
+      .filter(code => code.id !== generalReserveCode?.id)
+      .reduce(
+        (total, code) => total + (normalOpeningBalanceByCodeId.get(code.id) ?? 0),
+        0
+      )
+
+    const generalReserveOpening = -(
+      nonReserveOpeningTotal + otherReserveOpeningTotal
+    )
 
     const nextOpeningBalances = balanceSheetCodes.map(code => {
       const openingBalance = openingByNominalCode.get(code.id) ?? 0
       const movement = movementByNominalCode.get(code.id) ?? 0
       const baseClosingBalance = openingBalance + movement
-
-      const surplusDeficitAllocation =
-        generalReserveCode?.id === code.id ? currentYearSurplusDeficit : 0
+      const nextOpeningBalance =
+        generalReserveCode?.id === code.id
+          ? generalReserveOpening
+          : baseClosingBalance
 
       const nextNominalCodeId = nextCodeIdByCode.get(code.code)
 
@@ -280,7 +302,7 @@ export async function runYearEndRollforward(formData: FormData) {
         parishCouncilId,
         financialYearId: nextYear.id,
         nominalCodeId: nextNominalCodeId,
-        amount: (baseClosingBalance + surplusDeficitAllocation).toFixed(2)
+        amount: nextOpeningBalance.toFixed(2)
       }
     })
 

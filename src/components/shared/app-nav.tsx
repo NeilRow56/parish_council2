@@ -206,12 +206,16 @@ export default function AppNav({
     <header className='border-b bg-white'>
       <div className='mx-auto flex h-14 max-w-400 items-center justify-between px-6'>
         <div className='flex items-center gap-6'>
-          <Link href='/' className='font-semibold text-slate-900'>
+          <Link href='/dashboard' className='font-semibold text-slate-900'>
             WpAccPac
           </Link>
 
           <nav className='flex items-center gap-1'>
-            <NavLink href='/' label='Home' active={pathname === '/'} />
+            <NavLink
+              href='/dashboard'
+              label='Dashboard'
+              active={pathname === '/dashboard'}
+            />
 
             <NavLink
               href='/bank-connections'

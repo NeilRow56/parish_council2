@@ -21,8 +21,26 @@ if (process.env.NODE_ENV !== 'production') {
   }
 }
 
-const pool = new Pool({
-  connectionString: databaseUrl
-})
+function createDbClient() {
+  const pool = new Pool({
+    connectionString: databaseUrl
+  })
 
-export const db = drizzle(pool, { schema })
+  return {
+    pool,
+    db: drizzle(pool, { schema })
+  }
+}
+
+type DbClient = ReturnType<typeof createDbClient>
+
+const globalForDb = globalThis as typeof globalThis & {
+  __pcAccountsDbClient?: DbClient
+}
+
+const client =
+  process.env.NODE_ENV === 'production'
+    ? createDbClient()
+    : (globalForDb.__pcAccountsDbClient ??= createDbClient())
+
+export const db = client.db

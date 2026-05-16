@@ -2,12 +2,12 @@ import { NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { headers } from 'next/headers'
 
-import { eq, and, lte, gte, asc } from 'drizzle-orm'
+import { eq, and, asc, desc } from 'drizzle-orm'
 import { db } from '@/db'
 import { financialYears, nominalCodes } from '@/db/schema/nominalLedger'
 
 // GET /api/nominal-codes
-// Returns all active nominal codes for the current parish council's open year.
+// Returns all active nominal codes for the current parish council's latest open year.
 
 export async function GET() {
   const session = await auth.api.getSession({
@@ -27,19 +27,16 @@ export async function GET() {
     )
   }
 
-  const today = new Date().toISOString().split('T')[0]
-
   const [currentYear] = await db
     .select()
     .from(financialYears)
     .where(
       and(
         eq(financialYears.parishCouncilId, parishCouncilId),
-        lte(financialYears.startDate, today),
-        gte(financialYears.endDate, today),
         eq(financialYears.isClosed, false)
       )
     )
+    .orderBy(desc(financialYears.startDate))
     .limit(1)
 
   if (!currentYear) {

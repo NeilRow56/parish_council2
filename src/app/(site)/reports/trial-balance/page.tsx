@@ -3,26 +3,14 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
-import { and, desc, eq, sql } from 'drizzle-orm'
 
-import { db } from '@/db'
 import { auth } from '@/lib/auth'
 import {
-  financialYears,
-  journalEntries,
-  journalLines,
-  nominalCodes,
-  nominalOpeningBalances
-} from '@/db/schema'
-
-function formatAmount(value: number) {
-  return value === 0
-    ? '—'
-    : value.toLocaleString('en-GB', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      })
-}
+  formatAmount,
+  getTrialBalanceFinancialYear,
+  getTrialBalanceReport
+} from './lib'
+import { ExportPdfButton } from './_components/export-pdf-button'
 
 function formatCurrency(value: number) {
   return value === 0 ? '£—' : `£${formatAmount(value)}`
@@ -64,122 +52,21 @@ export default async function TrialBalancePage({
     redirect('/auth/register')
   }
 
-  const [financialYear] = params?.financialYearId
-    ? await db
-        .select({
-          id: financialYears.id,
-          label: financialYears.label,
-          startDate: financialYears.startDate,
-          endDate: financialYears.endDate
-        })
-        .from(financialYears)
-        .where(
-          and(
-            eq(financialYears.parishCouncilId, parishCouncilId),
-            eq(financialYears.id, params.financialYearId)
-          )
-        )
-        .limit(1)
-    : await db
-        .select({
-          id: financialYears.id,
-          label: financialYears.label,
-          startDate: financialYears.startDate,
-          endDate: financialYears.endDate
-        })
-        .from(financialYears)
-        .where(
-          and(
-            eq(financialYears.parishCouncilId, parishCouncilId),
-            eq(financialYears.isClosed, false)
-          )
-        )
-        .orderBy(desc(financialYears.startDate))
-        .limit(1)
+  const financialYear = await getTrialBalanceFinancialYear({
+    parishCouncilId,
+    financialYearId: params?.financialYearId
+  })
 
   if (!financialYear) {
     redirect('/')
   }
 
-  const rows = await db
-    .select({
-      nominalCodeId: nominalCodes.id,
-      code: nominalCodes.code,
-      name: nominalCodes.name,
-      type: nominalCodes.type,
-      openingBalance: sql<number>`coalesce(max(${nominalOpeningBalances.amount}), 0)`,
-      debit: sql<number>`
-        coalesce(sum(
-          case
-            when ${journalEntries.id} is not null
-            then ${journalLines.debit}
-            else 0
-          end
-        ), 0)
-      `,
-      credit: sql<number>`
-        coalesce(sum(
-          case
-            when ${journalEntries.id} is not null
-            then ${journalLines.credit}
-            else 0
-          end
-        ), 0)
-      `
-    })
-    .from(nominalCodes)
-    .leftJoin(
-      nominalOpeningBalances,
-      and(
-        eq(nominalOpeningBalances.nominalCodeId, nominalCodes.id),
-        eq(nominalOpeningBalances.financialYearId, financialYear.id),
-        eq(nominalOpeningBalances.parishCouncilId, parishCouncilId)
-      )
-    )
-    .leftJoin(journalLines, eq(journalLines.nominalCodeId, nominalCodes.id))
-    .leftJoin(
-      journalEntries,
-      and(
-        eq(journalEntries.id, journalLines.journalEntryId),
-        eq(journalEntries.parishCouncilId, parishCouncilId),
-        eq(journalEntries.financialYearId, financialYear.id)
-      )
-    )
-    .where(
-      and(
-        eq(nominalCodes.parishCouncilId, parishCouncilId),
-        eq(nominalCodes.financialYearId, financialYear.id)
-      )
-    )
-    .groupBy(
-      nominalCodes.id,
-      nominalCodes.code,
-      nominalCodes.name,
-      nominalCodes.type
-    )
-    .orderBy(nominalCodes.code)
-
-  const trialBalanceRows = rows.map(row => {
-    const openingBalance =
-      row.type === 'BALANCE_SHEET' ? Number(row.openingBalance ?? 0) : 0
-    const currentYearDebit = Number(row.debit ?? 0)
-    const currentYearCredit = Number(row.credit ?? 0)
-    const movement = currentYearDebit - currentYearCredit
-    const balance = openingBalance + movement
-    const debit = balance > 0 ? balance : 0
-    const credit = balance < 0 ? Math.abs(balance) : 0
-
-    return {
-      ...row,
-      debit,
-      credit,
-      balance
-    }
+  const report = await getTrialBalanceReport({
+    parishCouncilId,
+    financialYear
   })
 
-  const totalDebit = trialBalanceRows.reduce((sum, row) => sum + row.debit, 0)
-  const totalCredit = trialBalanceRows.reduce((sum, row) => sum + row.credit, 0)
-  const difference = totalDebit - totalCredit
+  const exportHref = `/reports/trial-balance/export?financialYearId=${financialYear.id}`
 
   return (
     <main className='mx-auto max-w-7xl px-6 py-8'>
@@ -204,26 +91,30 @@ export default async function TrialBalancePage({
           </p>
         </div>
 
-        <Link
-          href='/ledger'
-          className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-zinc-50'
-        >
-          Back to ledger
-        </Link>
+        <div className='flex gap-2'>
+          <ExportPdfButton href={exportHref} />
+
+          <Link
+            href='/ledger'
+            className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-zinc-50'
+          >
+            Back to ledger
+          </Link>
+        </div>
       </div>
 
       <div className='mb-6 grid gap-4 md:grid-cols-3'>
         <div className='rounded-lg border bg-white p-4 shadow-sm'>
           <p className='text-sm text-zinc-500'>Total debits</p>
           <p className='mt-1 text-2xl font-semibold'>
-            {formatCurrency(totalDebit)}
+            {formatCurrency(report.totalDebit)}
           </p>
         </div>
 
         <div className='rounded-lg border bg-white p-4 shadow-sm'>
           <p className='text-sm text-zinc-500'>Total credits</p>
           <p className='mt-1 text-2xl font-semibold'>
-            {formatCurrency(totalCredit)}
+            {formatCurrency(report.totalCredit)}
           </p>
         </div>
 
@@ -231,12 +122,12 @@ export default async function TrialBalancePage({
           <p className='text-sm text-zinc-500'>Difference</p>
           <p
             className={
-              difference < 0
+              report.difference < 0
                 ? 'mt-1 text-2xl font-semibold text-red-600'
                 : 'mt-1 text-2xl font-semibold'
             }
           >
-            {formatCurrencyBalance(difference)}
+            {formatCurrencyBalance(report.difference)}
           </p>
         </div>
       </div>
@@ -254,7 +145,7 @@ export default async function TrialBalancePage({
           </thead>
 
           <tbody>
-            {trialBalanceRows.map(row => (
+            {report.rows.map(row => (
               <tr
                 key={row.nominalCodeId}
                 className='border-t transition-colors hover:bg-slate-50'
@@ -293,10 +184,10 @@ export default async function TrialBalancePage({
                 Totals
               </td>
               <td className='px-4 py-3 text-right'>
-                {formatAmount(totalDebit)}
+                {formatAmount(report.totalDebit)}
               </td>
               <td className='px-4 py-3 text-right'>
-                {formatAmount(totalCredit)}
+                {formatAmount(report.totalCredit)}
               </td>
             </tr>
           </tfoot>

@@ -6,7 +6,7 @@ import {
   View,
   renderToBuffer
 } from '@react-pdf/renderer'
-import { and, desc, eq, gte, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, lte, sql } from 'drizzle-orm'
 import { headers } from 'next/headers'
 import { createElement } from 'react'
 
@@ -351,27 +351,25 @@ async function getBankReconciliationReport({
     )
     .orderBy(nominalCodes.code)
 
-  const inboxItems = financialYear.isClosed
-    ? []
-    : await db
-        .select({
-          connectionId: bankTransactions.connectionId,
-          amount: bankTransactions.amount,
-          transactionType: bankTransactions.transactionType
-        })
-        .from(bankTransactions)
-        .where(
-          and(
-            eq(bankTransactions.parishCouncilId, parishCouncilId),
-            eq(bankTransactions.status, 'PENDING'),
-            gte(bankTransactions.date, financialYear.startDate)
-          )
-        )
-        .orderBy(desc(bankTransactions.date), desc(bankTransactions.importedAt))
+  const inboxItems = await db
+    .select({
+      connectionId: bankTransactions.connectionId,
+      amount: bankTransactions.amount,
+      transactionType: bankTransactions.transactionType
+    })
+    .from(bankTransactions)
+    .where(
+      and(
+        eq(bankTransactions.parishCouncilId, parishCouncilId),
+        inArray(bankTransactions.status, ['PENDING', 'CODED']),
+        lte(bankTransactions.date, financialYear.endDate)
+      )
+    )
+    .orderBy(desc(bankTransactions.date), desc(bankTransactions.importedAt))
 
   const rows = accounts.map(account => {
     const accountInboxItems =
-      !financialYear.isClosed && account.connectionId
+      account.connectionId
         ? inboxItems.filter(
             item => String(item.connectionId) === String(account.connectionId)
           )

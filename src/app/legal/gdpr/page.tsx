@@ -1,16 +1,18 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 
+import { LegalArticle } from '@/components/public/public-page-shell'
+
 export const metadata: Metadata = {
   title: 'GDPR & UK Data Protection'
 }
 
 export default function GDPRPage() {
   return (
-    <>
+    <LegalArticle>
       <h1>GDPR &amp; UK Data Protection</h1>
 
-      <p className='text-muted-foreground text-sm'>Last updated: May 2026</p>
+      <p>Last updated: 17 May 2026</p>
 
       <p>
         WpAccPac is designed to support parish and town councils with
@@ -198,6 +200,6 @@ export default function GDPRPage() {
           admin@wpaccpac.org
         </a>
       </p>
-    </>
+    </LegalArticle>
   )
 }

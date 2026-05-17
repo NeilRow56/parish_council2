@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
       notes: bankTransactions.notes,
       importedAt: bankTransactions.importedAt,
 
-      accountName: bankConnections.accountName,
+      accountName: sql<string>`coalesce(${bankConnections.accountName}, 'Bank account')`,
 
       nominalCodeId: bankTransactions.nominalCodeId,
       nominalCode: nominalCodes.code,
@@ -95,12 +95,9 @@ export async function GET(request: NextRequest) {
       nominalType: nominalCodes.type
     })
     .from(bankTransactions)
-    .innerJoin(
+    .leftJoin(
       bankConnections,
-      and(
-        eq(bankTransactions.connectionId, bankConnections.id),
-        eq(bankConnections.parishCouncilId, parishCouncilId)
-      )
+      eq(bankTransactions.connectionId, bankConnections.id)
     )
     .leftJoin(
       nominalCodes,
@@ -117,12 +114,9 @@ export async function GET(request: NextRequest) {
   const [{ count }] = await db
     .select({ count: sql<number>`count(*)::int` })
     .from(bankTransactions)
-    .innerJoin(
+    .leftJoin(
       bankConnections,
-      and(
-        eq(bankTransactions.connectionId, bankConnections.id),
-        eq(bankConnections.parishCouncilId, parishCouncilId)
-      )
+      eq(bankTransactions.connectionId, bankConnections.id)
     )
     .where(where)
 

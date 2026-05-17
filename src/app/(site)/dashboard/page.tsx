@@ -192,12 +192,14 @@ export default async function DashboardPage() {
     stagedSummary.find(row => row.status === 'PENDING')?.count ?? 0
   const codedCount = stagedSummary.find(row => row.status === 'CODED')?.count ?? 0
   const stagedCount = pendingCount + codedCount
+  const activeBankConnections = Number(bankingSummary?.active ?? 0)
+  const missingLedgerLinks = Number(bankingSummary?.notLinked ?? 0)
 
   // TODO: Replace this operational signal with a formal statement reconciliation
   // status when a statement/period reconciliation data source exists.
   const bankingNeedsAttention =
     stagedCount > 0 ||
-    Number(bankingSummary?.notLinked ?? 0) > 0 ||
+    missingLedgerLinks > 0 ||
     Number(bankingSummary?.needsAttention ?? 0) > 0
 
   // TODO: Expand AGAR readiness beyond mapping coverage when year-end checks are
@@ -293,9 +295,13 @@ export default async function DashboardPage() {
           <StatusCard
             title='Banking status'
             value={bankingNeedsAttention ? 'Needs review' : 'Up to date'}
-            description={`${bankingSummary?.active ?? 0} active bank connection${
-              Number(bankingSummary?.active ?? 0) === 1 ? '' : 's'
-            }; ${bankingSummary?.notLinked ?? 0} missing ledger links.`}
+            description={`${activeBankConnections} active bank connection${
+              activeBankConnections === 1 ? '' : 's'
+            }; ${missingLedgerLinks} missing ledger link${
+              missingLedgerLinks === 1 ? '' : 's'
+            }; ${stagedCount} staged transaction${
+              stagedCount === 1 ? '' : 's'
+            } pending review.`}
             href='/reports/bank-reconciliation'
             linkLabel='Review reconciliation'
           />

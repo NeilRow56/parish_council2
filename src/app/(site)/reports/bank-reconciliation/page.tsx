@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Fragment } from 'react/jsx-runtime'
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
-import { and, desc, eq, gte, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, lte, sql } from 'drizzle-orm'
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
@@ -193,27 +193,25 @@ export default async function BankReconciliationPage({
     )
     .orderBy(nominalCodes.code)
 
-  const inboxItems = financialYear.isClosed
-    ? []
-    : await db
-        .select({
-          id: bankTransactions.id,
-          connectionId: bankTransactions.connectionId,
-          transactionDate: bankTransactions.date,
-          description: bankTransactions.description,
-          amount: bankTransactions.amount,
-          transactionType: bankTransactions.transactionType,
-          status: bankTransactions.status
-        })
-        .from(bankTransactions)
-        .where(
-          and(
-            eq(bankTransactions.parishCouncilId, parishCouncilId),
-            eq(bankTransactions.status, 'PENDING'),
-            gte(bankTransactions.date, financialYear.startDate)
-          )
-        )
-        .orderBy(desc(bankTransactions.date), desc(bankTransactions.importedAt))
+  const inboxItems = await db
+    .select({
+      id: bankTransactions.id,
+      connectionId: bankTransactions.connectionId,
+      transactionDate: bankTransactions.date,
+      description: bankTransactions.description,
+      amount: bankTransactions.amount,
+      transactionType: bankTransactions.transactionType,
+      status: bankTransactions.status
+    })
+    .from(bankTransactions)
+    .where(
+      and(
+        eq(bankTransactions.parishCouncilId, parishCouncilId),
+        inArray(bankTransactions.status, ['PENDING', 'CODED']),
+        lte(bankTransactions.date, financialYear.endDate)
+      )
+    )
+    .orderBy(desc(bankTransactions.date), desc(bankTransactions.importedAt))
 
   const showOpenYearActions = !financialYear.isClosed
   const ledgerLinkSuffix = params?.financialYearId
@@ -222,7 +220,7 @@ export default async function BankReconciliationPage({
 
   const rows = accounts.map(account => {
     const accountInboxItems =
-      showOpenYearActions && account.connectionId
+      account.connectionId
         ? inboxItems.filter(
             item => String(item.connectionId) === String(account.connectionId)
           )

@@ -1,16 +1,18 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 
+import { LegalArticle } from '@/components/public/public-page-shell'
+
 export const metadata: Metadata = {
   title: 'Security & Data Ownership'
 }
 
 export default function SecurityPage() {
   return (
-    <>
+    <LegalArticle>
       <h1>Security &amp; Data Ownership</h1>
 
-      <p className='text-muted-foreground text-sm'>Last updated: May 2026</p>
+      <p>Last updated: 17 May 2026</p>
 
       <p>
         WpAccPac is designed to help UK parish and town councils maintain
@@ -115,6 +117,6 @@ export default function SecurityPage() {
         </a>
         .
       </p>
-    </>
+    </LegalArticle>
   )
 }

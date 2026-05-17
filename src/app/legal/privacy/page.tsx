@@ -1,15 +1,17 @@
 import type { Metadata } from 'next'
 
+import { LegalArticle } from '@/components/public/public-page-shell'
+
 export const metadata: Metadata = {
   title: 'Privacy Policy'
 }
 
 export default function PrivacyPolicyPage() {
   return (
-    <>
+    <LegalArticle>
       <h1>Privacy Policy</h1>
 
-      <p className='text-muted-foreground text-sm'>Last updated: May 2026</p>
+      <p>Last updated: 17 May 2026</p>
 
       <p>
         WpAccPac (“we”, “us”, “our”) provides bookkeeping, accounting,
@@ -325,6 +327,6 @@ export default function PrivacyPolicyPage() {
           admin@wpaccpac.org
         </a>
       </p>
-    </>
+    </LegalArticle>
   )
 }

@@ -13,6 +13,7 @@ import {
   journalLines,
   nominalCodes
 } from '@/db/schema'
+import { ExportPdfButton } from './_components/export-pdf-button'
 
 function formatAmount(value: number) {
   if (value === 0) return '—'
@@ -172,6 +173,7 @@ export default async function IncomeExpenditurePage({
     0
   )
   const surplusOrDeficit = totalIncome - totalExpenditure
+  const exportHref = `/reports/income-expenditure/export?financialYearId=${financialYear.id}`
 
   return (
     <main className='mx-auto max-w-7xl px-6 py-8'>
@@ -191,12 +193,16 @@ export default async function IncomeExpenditurePage({
           </p>
         </div>
 
-        <Link
-          href='/ledger'
-          className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-zinc-50'
-        >
-          Back to ledger
-        </Link>
+        <div className='flex gap-2'>
+          <ExportPdfButton href={exportHref} />
+
+          <Link
+            href='/ledger'
+            className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-zinc-50'
+          >
+            Back to ledger
+          </Link>
+        </div>
       </div>
 
       <div className='mb-6 grid gap-4 md:grid-cols-3'>

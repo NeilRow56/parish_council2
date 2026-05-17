@@ -2,13 +2,14 @@
 
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { and, asc, desc, eq } from 'drizzle-orm'
+import { and, asc, desc, eq, gte, isNull, lte, or } from 'drizzle-orm'
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
 import { fixedAssets } from '@/db/schema'
 import { financialYears, nominalCodes } from '@/db/schema/nominalLedger'
 import { FixedAssetRegisterClient } from './_components/fixed-asset-register-client'
+import { ExportPdfButton } from './_components/export-pdf-button'
 
 type SearchParams = {
   financialYearId?: string
@@ -40,6 +41,7 @@ export default async function AssetRegisterPage({
         .select({
           id: financialYears.id,
           label: financialYears.label,
+          startDate: financialYears.startDate,
           endDate: financialYears.endDate,
           isClosed: financialYears.isClosed
         })
@@ -55,6 +57,7 @@ export default async function AssetRegisterPage({
         .select({
           id: financialYears.id,
           label: financialYears.label,
+          startDate: financialYears.startDate,
           endDate: financialYears.endDate,
           isClosed: financialYears.isClosed
         })
@@ -90,8 +93,15 @@ export default async function AssetRegisterPage({
     .where(
       and(
         eq(fixedAssets.parishCouncilId, parishCouncilId),
-        eq(fixedAssets.financialYearId, financialYear.id),
-        eq(fixedAssets.isDisposed, false)
+        or(
+          isNull(fixedAssets.dateAcquired),
+          lte(fixedAssets.dateAcquired, financialYear.endDate)
+        ),
+        or(
+          eq(fixedAssets.isDisposed, false),
+          isNull(fixedAssets.disposalDate),
+          gte(fixedAssets.disposalDate, financialYear.startDate)
+        )
       )
     )
     .orderBy(
@@ -116,27 +126,33 @@ export default async function AssetRegisterPage({
     )
     .orderBy(nominalCodes.code)
 
+  const exportHref = `/reports/asset-register/export?financialYearId=${financialYear.id}`
+
   return (
     <main className='mx-auto max-w-400 px-6 py-8'>
-      <div className='mb-8'>
-        <h1 className='text-2xl font-semibold tracking-tight'>
-          Fixed Asset Register
-        </h1>
-        <p className='mt-1 text-sm text-zinc-600'>
-          Register of parish council fixed assets and community assets for AGAR
-          reporting.
-        </p>
-        <p className='mt-2 text-sm text-zinc-500'>
-          Financial year:{' '}
-          <span className='font-medium text-zinc-700'>
-            {financialYear.label}
-          </span>
-        </p>
-        {financialYear.isClosed ? (
-          <p className='mt-1 text-sm text-zinc-500'>
-            Closed year: this register is read-only.
+      <div className='mb-8 flex items-start justify-between gap-4'>
+        <div>
+          <h1 className='text-2xl font-semibold tracking-tight'>
+            Fixed Asset Register
+          </h1>
+          <p className='mt-1 text-sm text-zinc-600'>
+            Register of parish council fixed assets and community assets for
+            AGAR reporting.
           </p>
-        ) : null}
+          <p className='mt-2 text-sm text-zinc-500'>
+            Financial year:{' '}
+            <span className='font-medium text-zinc-700'>
+              {financialYear.label}
+            </span>
+          </p>
+          {financialYear.isClosed ? (
+            <p className='mt-1 text-sm text-zinc-500'>
+              Closed year: this register is read-only.
+            </p>
+          ) : null}
+        </div>
+
+        <ExportPdfButton href={exportHref} />
       </div>
 
       <FixedAssetRegisterClient

@@ -15,6 +15,7 @@ import {
   journalLines,
   nominalCodes
 } from '@/db/schema/nominalLedger'
+import { ExportPdfButton } from './_components/export-pdf-button'
 
 type BudgetRow = {
   id: string
@@ -152,6 +153,8 @@ export default async function BudgetPage({
         .select({
           id: financialYears.id,
           label: financialYears.label,
+          startDate: financialYears.startDate,
+          endDate: financialYears.endDate,
           isClosed: financialYears.isClosed
         })
         .from(financialYears)
@@ -166,6 +169,8 @@ export default async function BudgetPage({
         .select({
           id: financialYears.id,
           label: financialYears.label,
+          startDate: financialYears.startDate,
+          endDate: financialYears.endDate,
           isClosed: financialYears.isClosed
         })
         .from(financialYears)
@@ -299,26 +304,31 @@ export default async function BudgetPage({
 
   const actualSurplus = totalReceiptsActual - totalPaymentsActual
   const budgetSurplus = totalReceiptsBudget - totalPaymentsBudget
+  const exportHref = `/reports/budget/export?financialYearId=${financialYear.id}`
 
   return (
     <main className='mx-auto max-w-7xl px-6 py-8'>
-      <div className='mb-8'>
-        <h1 className='text-2xl font-semibold tracking-tight'>Budget</h1>
-        <p className='mt-1 text-sm text-zinc-600'>
-          Enter budget figures by nominal code and compare them with actual
-          posted ledger movements.
-        </p>
-        <p className='mt-2 text-sm text-zinc-500'>
-          Financial year:{' '}
-          <span className='font-medium text-zinc-700'>
-            {financialYear.label}
-          </span>
-        </p>
-        {financialYear.isClosed ? (
-          <p className='mt-1 text-sm text-zinc-500'>
-            Closed year: budgets are read-only.
+      <div className='mb-8 flex items-start justify-between gap-4'>
+        <div>
+          <h1 className='text-2xl font-semibold tracking-tight'>Budget</h1>
+          <p className='mt-1 text-sm text-zinc-600'>
+            Enter budget figures by nominal code and compare them with actual
+            posted ledger movements.
           </p>
-        ) : null}
+          <p className='mt-2 text-sm text-zinc-500'>
+            Financial year:{' '}
+            <span className='font-medium text-zinc-700'>
+              {financialYear.label}
+            </span>
+          </p>
+          {financialYear.isClosed ? (
+            <p className='mt-1 text-sm text-zinc-500'>
+              Closed year: budgets are read-only.
+            </p>
+          ) : null}
+        </div>
+
+        <ExportPdfButton href={exportHref} />
       </div>
 
       <form action={saveBudget}>

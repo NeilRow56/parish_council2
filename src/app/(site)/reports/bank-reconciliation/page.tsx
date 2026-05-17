@@ -18,6 +18,7 @@ import {
 } from '@/db/schema/nominalLedger'
 
 import { bankConnections, bankTransactions } from '@/db/schema'
+import { ExportPdfButton } from './_components/export-pdf-button'
 
 function formatAmount(value: number) {
   if (value === 0) return '—'
@@ -306,6 +307,7 @@ export default async function BankReconciliationPage({
 
   const totalDifference =
     totalLedgerBalance + totalInboxNetMovement - totalAdjustedBankBalance
+  const exportHref = `/reports/bank-reconciliation/export?financialYearId=${financialYear.id}`
 
   return (
     <main className='mx-auto max-w-7xl px-6 py-8'>
@@ -331,23 +333,27 @@ export default async function BankReconciliationPage({
           </p>
         </div>
 
-        {showOpenYearActions ? (
-          <div className='flex gap-2'>
-            <Link
-              href='/transactions/inbox'
-              className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-zinc-50'
-            >
-              Transaction inbox
-            </Link>
+        <div className='flex gap-2'>
+          <ExportPdfButton href={exportHref} />
 
-            <Link
-              href='/bank-connections'
-              className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-zinc-50'
-            >
-              Bank connections
-            </Link>
-          </div>
-        ) : null}
+          {showOpenYearActions ? (
+            <>
+              <Link
+                href='/transactions/inbox'
+                className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-zinc-50'
+              >
+                Transaction inbox
+              </Link>
+
+              <Link
+                href='/bank-connections'
+                className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-zinc-50'
+              >
+                Bank connections
+              </Link>
+            </>
+          ) : null}
+        </div>
       </div>
 
       <div className='mb-6 grid gap-4 md:grid-cols-4'>

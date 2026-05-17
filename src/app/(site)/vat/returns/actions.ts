@@ -460,6 +460,29 @@ export async function getFinancialYearForVatReports(financialYearId?: string) {
   return year ?? null
 }
 
+export async function getFinancialYearForVatReportPeriod(params: {
+  periodStart: Date
+  periodEnd: Date
+}) {
+  const { parishCouncilId } = await requireParishCouncil()
+  const periodStart = dateToInputDate(params.periodStart)
+  const periodEnd = dateToInputDate(params.periodEnd)
+
+  const [year] = await db
+    .select()
+    .from(financialYears)
+    .where(
+      and(
+        eq(financialYears.parishCouncilId, parishCouncilId),
+        lte(financialYears.startDate, periodStart),
+        gte(financialYears.endDate, periodEnd)
+      )
+    )
+    .limit(1)
+
+  return year ?? null
+}
+
 export async function getVat126InvoiceLines(params: {
   financialYearId: string
   periodStart: Date

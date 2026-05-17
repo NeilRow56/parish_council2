@@ -8,12 +8,14 @@ import { db } from '@/db'
 import { auth } from '@/lib/auth'
 import { parishCouncils } from '@/db/schema'
 import {
+  getFinancialYearForVatReportPeriod,
   getFinancialYearForVatReports,
   getVatReturnTotals,
   getVatReturnTransactionLines
 } from './actions'
 import { SubmitVatReturnButton } from './_components/submit-vat-return-button'
 import { VatReturnPeriodSelect } from './_components/vat-return-period-select'
+import { ExportPdfButton } from './_components/export-pdf-button'
 
 type SearchParams = {
   periodStart?: string
@@ -36,6 +38,14 @@ function formatDate(date: Date) {
 
 function dateToInputDate(date: Date) {
   return date.toISOString().slice(0, 10)
+}
+
+function parseDateParam(value?: string) {
+  if (!value) return null
+
+  const date = new Date(value)
+
+  return Number.isNaN(date.valueOf()) ? null : date
 }
 
 function addMonths(date: Date, months: number) {
@@ -135,9 +145,18 @@ export default async function VatReturnsPage({
   const vatReturnFrequency = (council?.vatReturnFrequency ??
     'QUARTERLY') as VatReturnFrequency
 
-  const financialYear = await getFinancialYearForVatReports(
-    params.financialYearId
-  )
+  const requestedPeriodStart = parseDateParam(params.periodStart)
+  const requestedPeriodEnd = parseDateParam(params.periodEnd)
+  const hasCustomPeriod = Boolean(requestedPeriodStart && requestedPeriodEnd)
+
+  const financialYear = params.financialYearId
+    ? await getFinancialYearForVatReports(params.financialYearId)
+    : hasCustomPeriod
+      ? await getFinancialYearForVatReportPeriod({
+          periodStart: requestedPeriodStart as Date,
+          periodEnd: requestedPeriodEnd as Date
+        })
+      : await getFinancialYearForVatReports()
   const financialYearId = financialYear?.id
 
   if (!financialYearId || !financialYear) {
@@ -159,8 +178,12 @@ export default async function VatReturnsPage({
 
   const defaultPeriod = periodOptions[0]
 
-  const periodStartString = params.periodStart ?? defaultPeriod.periodStart
-  const periodEndString = params.periodEnd ?? defaultPeriod.periodEnd
+  const periodStartString = hasCustomPeriod
+    ? dateToInputDate(requestedPeriodStart as Date)
+    : defaultPeriod.periodStart
+  const periodEndString = hasCustomPeriod
+    ? dateToInputDate(requestedPeriodEnd as Date)
+    : defaultPeriod.periodEnd
 
   const periodStart = new Date(periodStartString)
   const periodEnd = new Date(periodEndString)
@@ -185,17 +208,23 @@ export default async function VatReturnsPage({
     .filter(line => line.type === 'INPUT')
     .reduce((sum, line) => sum + line.vatAmount, 0)
 
+  const exportHref = `/vat/returns/pdf?financialYearId=${financialYearId}&periodStart=${periodStartString}&periodEnd=${periodEndString}`
+
   return (
     <div className='mx-auto max-w-5xl space-y-6 px-4 py-6'>
-      <div>
-        <h1 className='text-2xl font-semibold'>VAT Return</h1>
-        <p className='text-muted-foreground text-sm'>
-          Summary of VAT for the selected period.
-        </p>
-        <p className='text-muted-foreground mt-1 text-sm'>
-          Financial year: {financialYear.label}
-          {financialYear.isClosed ? ' (closed / read-only)' : ''}
-        </p>
+      <div className='flex items-start justify-between gap-4'>
+        <div>
+          <h1 className='text-2xl font-semibold'>VAT Return</h1>
+          <p className='text-muted-foreground text-sm'>
+            Summary of VAT for the selected period.
+          </p>
+          <p className='text-muted-foreground mt-1 text-sm'>
+            Financial year: {financialYear.label}
+            {financialYear.isClosed ? ' (closed / read-only)' : ''}
+          </p>
+        </div>
+
+        <ExportPdfButton href={exportHref} />
       </div>
 
       <div className='rounded-lg border p-4'>

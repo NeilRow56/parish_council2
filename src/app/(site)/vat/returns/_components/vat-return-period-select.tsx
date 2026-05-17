@@ -41,12 +41,19 @@ export function VatReturnPeriodSelect({
   const [customStart, setCustomStart] = useState(safeSelectedStart)
   const [customEnd, setCustomEnd] = useState(safeSelectedEnd)
 
-  function goToPeriod(periodStart: string, periodEnd: string) {
+  function goToPeriod(
+    periodStart: string,
+    periodEnd: string,
+    includeFinancialYearId = true
+  ) {
     const params = new URLSearchParams({
-      financialYearId,
       periodStart,
       periodEnd
     })
+
+    if (includeFinancialYearId) {
+      params.set('financialYearId', financialYearId)
+    }
 
     router.push(`/vat/returns?${params.toString()}`)
   }
@@ -131,7 +138,7 @@ export function VatReturnPeriodSelect({
           <div className='flex items-end'>
             <button
               type='button'
-              onClick={() => goToPeriod(customStart, customEnd)}
+              onClick={() => goToPeriod(customStart, customEnd, false)}
               disabled={!customStart || !customEnd || customStart > customEnd}
               className='rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-50'
             >

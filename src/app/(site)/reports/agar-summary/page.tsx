@@ -11,6 +11,7 @@ import {
   nominalCodes,
   nominalOpeningBalances
 } from '@/db/schema/nominalLedger'
+import { ExportPdfButton } from './_components/export-pdf-button'
 
 function formatWholePounds(value: number) {
   return new Intl.NumberFormat('en-GB', {
@@ -336,17 +337,22 @@ export default async function AgarSummaryPage({
       amount: borrowings
     }
   ]
+  const exportHref = `/reports/agar-summary/export?financialYearId=${year.id}`
 
   return (
     <main className='min-h-screen bg-slate-50 p-6'>
       <div className='mx-auto max-w-7xl space-y-6'>
-        <div>
-          <h1 className='text-2xl font-semibold text-slate-900'>
-            AGAR accounting statements
-          </h1>
-          <p className='mt-1 text-sm text-slate-600'>
-            Draft accounting statement totals for the current financial year.
-          </p>
+        <div className='flex items-start justify-between gap-4'>
+          <div>
+            <h1 className='text-2xl font-semibold text-slate-900'>
+              AGAR accounting statements
+            </h1>
+            <p className='mt-1 text-sm text-slate-600'>
+              Draft accounting statement totals for the current financial year.
+            </p>
+          </div>
+
+          <ExportPdfButton href={exportHref} />
         </div>
 
         <section className='rounded-xl border bg-white p-4 shadow-sm'>

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { headers } from 'next/headers'
 
 import { auth } from '@/lib/auth'
-import { PrintReportButton } from './_components/print-report-button'
+import { ExportPdfButton } from './_components/export-pdf-button'
 import {
   dateToInputDate,
   formatDate,
@@ -67,6 +67,7 @@ export default async function LargePaymentsReportPage({
   const totals = getLargePaymentTotals(rows)
 
   const csvHref = `/reports/large-payments/export?${financialYearQuery}&from=${from}&to=${to}`
+  const pdfHref = `/reports/large-payments/pdf?${financialYearQuery}&from=${from}&to=${to}`
   const resetHref = `/reports/large-payments?${financialYearQuery}`
 
   return (
@@ -192,7 +193,7 @@ export default async function LargePaymentsReportPage({
             Export CSV
           </Link>
 
-          <PrintReportButton />
+          <ExportPdfButton href={pdfHref} />
         </div>
 
         <div className='overflow-hidden rounded-xl border bg-white shadow-sm'>

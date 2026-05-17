@@ -14,6 +14,7 @@ import {
   CardTitle
 } from '@/components/ui/card'
 import { db } from '@/db'
+import { parishCouncils } from '@/db/schema'
 import { financialYears } from '@/db/schema/nominalLedger'
 import { auth } from '@/lib/auth'
 import { cn } from '@/lib/utils'
@@ -70,6 +71,28 @@ export default async function FinancialYearReportsPage({ params }: PageProps) {
     redirect('/settings/financial-years')
   }
 
+  const [council] = await db
+    .select({
+      canRecoverVat: parishCouncils.canRecoverVat,
+      vatStatus: parishCouncils.vatStatus,
+      vatClaimMethod: parishCouncils.vatClaimMethod
+    })
+    .from(parishCouncils)
+    .where(eq(parishCouncils.id, parishCouncilId))
+    .limit(1)
+
+  const canRecoverVat = council?.canRecoverVat ?? false
+  const vatStatus = council?.vatStatus ?? 'NOT_REGISTERED'
+  const vatClaimMethod = council?.vatClaimMethod ?? 'VAT126'
+  const showVatReturn =
+    canRecoverVat &&
+    vatStatus === 'REGISTERED' &&
+    vatClaimMethod === 'VAT_RETURN'
+  const showVat126 =
+    canRecoverVat &&
+    vatStatus === 'NOT_REGISTERED' &&
+    vatClaimMethod === 'VAT126'
+
   const reports = [
     {
       title: 'AGAR Summary',
@@ -124,18 +147,26 @@ export default async function FinancialYearReportsPage({ params }: PageProps) {
       href: `/reports/large-payments?financialYearId=${financialYear.id}`,
       icon: FileText
     },
-    {
-      title: 'VAT Return',
-      description: 'VAT return summary for the selected financial year.',
-      href: `/vat/returns?financialYearId=${financialYear.id}`,
-      icon: FileText
-    },
-    {
-      title: 'VAT126 Reclaim',
-      description: 'VAT126-style recoverable VAT claim support.',
-      href: `/vat/vat-claim-126?financialYearId=${financialYear.id}`,
-      icon: FileText
-    }
+    ...(showVatReturn
+      ? [
+          {
+            title: 'VAT Return',
+            description: 'VAT return summary for the selected financial year.',
+            href: `/vat/returns?financialYearId=${financialYear.id}`,
+            icon: FileText
+          }
+        ]
+      : []),
+    ...(showVat126
+      ? [
+          {
+            title: 'VAT126 Reclaim',
+            description: 'VAT126-style recoverable VAT claim support.',
+            href: `/vat/vat-claim-126?financialYearId=${financialYear.id}`,
+            icon: FileText
+          }
+        ]
+      : [])
   ]
 
   return (

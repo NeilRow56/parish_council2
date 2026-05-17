@@ -1,10 +1,10 @@
-import { db } from '@/db'
+import { authDb } from '@/db/auth-db'
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from 'better-auth/adapters/drizzle'
 
 export const auth = betterAuth({
   // ── Database ──────────────────────────────────────────────────────────────
-  database: drizzleAdapter(db, {
+  database: drizzleAdapter(authDb, {
     provider: 'pg'
   }),
 

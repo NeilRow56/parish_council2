@@ -35,6 +35,34 @@ const pricingItems = [
   'PDF exports'
 ]
 
+const previewRows = [
+  {
+    label: 'Bank reconciliation',
+    detail: 'Cashbook and bank review',
+    status: 'Reviewed'
+  },
+  {
+    label: 'VAT',
+    detail: 'Return or VAT 126 support',
+    status: 'Ready'
+  },
+  {
+    label: 'Fixed assets',
+    detail: 'AGAR Box 9 schedule',
+    status: 'Ready'
+  },
+  {
+    label: 'Borrowings',
+    detail: 'AGAR Box 10 check',
+    status: 'Reviewed'
+  },
+  {
+    label: 'PDF exports',
+    detail: 'Client-ready report pack',
+    status: 'Exportable'
+  }
+]
+
 export default function HomePage() {
   return (
     <main className='min-h-screen bg-white text-slate-950'>
@@ -45,6 +73,13 @@ export default function HomePage() {
           </Link>
 
           <nav className='flex items-center gap-3 text-sm'>
+            <Link
+              href='#pricing'
+              className='hidden text-slate-600 hover:text-emerald-900 sm:inline'
+            >
+              Pricing
+            </Link>
+
             <Link
               href='/legal/privacy'
               className='hidden text-slate-600 hover:text-emerald-900 sm:inline'
@@ -68,12 +103,12 @@ export default function HomePage() {
         <div className='relative mx-auto grid max-w-7xl gap-10 px-6 py-16 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:py-20'>
           <div className='max-w-3xl'>
             <p className='text-sm font-medium text-emerald-800'>
-              Parish council bookkeeping and AGAR preparation
+              Bookkeeping and AGAR preparation for parish and town councils
             </p>
 
             <h1 className='mt-4 max-w-4xl text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl'>
-              Keep parish council accounts ready for review, reporting, and
-              year end.
+              Keep parish and town council accounts ready for review,
+              reporting, and year end.
             </h1>
 
             <p className='mt-5 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg'>
@@ -97,45 +132,71 @@ export default function HomePage() {
                 Sign in
               </Link>
             </div>
+
+            <p className='mt-4 text-sm text-slate-600'>
+              Built for parish and town councils that need clear records,
+              controlled posting, and practical year-end evidence.
+            </p>
           </div>
 
-          <div className='rounded-lg border border-emerald-100 bg-white/90 p-6 shadow-sm'>
-            <div className='border-b border-emerald-100 pb-4'>
-              <p className='text-sm font-medium text-emerald-800'>
-                Release focus
-              </p>
-              <h2 className='mt-1 text-xl font-semibold'>
-                Built for the accounting year
-              </h2>
+          <div className='relative'>
+            <div className='absolute -inset-4 rounded-2xl bg-emerald-200/40 blur-2xl' />
+            <div className='relative rounded-xl border border-emerald-100 bg-white/95 p-5 shadow-xl shadow-emerald-950/10'>
+              <div className='flex items-start justify-between gap-4 border-b border-emerald-100 pb-4'>
+                <div>
+                  <p className='text-xs font-medium tracking-wide text-emerald-800 uppercase'>
+                    Report preview
+                  </p>
+                  <h2 className='mt-1 text-xl font-semibold'>AGAR summary</h2>
+                  <p className='mt-1 text-sm text-slate-600'>
+                    Illustrative year-end readiness panel
+                  </p>
+                </div>
+
+                <span className='rounded-full bg-emerald-100 px-3 py-1 text-xs font-medium text-emerald-900'>
+                  Exportable
+                </span>
+              </div>
+
+              <div className='mt-4 grid gap-3'>
+                {previewRows.map(row => (
+                  <div
+                    key={row.label}
+                    className='rounded-lg border border-emerald-100 bg-emerald-50/50 p-3'
+                  >
+                    <div className='flex items-start justify-between gap-3'>
+                      <div>
+                        <p className='text-sm font-medium text-slate-950'>
+                          {row.label}
+                        </p>
+                        <p className='mt-1 text-xs text-slate-600'>
+                          {row.detail}
+                        </p>
+                      </div>
+
+                      <span className='rounded-full border border-emerald-200 bg-white px-2.5 py-1 text-xs font-medium text-emerald-800'>
+                        {row.status}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className='mt-4 grid grid-cols-3 gap-3 border-t border-emerald-100 pt-4 text-center'>
+                <div className='rounded-md bg-slate-50 px-3 py-2'>
+                  <p className='text-xs text-slate-500'>Journals</p>
+                  <p className='text-sm font-semibold'>Posted</p>
+                </div>
+                <div className='rounded-md bg-slate-50 px-3 py-2'>
+                  <p className='text-xs text-slate-500'>Closed years</p>
+                  <p className='text-sm font-semibold'>Read-only</p>
+                </div>
+                <div className='rounded-md bg-slate-50 px-3 py-2'>
+                  <p className='text-xs text-slate-500'>Outputs</p>
+                  <p className='text-sm font-semibold'>PDF pack</p>
+                </div>
+              </div>
             </div>
-
-            <dl className='mt-5 space-y-4 text-sm'>
-              <div className='flex items-start justify-between gap-4'>
-                <dt className='text-slate-600'>Records</dt>
-                <dd className='font-medium text-slate-950'>
-                  Immutable posted journals
-                </dd>
-              </div>
-
-              <div className='flex items-start justify-between gap-4'>
-                <dt className='text-slate-600'>Corrections</dt>
-                <dd className='font-medium text-slate-950'>
-                  Reverse and repost
-                </dd>
-              </div>
-
-              <div className='flex items-start justify-between gap-4'>
-                <dt className='text-slate-600'>Closed years</dt>
-                <dd className='font-medium text-slate-950'>Read-only</dd>
-              </div>
-
-              <div className='flex items-start justify-between gap-4'>
-                <dt className='text-slate-600'>Bank feeds</dt>
-                <dd className='font-medium text-slate-950'>
-                  Review before posting
-                </dd>
-              </div>
-            </dl>
           </div>
         </div>
       </section>
@@ -180,7 +241,7 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section className='mx-auto max-w-7xl px-6 py-14'>
+      <section id='pricing' className='mx-auto max-w-7xl scroll-mt-20 px-6 py-14'>
         <div className='grid gap-8 lg:grid-cols-[0.85fr_1.15fr] lg:items-center'>
           <div>
             <p className='text-sm font-medium text-emerald-800'>Pricing</p>
@@ -234,22 +295,22 @@ export default function HomePage() {
 
       <footer className='border-t border-emerald-100 bg-emerald-50/40'>
         <div className='mx-auto flex max-w-7xl flex-col gap-4 px-6 py-8 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between'>
-        <p>WpAccPac for UK parish and town council finance teams.</p>
+          <p>WpAccPac for UK parish and town council finance teams.</p>
 
-        <div className='flex flex-wrap gap-4'>
-          <Link href='/legal/privacy' className='hover:text-emerald-900'>
-            Privacy
-          </Link>
-          <Link href='/legal/gdpr' className='hover:text-emerald-900'>
-            GDPR
-          </Link>
-          <Link href='/legal/security' className='hover:text-emerald-900'>
-            Security
-          </Link>
-          <Link href='/auth/login' className='hover:text-emerald-900'>
-            Sign in
-          </Link>
-        </div>
+          <div className='flex flex-wrap gap-4'>
+            <Link href='/legal/privacy' className='hover:text-emerald-900'>
+              Privacy
+            </Link>
+            <Link href='/legal/gdpr' className='hover:text-emerald-900'>
+              GDPR
+            </Link>
+            <Link href='/legal/security' className='hover:text-emerald-900'>
+              Security
+            </Link>
+            <Link href='/auth/login' className='hover:text-emerald-900'>
+              Sign in
+            </Link>
+          </div>
         </div>
       </footer>
     </main>

@@ -1,5 +1,5 @@
 import dotenv from 'dotenv'
-import { eq, or } from 'drizzle-orm'
+import { eq } from 'drizzle-orm'
 
 import type { DefaultNominal } from '@/lib/nominal-codes/default-chart'
 
@@ -11,8 +11,8 @@ if (!process.env.DATABASE_URL) {
 
 const DEMO_COUNCIL_ID = 'demo-parish-council'
 const DEMO_COUNCIL_NAME = 'Barton Seagrave Demo Parish Council'
-const DEMO_USER_EMAIL = 'demo@wpaccpac.local'
-const DEMO_USER_PASSWORD = 'DemoPassword123!'
+const DEMO_USER_EMAIL = 'demo@example.com'
+const DEMO_USER_PASSWORD = 'DemoReview2026!'
 const PRIOR_YEAR_ID = 'demo-fy-2025-26'
 const CURRENT_YEAR_ID = 'demo-fy-2026-27'
 
@@ -76,15 +76,28 @@ async function run() {
   console.log(`Resetting ${DEMO_COUNCIL_NAME} (${DEMO_COUNCIL_ID})`)
 
   await db.transaction(async trx => {
+    const [existingDemoEmailUser] = await trx
+      .select({
+        id: user.id,
+        parishCouncilId: user.parishCouncilId
+      })
+      .from(user)
+      .where(eq(user.email, DEMO_USER_EMAIL))
+      .limit(1)
+
+    if (
+      existingDemoEmailUser &&
+      existingDemoEmailUser.parishCouncilId !== DEMO_COUNCIL_ID
+    ) {
+      throw new Error(
+        `Cannot reset demo login: ${DEMO_USER_EMAIL} belongs to a non-demo user (${existingDemoEmailUser.id}).`
+      )
+    }
+
     const demoUsers = await trx
       .select({ id: user.id })
       .from(user)
-      .where(
-        or(
-          eq(user.email, DEMO_USER_EMAIL),
-          eq(user.parishCouncilId, DEMO_COUNCIL_ID)
-        )
-      )
+      .where(eq(user.parishCouncilId, DEMO_COUNCIL_ID))
 
     for (const demoUser of demoUsers) {
       await trx.delete(session).where(eq(session.userId, demoUser.id))
@@ -976,7 +989,7 @@ async function run() {
     .update(user)
     .set({
       parishCouncilId: DEMO_COUNCIL_ID,
-      role: 'RFO',
+      role: 'CLERK',
       emailVerified: true,
       updatedAt: new Date()
     })

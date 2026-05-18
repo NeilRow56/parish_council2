@@ -21,6 +21,14 @@ The script loads `.env.local`, uses `DATABASE_URL`, removes the previous demo te
 
 Do not run this against production unless you intentionally want to create or reset the demo tenant in that production database.
 
+## Demo Login
+
+- Email: `demo@example.com`
+- Password: `DemoReview2026!`
+- Role: `CLERK`
+
+Rerunning `bun run demo:reset` recreates the demo login, resets the password, marks the email as verified, and links the user back to `demo-parish-council`.
+
 ## What It Contains
 
 - Demo parish council details and VAT 126 settings.

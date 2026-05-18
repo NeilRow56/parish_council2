@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Fragment } from 'react/jsx-runtime'
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
-import { and, desc, eq, inArray, lte, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, lte, sql } from 'drizzle-orm'
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
@@ -17,7 +17,11 @@ import {
   nominalOpeningBalances
 } from '@/db/schema/nominalLedger'
 
-import { bankConnections, bankTransactions } from '@/db/schema'
+import {
+  bankConnections,
+  bankOpeningBalances,
+  bankTransactions
+} from '@/db/schema'
 import { ExportPdfButton } from './_components/export-pdf-button'
 
 function formatAmount(value: number) {
@@ -51,6 +55,17 @@ function formatDifference(value: number) {
   })
 
   return value < 0 ? `£(${amount})` : `£${amount}`
+}
+
+function formatSignedAmount(value: number) {
+  if (value === 0) return '—'
+
+  const amount = Math.abs(value).toLocaleString('en-GB', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  })
+
+  return value < 0 ? `(${amount})` : amount
 }
 
 export default async function BankReconciliationPage({
@@ -113,6 +128,14 @@ export default async function BankReconciliationPage({
     redirect('/')
   }
 
+  const today = new Date().toISOString().slice(0, 10)
+  const reconciliationDate =
+    financialYear.isClosed || today > financialYear.endDate
+      ? financialYear.endDate
+      : today < financialYear.startDate
+        ? financialYear.endDate
+        : today
+
   const accounts = await db
     .select({
       connectionId: bankConnections.id,
@@ -123,7 +146,8 @@ export default async function BankReconciliationPage({
       nominalCodeId: nominalCodes.id,
       nominalCode: nominalCodes.code,
       nominalName: nominalCodes.name,
-      openingBalance: sql<number>`coalesce(max(${nominalOpeningBalances.amount}), 0)`,
+      nominalOpeningBalance: sql<number>`coalesce(max(${nominalOpeningBalances.amount}), 0)`,
+      bankOpeningBalance: sql<number>`coalesce(max(${bankOpeningBalances.openingBalance}), 0)`,
 
       ledgerDebit: sql<number>`
         coalesce(
@@ -162,6 +186,14 @@ export default async function BankReconciliationPage({
         eq(nominalOpeningBalances.nominalCodeId, nominalCodes.id),
         eq(nominalOpeningBalances.financialYearId, financialYear.id),
         eq(nominalOpeningBalances.parishCouncilId, parishCouncilId)
+      )
+    )
+    .leftJoin(
+      bankOpeningBalances,
+      and(
+        eq(bankOpeningBalances.nominalCodeId, nominalCodes.id),
+        eq(bankOpeningBalances.financialYearId, financialYear.id),
+        eq(bankOpeningBalances.parishCouncilId, parishCouncilId)
       )
     )
     .leftJoin(journalLines, eq(journalLines.nominalCodeId, nominalCodes.id))
@@ -208,10 +240,60 @@ export default async function BankReconciliationPage({
       and(
         eq(bankTransactions.parishCouncilId, parishCouncilId),
         inArray(bankTransactions.status, ['PENDING', 'CODED']),
-        lte(bankTransactions.date, financialYear.endDate)
+        lte(bankTransactions.date, reconciliationDate)
       )
     )
     .orderBy(desc(bankTransactions.date), desc(bankTransactions.importedAt))
+
+  const matchedJournalRows = await db
+    .select({
+      journalEntryId: bankTransactions.matchedJournalEntryId
+    })
+    .from(bankTransactions)
+    .where(
+      and(
+        eq(bankTransactions.parishCouncilId, parishCouncilId),
+        isNotNull(bankTransactions.matchedJournalEntryId)
+      )
+    )
+
+  const matchedJournalEntryIds = new Set(
+    matchedJournalRows
+      .map(row => row.journalEntryId)
+      .filter((id): id is string => Boolean(id))
+  )
+
+  const manualBankLedgerItems = (
+    await db
+      .select({
+        journalEntryId: journalEntries.id,
+        nominalCodeId: nominalCodes.id,
+        nominalCode: nominalCodes.code,
+        nominalName: nominalCodes.name,
+        date: journalEntries.date,
+        reference: journalEntries.reference,
+        description: journalEntries.description,
+        source: journalEntries.source,
+        debit: journalLines.debit,
+        credit: journalLines.credit
+      })
+      .from(journalLines)
+      .innerJoin(
+        journalEntries,
+        eq(journalLines.journalEntryId, journalEntries.id)
+      )
+      .innerJoin(nominalCodes, eq(journalLines.nominalCodeId, nominalCodes.id))
+      .where(
+        and(
+          eq(journalEntries.parishCouncilId, parishCouncilId),
+          eq(journalEntries.financialYearId, financialYear.id),
+          eq(journalEntries.source, 'MANUAL'),
+          eq(nominalCodes.isBank, true),
+          lte(journalEntries.date, reconciliationDate)
+        )
+      )
+      .orderBy(desc(journalEntries.date), desc(journalEntries.createdAt))
+  ).filter(item => !matchedJournalEntryIds.has(item.journalEntryId))
 
   const showOpenYearActions = !financialYear.isClosed
   const ledgerLinkSuffix = params?.financialYearId
@@ -239,14 +321,14 @@ export default async function BankReconciliationPage({
         : 'No linked bank connection'
 
     const inboxReceipts = accountInboxItems.reduce((sum, item) => {
-      const amount = Number(item.amount ?? 0)
+      const amount = Math.abs(Number(item.amount ?? 0))
       const type = item.transactionType?.toUpperCase()
 
       return type === 'CREDIT' ? sum + amount : sum
     }, 0)
 
     const inboxPayments = accountInboxItems.reduce((sum, item) => {
-      const amount = Number(item.amount ?? 0)
+      const amount = Math.abs(Number(item.amount ?? 0))
       const type = item.transactionType?.toUpperCase()
 
       return type === 'DEBIT' ? sum + amount : sum
@@ -256,11 +338,21 @@ export default async function BankReconciliationPage({
 
     const ledgerDebit = Number(account.ledgerDebit ?? 0)
     const ledgerCredit = Number(account.ledgerCredit ?? 0)
-    const openingBalance = Number(account.openingBalance ?? 0)
+    const nominalOpeningBalance = Number(account.nominalOpeningBalance ?? 0)
+    const bankOpeningBalance = Number(account.bankOpeningBalance ?? 0)
+    const openingBalance =
+      nominalOpeningBalance !== 0 ? nominalOpeningBalance : bankOpeningBalance
     const ledgerBalance = openingBalance + ledgerDebit - ledgerCredit
+    const accountManualBankLedgerItems = manualBankLedgerItems.filter(
+      item => String(item.nominalCodeId) === String(account.nominalCodeId)
+    )
+    const unmatchedManualNetMovement = accountManualBankLedgerItems.reduce(
+      (sum, item) => sum + Number(item.credit ?? 0) - Number(item.debit ?? 0),
+      0
+    )
+    const difference = inboxNetMovement + unmatchedManualNetMovement
 
-    const adjustedBankBalance = ledgerBalance + inboxNetMovement
-    const difference = ledgerBalance + inboxNetMovement - adjustedBankBalance
+    const adjustedBankBalance = ledgerBalance + difference
 
     return {
       ...account,
@@ -268,11 +360,14 @@ export default async function BankReconciliationPage({
       providerLabel,
       ledgerDebit,
       ledgerCredit,
+      openingBalance,
       ledgerBalance,
       inboxItems: accountInboxItems,
+      manualBankLedgerItems: accountManualBankLedgerItems,
       inboxReceipts,
       inboxPayments,
       inboxNetMovement,
+      unmatchedManualNetMovement,
       adjustedBankBalance,
       difference
     }
@@ -293,6 +388,31 @@ export default async function BankReconciliationPage({
     0
   )
 
+  const totalUnmatchedManualNetMovement = rows.reduce(
+    (sum, row) => sum + row.unmatchedManualNetMovement,
+    0
+  )
+
+  const totalUnmatchedManualReceipts = rows.reduce(
+    (sum, row) =>
+      sum +
+      row.manualBankLedgerItems.reduce(
+        (itemSum, item) => itemSum + Number(item.debit ?? 0),
+        0
+      ),
+    0
+  )
+
+  const totalUnmatchedManualPayments = rows.reduce(
+    (sum, row) =>
+      sum +
+      row.manualBankLedgerItems.reduce(
+        (itemSum, item) => itemSum + Number(item.credit ?? 0),
+        0
+      ),
+    0
+  )
+
   const totalLedgerBalance = rows.reduce(
     (sum, row) => sum + row.ledgerBalance,
     0
@@ -303,8 +423,14 @@ export default async function BankReconciliationPage({
     0
   )
 
-  const totalDifference =
-    totalLedgerBalance + totalInboxNetMovement - totalAdjustedBankBalance
+  const totalDifference = totalInboxNetMovement + totalUnmatchedManualNetMovement
+  const unmatchedManualSummaryItems = rows.flatMap(row =>
+    row.manualBankLedgerItems.map(item => ({
+      ...item,
+      accountLabel: row.accountLabel,
+      signedAmount: Number(item.credit ?? 0) - Number(item.debit ?? 0)
+    }))
+  )
   const exportHref = `/reports/bank-reconciliation/export?financialYearId=${financialYear.id}`
 
   return (
@@ -316,12 +442,15 @@ export default async function BankReconciliationPage({
           </h1>
           <p className='mt-1 text-sm text-zinc-600'>
             Reconcile nominal ledger bank balances to adjusted bank balances
-            after pending inbox movements.
+            after pending inbox and unmatched manual bank movements.
           </p>
           <p className='mt-2 text-sm text-zinc-500'>
             Financial year:{' '}
             <span className='font-medium text-zinc-700'>
               {financialYear.label}
+            </span>
+            <span className='ml-2 text-zinc-400'>
+              Reconciliation date: {reconciliationDate}
             </span>
             {financialYear.isClosed ? (
               <span className='ml-2 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700'>
@@ -354,7 +483,7 @@ export default async function BankReconciliationPage({
         </div>
       </div>
 
-      <div className='mb-6 grid gap-4 md:grid-cols-4'>
+      <div className='mb-6 grid gap-4 md:grid-cols-5'>
         <div className='rounded-lg border bg-white p-4 shadow-sm'>
           <p className='text-sm text-zinc-500'>Inbox receipts</p>
           <p className='mt-1 text-2xl font-semibold text-green-700'>
@@ -370,14 +499,60 @@ export default async function BankReconciliationPage({
         </div>
 
         <div className='rounded-lg border bg-white p-4 shadow-sm'>
-          <p className='text-sm text-zinc-500'>Adjusted bank balance</p>
-          <p className='mt-1 text-2xl font-semibold'>
-            {formatCurrency(totalAdjustedBankBalance)}
+          <p className='text-sm text-zinc-500'>Unmatched manual</p>
+          <p
+            className={
+              Math.round(totalUnmatchedManualNetMovement * 100) === 0
+                ? 'mt-1 text-2xl font-semibold'
+                : 'mt-1 text-2xl font-semibold text-red-600'
+            }
+          >
+            {formatDifference(totalUnmatchedManualNetMovement)}
           </p>
+
+          <details className='mt-2 text-xs text-zinc-600'>
+            <summary className='cursor-pointer font-medium text-blue-700 hover:underline'>
+              Breakdown
+            </summary>
+
+            <div className='mt-2 space-y-1'>
+              {unmatchedManualSummaryItems.length > 0 ? (
+                <div className='mb-2 max-h-32 space-y-1 overflow-auto border-b pb-2'>
+                  {unmatchedManualSummaryItems.map(item => (
+                    <div
+                      key={`${item.journalEntryId}-${item.nominalCodeId}`}
+                      className='flex justify-between gap-3'
+                    >
+                      <span className='truncate'>
+                        {item.reference} ·{' '}
+                        {Number(item.credit ?? 0) > 0
+                          ? 'manual payment'
+                          : 'manual receipt'}
+                      </span>
+                      <span>{formatDifference(item.signedAmount)}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+
+              <div className='flex justify-between gap-3'>
+                <span>Manual receipts</span>
+                <span>{formatCurrency(totalUnmatchedManualReceipts)}</span>
+              </div>
+              <div className='flex justify-between gap-3'>
+                <span>Manual payments</span>
+                <span>{formatCurrency(totalUnmatchedManualPayments)}</span>
+              </div>
+              <div className='flex justify-between gap-3 border-t pt-1 font-medium text-zinc-900'>
+                <span>Net</span>
+                <span>{formatDifference(totalUnmatchedManualNetMovement)}</span>
+              </div>
+            </div>
+          </details>
         </div>
 
         <div className='rounded-lg border bg-white p-4 shadow-sm'>
-          <p className='text-sm text-zinc-500'>Difference</p>
+          <p className='text-sm text-zinc-500'>Reconciliation difference</p>
           <p
             className={
               Math.round(totalDifference * 100) === 0
@@ -388,15 +563,62 @@ export default async function BankReconciliationPage({
             {formatDifference(totalDifference)}
           </p>
         </div>
+
+        <div className='rounded-lg border bg-white p-4 shadow-sm'>
+          <p className='text-sm text-zinc-500'>Adjusted bank balance</p>
+          <p className='mt-1 text-2xl font-semibold'>
+            {formatCurrency(totalAdjustedBankBalance)}
+          </p>
+
+          <details className='mt-2 text-xs text-zinc-600'>
+            <summary className='cursor-pointer font-medium text-blue-700 hover:underline'>
+              Breakdown
+            </summary>
+
+            <div className='mt-2 max-h-40 space-y-2 overflow-auto'>
+              {rows.map(row => (
+                <div
+                  key={`adjusted-${row.nominalCodeId}`}
+                  className='border-b pb-2 last:border-b-0 last:pb-0'
+                >
+                  <div className='flex justify-between gap-3 font-medium text-zinc-900'>
+                    <span className='truncate'>
+                      {row.accountLabel} · {row.nominalCode}
+                    </span>
+                    <span>{formatCurrency(row.adjustedBankBalance)}</span>
+                  </div>
+                  <div className='mt-1 grid grid-cols-3 gap-2 text-[11px] text-zinc-500'>
+                    <span>Ledger {formatCurrency(row.ledgerBalance)}</span>
+                    <span>
+                      Inbox{' '}
+                      {formatDifference(row.inboxNetMovement).replace('£', '')}
+                    </span>
+                    <span>
+                      Manual{' '}
+                      {formatDifference(
+                        row.unmatchedManualNetMovement
+                      ).replace('£', '')}
+                    </span>
+                  </div>
+                </div>
+              ))}
+
+              <div className='flex justify-between gap-3 border-t pt-2 font-medium text-zinc-900'>
+                <span>Total</span>
+                <span>{formatCurrency(totalAdjustedBankBalance)}</span>
+              </div>
+            </div>
+          </details>
+        </div>
       </div>
 
-      <section className='overflow-hidden rounded-lg border bg-white shadow-sm'>
+      <section className='overflow-x-auto rounded-lg border bg-white shadow-sm'>
         {rows.length === 0 ? (
           <div className='p-10 text-center text-sm text-zinc-500'>
             No bank nominal codes found for this financial year.
           </div>
         ) : (
-          <table className='w-full table-fixed border-collapse text-sm'>
+          <table className='w-full min-w-[1380px] table-fixed border-collapse text-sm'>
             <colgroup>
               <col className='w-64' />
               <col />
@@ -404,8 +626,9 @@ export default async function BankReconciliationPage({
               <col className='w-40' />
               <col className='w-40' />
               <col className='w-40' />
+              <col className='w-40' />
               <col className='w-44' />
-              <col className='w-32' />
+              <col className='w-44' />
             </colgroup>
 
             <thead className='bg-zinc-50 text-left text-zinc-600'>
@@ -420,12 +643,17 @@ export default async function BankReconciliationPage({
                 </th>
                 <th className='px-4 py-3 text-right font-medium'>Inbox net</th>
                 <th className='px-4 py-3 text-right font-medium'>
+                  Manual net
+                </th>
+                <th className='px-4 py-3 text-right font-medium'>
+                  Reconciliation difference
+                </th>
+                <th className='px-4 py-3 text-right font-medium'>
                   Ledger balance
                 </th>
                 <th className='px-4 py-3 text-right font-medium'>
                   Adjusted bank balance
                 </th>
-                <th className='px-4 py-3 text-right font-medium'>Difference</th>
               </tr>
             </thead>
 
@@ -450,6 +678,13 @@ export default async function BankReconciliationPage({
                         <div className='text-xs text-zinc-500'>
                           {row.providerLabel}
                         </div>
+
+                        {row.openingBalance !== 0 ? (
+                          <div className='mt-1 text-xs font-medium text-zinc-700'>
+                            Opening balance:{' '}
+                            {formatCurrency(row.openingBalance)}
+                          </div>
+                        ) : null}
 
                         {showOpenYearActions && row.connectionId ? (
                           <Link
@@ -491,21 +726,194 @@ export default async function BankReconciliationPage({
                       </td>
 
                       <td className='px-4 py-3 text-right align-top'>
+                        {formatDifference(
+                          row.unmatchedManualNetMovement
+                        ).replace('£', '')}
+                      </td>
+
+                      <td className='px-4 py-3 text-right align-top'>
+                        <div
+                          className={
+                            reconciled ? undefined : 'font-medium text-red-600'
+                          }
+                        >
+                          {formatDifference(row.difference).replace('£', '')}
+                        </div>
+                      </td>
+
+                      <td className='px-4 py-3 text-right align-top'>
                         {formatAmount(row.ledgerBalance)}
                       </td>
 
                       <td className='px-4 py-3 text-right align-top font-medium'>
                         {formatAmount(row.adjustedBankBalance)}
                       </td>
+                    </tr>
 
-                      <td
-                        className={
-                          reconciled
-                            ? 'px-4 py-3 text-right align-top'
-                            : 'px-4 py-3 text-right align-top text-red-600'
-                        }
-                      >
-                        {formatDifference(row.difference).replace('£', '')}
+                    <tr className='border-t bg-zinc-50/60'>
+                      <td className='px-4 py-3' colSpan={9}>
+                        <details>
+                          <summary className='cursor-pointer text-xs font-medium text-blue-700 hover:underline'>
+                            Explain reconciliation items for {row.accountLabel}
+                          </summary>
+
+                          <div className='mt-3 grid gap-4 text-xs text-zinc-700 lg:grid-cols-2'>
+                            <div className='rounded-md border bg-white p-3'>
+                              <p className='font-medium text-zinc-900'>
+                                Pending inbox movements
+                              </p>
+
+                              {row.inboxItems.length === 0 ? (
+                                <p className='mt-1 text-zinc-500'>
+                                  No pending inbox transactions for this
+                                  account.
+                                </p>
+                              ) : (
+                                <div className='mt-2 overflow-x-auto'>
+                                  <table className='w-full min-w-[520px] text-xs'>
+                                    <thead className='text-zinc-500'>
+                                      <tr>
+                                        <th className='py-1 pr-2 text-left font-medium'>
+                                          Date
+                                        </th>
+                                        <th className='py-1 pr-2 text-left font-medium'>
+                                          Description
+                                        </th>
+                                        <th className='py-1 pr-2 text-left font-medium'>
+                                          Status
+                                        </th>
+                                        <th className='py-1 text-right font-medium'>
+                                          Amount
+                                        </th>
+                                      </tr>
+                                    </thead>
+
+                                    <tbody>
+                                      {row.inboxItems.map(item => (
+                                        <tr key={item.id} className='border-t'>
+                                          <td className='py-1 pr-2'>
+                                            {item.transactionDate}
+                                          </td>
+                                          <td className='py-1 pr-2'>
+                                            {item.description}
+                                          </td>
+                                          <td className='py-1 pr-2'>
+                                            {item.status}
+                                          </td>
+                                          <td className='py-1 text-right'>
+                                            {formatSignedAmount(
+                                              Number(item.amount ?? 0)
+                                            )}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className='rounded-md border bg-white p-3'>
+                              <p className='font-medium text-zinc-900'>
+                                Ledger balance components
+                              </p>
+
+                              <div className='mt-2 space-y-1'>
+                                <div className='flex justify-between gap-3'>
+                                  <span>Opening balance</span>
+                                  <span>{formatCurrency(row.openingBalance)}</span>
+                                </div>
+                                <div className='flex justify-between gap-3'>
+                                  <span>Current-year debits</span>
+                                  <span>{formatCurrency(row.ledgerDebit)}</span>
+                                </div>
+                                <div className='flex justify-between gap-3'>
+                                  <span>Current-year credits</span>
+                                  <span>{formatCurrency(row.ledgerCredit)}</span>
+                                </div>
+                                <div className='flex justify-between gap-3 border-t pt-1 font-medium text-zinc-900'>
+                                  <span>Ledger balance</span>
+                                  <span>{formatCurrency(row.ledgerBalance)}</span>
+                                </div>
+                              </div>
+                            </div>
+
+                            <div className='rounded-md border bg-white p-3'>
+                              <p className='font-medium text-zinc-900'>
+                                Unmatched manual bank ledger entries
+                              </p>
+
+                              {row.manualBankLedgerItems.length === 0 ? (
+                                <p className='mt-1 text-zinc-500'>
+                                  No unmatched manual bank entries for this
+                                  account.
+                                </p>
+                              ) : (
+                                <div className='mt-2 overflow-x-auto'>
+                                  <table className='w-full min-w-[680px] text-xs'>
+                                    <thead className='text-zinc-500'>
+                                      <tr>
+                                        <th className='py-1 pr-2 text-left font-medium'>
+                                          Date
+                                        </th>
+                                        <th className='py-1 pr-2 text-left font-medium'>
+                                          Reference
+                                        </th>
+                                        <th className='py-1 pr-2 text-left font-medium'>
+                                          Description
+                                        </th>
+                                        <th className='py-1 pr-2 text-left font-medium'>
+                                          Nominal/bank account
+                                        </th>
+                                        <th className='py-1 pr-2 text-left font-medium'>
+                                          Source
+                                        </th>
+                                        <th className='py-1 pr-2 text-right font-medium'>
+                                          Debit
+                                        </th>
+                                        <th className='py-1 text-right font-medium'>
+                                          Credit
+                                        </th>
+                                      </tr>
+                                    </thead>
+
+                                    <tbody>
+                                      {row.manualBankLedgerItems.map(item => (
+                                        <tr
+                                          key={`${item.journalEntryId}-${item.nominalCodeId}`}
+                                          className='border-t'
+                                        >
+                                          <td className='py-1 pr-2'>
+                                            {item.date}
+                                          </td>
+                                          <td className='py-1 pr-2'>
+                                            {item.reference}
+                                          </td>
+                                          <td className='py-1 pr-2'>
+                                            {item.description}
+                                          </td>
+                                          <td className='py-1 pr-2'>
+                                            {item.nominalCode} —{' '}
+                                            {item.nominalName}
+                                          </td>
+                                          <td className='py-1 pr-2'>
+                                            {item.source}
+                                          </td>
+                                          <td className='py-1 pr-2 text-right'>
+                                            {formatAmount(Number(item.debit))}
+                                          </td>
+                                          <td className='py-1 text-right'>
+                                            {formatAmount(Number(item.credit))}
+                                          </td>
+                                        </tr>
+                                      ))}
+                                    </tbody>
+                                  </table>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </details>
                       </td>
                     </tr>
                   </Fragment>
@@ -532,21 +940,30 @@ export default async function BankReconciliationPage({
                 </td>
 
                 <td className='px-4 py-3 text-right'>
+                  {formatDifference(totalUnmatchedManualNetMovement).replace(
+                    '£',
+                    ''
+                  )}
+                </td>
+
+                <td className='px-4 py-3 text-right'>
+                  <span
+                    className={
+                    Math.round(totalDifference * 100) === 0
+                        ? undefined
+                        : 'text-red-600'
+                    }
+                  >
+                    {formatDifference(totalDifference).replace('£', '')}
+                  </span>
+                </td>
+
+                <td className='px-4 py-3 text-right'>
                   {formatAmount(totalLedgerBalance)}
                 </td>
 
                 <td className='px-4 py-3 text-right'>
                   {formatAmount(totalAdjustedBankBalance)}
-                </td>
-
-                <td
-                  className={
-                    Math.round(totalDifference * 100) === 0
-                      ? 'px-4 py-3 text-right'
-                      : 'px-4 py-3 text-right text-red-600'
-                  }
-                >
-                  {formatDifference(totalDifference).replace('£', '')}
                 </td>
               </tr>
             </tfoot>

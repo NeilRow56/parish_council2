@@ -8,7 +8,8 @@ import {
   financialYears,
   journalEntries,
   journalLines,
-  nominalCodes
+  nominalCodes,
+  nominalOpeningBalances
 } from '@/db/schema/nominalLedger'
 
 function formatAmount(value: string | number | null) {
@@ -118,11 +119,55 @@ export default async function NominalLedgerPage({
     )
     .orderBy(asc(journalEntries.date), asc(journalEntries.createdAt))
 
-  type LedgerRow = (typeof lines)[number] & {
+  const [openingBalanceRow] = await db
+    .select({
+      amount: nominalOpeningBalances.amount
+    })
+    .from(nominalOpeningBalances)
+    .where(
+      and(
+        eq(nominalOpeningBalances.parishCouncilId, parishCouncilId),
+        eq(nominalOpeningBalances.financialYearId, currentYear.id),
+        eq(nominalOpeningBalances.nominalCodeId, nominalCode.id)
+      )
+    )
+    .limit(1)
+
+  type LedgerRow = {
+    lineId: string
+    date: string
+    reference: string
+    description: string | null
+    entryDescription: string
+    debit: string | number
+    credit: string | number
+    source: string
     debitAmount: number
     creditAmount: number
     runningBalance: number
   }
+
+  const openingBalance = Number(openingBalanceRow?.amount ?? 0)
+  const openingDebit = openingBalance > 0 ? openingBalance : 0
+  const openingCredit = openingBalance < 0 ? Math.abs(openingBalance) : 0
+  const openingRows: LedgerRow[] =
+    openingBalance === 0
+      ? []
+      : [
+          {
+            lineId: `opening-balance-${nominalCode.id}`,
+            date: currentYear.startDate,
+            reference: 'OPENING-BALANCE',
+            description: 'Opening balance brought forward',
+            entryDescription: 'Opening balance brought forward',
+            debit: openingDebit,
+            credit: openingCredit,
+            source: 'OPENING_BALANCE',
+            debitAmount: openingDebit,
+            creditAmount: openingCredit,
+            runningBalance: openingBalance
+          }
+        ]
 
   const rows = lines.reduce<LedgerRow[]>((acc, line) => {
     const previousBalance = acc.at(-1)?.runningBalance ?? 0
@@ -143,7 +188,7 @@ export default async function NominalLedgerPage({
     })
 
     return acc
-  }, [])
+  }, openingRows)
 
   const totalDebit = rows.reduce((sum, row) => sum + row.debitAmount, 0)
   const totalCredit = rows.reduce((sum, row) => sum + row.creditAmount, 0)

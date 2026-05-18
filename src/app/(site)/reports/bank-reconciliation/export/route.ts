@@ -6,13 +6,14 @@ import {
   View,
   renderToBuffer
 } from '@react-pdf/renderer'
-import { and, desc, eq, inArray, lte, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, lte, sql } from 'drizzle-orm'
 import { headers } from 'next/headers'
 import { createElement } from 'react'
 
 import { db } from '@/db'
 import {
   bankConnections,
+  bankOpeningBalances,
   bankTransactions,
   parishCouncils
 } from '@/db/schema'
@@ -44,9 +45,11 @@ type BankReconciliationRow = {
   providerLabel: string
   nominalCode: string
   nominalName: string
+  openingBalance: number
   inboxReceipts: number
   inboxPayments: number
   inboxNetMovement: number
+  unmatchedManualNetMovement: number
   ledgerBalance: number
   adjustedBankBalance: number
   difference: number
@@ -59,6 +62,7 @@ type BankReconciliationReport = {
   totalInboxReceipts: number
   totalInboxPayments: number
   totalInboxNetMovement: number
+  totalUnmatchedManualNetMovement: number
   totalLedgerBalance: number
   totalAdjustedBankBalance: number
   totalDifference: number
@@ -165,6 +169,11 @@ const styles = StyleSheet.create({
   },
   totalRow: {
     backgroundColor: '#f8fafc'
+  },
+  sectionTitle: {
+    marginBottom: 5,
+    fontSize: 9,
+    fontWeight: 700
   },
   cell: {
     paddingHorizontal: 4,
@@ -283,7 +292,8 @@ async function getBankReconciliationReport({
       nominalCodeId: nominalCodes.id,
       nominalCode: nominalCodes.code,
       nominalName: nominalCodes.name,
-      openingBalance: sql<number>`coalesce(max(${nominalOpeningBalances.amount}), 0)`,
+      nominalOpeningBalance: sql<number>`coalesce(max(${nominalOpeningBalances.amount}), 0)`,
+      bankOpeningBalance: sql<number>`coalesce(max(${bankOpeningBalances.openingBalance}), 0)`,
       ledgerDebit: sql<number>`
         coalesce(
           sum(
@@ -320,6 +330,14 @@ async function getBankReconciliationReport({
         eq(nominalOpeningBalances.nominalCodeId, nominalCodes.id),
         eq(nominalOpeningBalances.financialYearId, financialYear.id),
         eq(nominalOpeningBalances.parishCouncilId, parishCouncilId)
+      )
+    )
+    .leftJoin(
+      bankOpeningBalances,
+      and(
+        eq(bankOpeningBalances.nominalCodeId, nominalCodes.id),
+        eq(bankOpeningBalances.financialYearId, financialYear.id),
+        eq(bankOpeningBalances.parishCouncilId, parishCouncilId)
       )
     )
     .leftJoin(journalLines, eq(journalLines.nominalCodeId, nominalCodes.id))
@@ -367,6 +385,49 @@ async function getBankReconciliationReport({
     )
     .orderBy(desc(bankTransactions.date), desc(bankTransactions.importedAt))
 
+  const matchedJournalRows = await db
+    .select({
+      journalEntryId: bankTransactions.matchedJournalEntryId
+    })
+    .from(bankTransactions)
+    .where(
+      and(
+        eq(bankTransactions.parishCouncilId, parishCouncilId),
+        isNotNull(bankTransactions.matchedJournalEntryId)
+      )
+    )
+
+  const matchedJournalEntryIds = new Set(
+    matchedJournalRows
+      .map(row => row.journalEntryId)
+      .filter((id): id is string => Boolean(id))
+  )
+
+  const manualBankLedgerItems = (
+    await db
+      .select({
+        journalEntryId: journalEntries.id,
+        nominalCodeId: nominalCodes.id,
+        debit: journalLines.debit,
+        credit: journalLines.credit
+      })
+      .from(journalLines)
+      .innerJoin(
+        journalEntries,
+        eq(journalLines.journalEntryId, journalEntries.id)
+      )
+      .innerJoin(nominalCodes, eq(journalLines.nominalCodeId, nominalCodes.id))
+      .where(
+        and(
+          eq(journalEntries.parishCouncilId, parishCouncilId),
+          eq(journalEntries.financialYearId, financialYear.id),
+          eq(journalEntries.source, 'MANUAL'),
+          eq(nominalCodes.isBank, true),
+          lte(journalEntries.date, financialYear.endDate)
+        )
+      )
+  ).filter(item => !matchedJournalEntryIds.has(item.journalEntryId))
+
   const rows = accounts.map(account => {
     const accountInboxItems =
       account.connectionId
@@ -388,26 +449,36 @@ async function getBankReconciliationReport({
         : 'No linked bank connection'
 
     const inboxReceipts = accountInboxItems.reduce((sum, item) => {
-      const amount = Number(item.amount ?? 0)
+      const amount = Math.abs(Number(item.amount ?? 0))
       const type = item.transactionType?.toUpperCase()
 
       return type === 'CREDIT' ? sum + amount : sum
     }, 0)
 
     const inboxPayments = accountInboxItems.reduce((sum, item) => {
-      const amount = Number(item.amount ?? 0)
+      const amount = Math.abs(Number(item.amount ?? 0))
       const type = item.transactionType?.toUpperCase()
 
       return type === 'DEBIT' ? sum + amount : sum
     }, 0)
 
     const inboxNetMovement = inboxReceipts - inboxPayments
+    const accountManualBankLedgerItems = manualBankLedgerItems.filter(
+      item => String(item.nominalCodeId) === String(account.nominalCodeId)
+    )
+    const unmatchedManualNetMovement = accountManualBankLedgerItems.reduce(
+      (sum, item) => sum + Number(item.credit ?? 0) - Number(item.debit ?? 0),
+      0
+    )
     const ledgerDebit = Number(account.ledgerDebit ?? 0)
     const ledgerCredit = Number(account.ledgerCredit ?? 0)
-    const openingBalance = Number(account.openingBalance ?? 0)
+    const nominalOpeningBalance = Number(account.nominalOpeningBalance ?? 0)
+    const bankOpeningBalance = Number(account.bankOpeningBalance ?? 0)
+    const openingBalance =
+      nominalOpeningBalance !== 0 ? nominalOpeningBalance : bankOpeningBalance
     const ledgerBalance = openingBalance + ledgerDebit - ledgerCredit
-    const adjustedBankBalance = ledgerBalance + inboxNetMovement
-    const difference = ledgerBalance + inboxNetMovement - adjustedBankBalance
+    const difference = inboxNetMovement + unmatchedManualNetMovement
+    const adjustedBankBalance = ledgerBalance + difference
 
     return {
       connectionId: account.connectionId,
@@ -415,9 +486,11 @@ async function getBankReconciliationReport({
       providerLabel,
       nominalCode: account.nominalCode,
       nominalName: account.nominalName,
+      openingBalance,
       inboxReceipts,
       inboxPayments,
       inboxNetMovement,
+      unmatchedManualNetMovement,
       ledgerBalance,
       adjustedBankBalance,
       difference
@@ -436,6 +509,10 @@ async function getBankReconciliationReport({
     (sum, row) => sum + row.inboxNetMovement,
     0
   )
+  const totalUnmatchedManualNetMovement = rows.reduce(
+    (sum, row) => sum + row.unmatchedManualNetMovement,
+    0
+  )
   const totalLedgerBalance = rows.reduce(
     (sum, row) => sum + row.ledgerBalance,
     0
@@ -444,8 +521,7 @@ async function getBankReconciliationReport({
     (sum, row) => sum + row.adjustedBankBalance,
     0
   )
-  const totalDifference =
-    totalLedgerBalance + totalInboxNetMovement - totalAdjustedBankBalance
+  const totalDifference = totalInboxNetMovement + totalUnmatchedManualNetMovement
 
   return {
     councilName: council?.name ?? null,
@@ -454,6 +530,7 @@ async function getBankReconciliationReport({
     totalInboxReceipts,
     totalInboxPayments,
     totalInboxNetMovement,
+    totalUnmatchedManualNetMovement,
     totalLedgerBalance,
     totalAdjustedBankBalance,
     totalDifference
@@ -477,30 +554,50 @@ function reportRow(row: BankReconciliationRow) {
       View,
       { style: [styles.cell, styles.accountCell] },
       h(Text, null, row.accountLabel),
-      h(Text, { style: styles.muted }, row.providerLabel)
+      h(Text, { style: styles.muted }, row.providerLabel),
+      row.openingBalance !== 0
+        ? h(
+            Text,
+            { style: styles.muted },
+            `Opening balance: ${formatCurrency(row.openingBalance)}`
+          )
+        : null
     ),
     h(
       Text,
       { style: [styles.cell, styles.nominalCell] },
       `${row.nominalCode} — ${row.nominalName}`
     ),
-    h(Text, { style: [styles.cell, styles.moneyCell] }, formatAmount(row.inboxReceipts)),
-    h(Text, { style: [styles.cell, styles.moneyCell] }, formatAmount(row.inboxPayments)),
+    h(
+      Text,
+      { style: [styles.cell, styles.moneyCell] },
+      formatAmount(row.inboxReceipts)
+    ),
+    h(
+      Text,
+      { style: [styles.cell, styles.moneyCell] },
+      formatAmount(row.inboxPayments)
+    ),
     h(
       Text,
       { style: [styles.cell, styles.moneyCell] },
       formatDifference(row.inboxNetMovement).replace('£', '')
+    ),
+    h(
+      Text,
+      { style: [styles.cell, styles.moneyCell] },
+      formatDifference(row.unmatchedManualNetMovement).replace('£', '')
+    ),
+    h(
+      Text,
+      { style: [styles.cell, styles.moneyCell] },
+      formatDifference(row.difference).replace('£', '')
     ),
     h(Text, { style: [styles.cell, styles.moneyCell] }, formatAmount(row.ledgerBalance)),
     h(
       Text,
       { style: [styles.cell, styles.wideMoneyCell] },
       formatAmount(row.adjustedBankBalance)
-    ),
-    h(
-      Text,
-      { style: [styles.cell, styles.moneyCell] },
-      formatDifference(row.difference).replace('£', '')
     )
   )
 }
@@ -538,10 +635,115 @@ function bankReconciliationPdf(report: BankReconciliationReport) {
         summaryCard('Inbox receipts', formatCurrency(report.totalInboxReceipts)),
         summaryCard('Inbox payments', formatCurrency(report.totalInboxPayments)),
         summaryCard(
+          'Unmatched manual',
+          formatDifference(report.totalUnmatchedManualNetMovement)
+        ),
+        summaryCard(
+          'Reconciliation difference',
+          formatDifference(report.totalDifference)
+        ),
+        summaryCard(
           'Adjusted bank balance',
           formatCurrency(report.totalAdjustedBankBalance)
+        )
+      ),
+      h(
+        View,
+        { style: [styles.table, { marginBottom: 14 }] },
+        h(Text, { style: [styles.cell, styles.sectionTitle] }, 'Adjusted bank balance breakdown'),
+        h(
+          View,
+          { style: [styles.row, styles.headerRow], fixed: true },
+          h(
+            Text,
+            { style: [styles.cell, styles.headerCell, styles.accountCell] },
+            'Bank account'
+          ),
+          h(
+            Text,
+            { style: [styles.cell, styles.headerCell, styles.moneyCell] },
+            'Ledger'
+          ),
+          h(
+            Text,
+            { style: [styles.cell, styles.headerCell, styles.moneyCell] },
+            'Inbox net'
+          ),
+          h(
+            Text,
+            { style: [styles.cell, styles.headerCell, styles.moneyCell] },
+            'Manual net'
+          ),
+          h(
+            Text,
+            { style: [styles.cell, styles.headerCell, styles.wideMoneyCell] },
+            'Adjusted bank'
+          )
         ),
-        summaryCard('Difference', formatDifference(report.totalDifference))
+        ...report.rows.map(row =>
+          h(
+            View,
+            { key: `adjusted-${row.nominalCode}`, style: styles.row, wrap: false },
+            h(
+              View,
+              { style: [styles.cell, styles.accountCell] },
+              h(Text, null, row.accountLabel),
+              h(Text, { style: styles.muted }, row.nominalCode)
+            ),
+            h(
+              Text,
+              { style: [styles.cell, styles.moneyCell] },
+              formatAmount(row.ledgerBalance)
+            ),
+            h(
+              Text,
+              { style: [styles.cell, styles.moneyCell] },
+              formatDifference(row.inboxNetMovement).replace('£', '')
+            ),
+            h(
+              Text,
+              { style: [styles.cell, styles.moneyCell] },
+              formatDifference(row.unmatchedManualNetMovement).replace('£', '')
+            ),
+            h(
+              Text,
+              { style: [styles.cell, styles.wideMoneyCell] },
+              formatAmount(row.adjustedBankBalance)
+            )
+          )
+        ),
+        h(
+          View,
+          { style: [styles.row, styles.totalRow], wrap: false },
+          h(
+            Text,
+            { style: [styles.cell, styles.accountCell, { fontWeight: 700 }] },
+            'Total'
+          ),
+          h(
+            Text,
+            { style: [styles.cell, styles.totalMoneyCell] },
+            formatAmount(report.totalLedgerBalance)
+          ),
+          h(
+            Text,
+            { style: [styles.cell, styles.totalMoneyCell] },
+            formatDifference(report.totalInboxNetMovement).replace('£', '')
+          ),
+          h(
+            Text,
+            { style: [styles.cell, styles.totalMoneyCell] },
+            formatDifference(report.totalUnmatchedManualNetMovement).replace(
+              '£',
+              ''
+            )
+          ),
+          h(
+            Text,
+            { style: [styles.cell, styles.totalWideMoneyCell] },
+            formatAmount(report.totalAdjustedBankBalance)
+          )
+        )
       ),
       h(
         View,
@@ -577,17 +779,22 @@ function bankReconciliationPdf(report: BankReconciliationReport) {
           h(
             Text,
             { style: [styles.cell, styles.headerCell, styles.moneyCell] },
+            'Manual net'
+          ),
+          h(
+            Text,
+            { style: [styles.cell, styles.headerCell, styles.moneyCell] },
+            'Recon. diff.'
+          ),
+          h(
+            Text,
+            { style: [styles.cell, styles.headerCell, styles.moneyCell] },
             'Ledger balance'
           ),
           h(
             Text,
             { style: [styles.cell, styles.headerCell, styles.wideMoneyCell] },
             'Adjusted bank'
-          ),
-          h(
-            Text,
-            { style: [styles.cell, styles.headerCell, styles.moneyCell] },
-            'Difference'
           )
         ),
         report.rows.length > 0
@@ -628,17 +835,25 @@ function bankReconciliationPdf(report: BankReconciliationReport) {
           h(
             Text,
             { style: [styles.cell, styles.totalMoneyCell] },
+            formatDifference(report.totalUnmatchedManualNetMovement).replace(
+              '£',
+              ''
+            )
+          ),
+          h(
+            Text,
+            { style: [styles.cell, styles.totalMoneyCell] },
+            formatDifference(report.totalDifference).replace('£', '')
+          ),
+          h(
+            Text,
+            { style: [styles.cell, styles.totalMoneyCell] },
             formatAmount(report.totalLedgerBalance)
           ),
           h(
             Text,
             { style: [styles.cell, styles.totalWideMoneyCell] },
             formatAmount(report.totalAdjustedBankBalance)
-          ),
-          h(
-            Text,
-            { style: [styles.cell, styles.totalMoneyCell] },
-            formatDifference(report.totalDifference).replace('£', '')
           )
         )
       ),

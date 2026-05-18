@@ -34,6 +34,7 @@ Rerunning `bun run demo:reset` recreates the demo login, resets the password, ma
 - Demo parish council details and VAT 126 settings.
 - A closed prior year, `2025/26`, with a completed year-end run.
 - A current open year, `2026/27`, ready for live workflow demonstrations.
+- A fixed demo review/reconciliation date of `2026-05-18`, with current-year ledger and inbox demo items dated on or before that date.
 - Nominal codes copied from the default chart, including AGAR mappings.
 - Opening balances, bank accounts, budgets, reserves, projects, suppliers, VAT rates, fixed assets, borrowings, VAT return rows, posted journals, posted bank transactions, matched transactions, coded inbox items, and pending inbox items.
 
@@ -42,8 +43,10 @@ Rerunning `bun run demo:reset` recreates the demo login, resets the password, ma
 - Sign in as the printed demo user and confirm the dashboard status.
 - Open the bank inbox and post the coded audit fee transaction.
 - Code one pending receipt and one pending payment.
-- Review bank reconciliation with posted, matched, coded, and pending transactions.
+- Demonstrate manual-entry-first matching by opening the pending `SUMUP VILLAGE FETE STALL` receipt and matching it to the existing manual journal `MAN-2026-FETE-RECEIPT` instead of posting it again.
+- Open Bank Reconciliation and review pending bank feed items, the unmatched manual total, and the resulting Difference.
+- Expand `Explain` on the current account row and review the unmatched manual cheque `MAN-2026-CHQ-1042` as an uncleared payment with no bank feed item yet.
 - Open VAT 126/VAT return reporting and confirm recoverable VAT is visible.
-- Export trial balance, income and expenditure, AGAR summary, budget, bank reconciliation, large payments, fixed assets, and borrowings reports.
+- Export trial balance, income and expenditure, AGAR summary, budget, bank reconciliation, large payments, fixed assets, and borrowings reports to PDF.
 - View the closed `2025/26` historic reports.
 - Use the open `2026/27` year to demonstrate year-end close, then run `bun run demo:reset` to restore the same starting point.

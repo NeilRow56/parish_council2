@@ -13,6 +13,7 @@ const DEMO_COUNCIL_ID = 'demo-parish-council'
 const DEMO_COUNCIL_NAME = 'Barton Seagrave Demo Parish Council'
 const DEMO_USER_EMAIL = 'demo@example.com'
 const DEMO_USER_PASSWORD = 'DemoReview2026!'
+const DEMO_REVIEW_DATE = '2026-05-18'
 const PRIOR_YEAR_ID = 'demo-fy-2025-26'
 const CURRENT_YEAR_ID = 'demo-fy-2026-27'
 
@@ -480,7 +481,6 @@ async function run() {
         description: 'Public Works Loan Board repayment',
         source: 'BANK_FEED',
         lines: [
-          ['5200', 3500, 0],
           ['5210', 700, 0],
           ['2300', 3500, 0],
           ['1200', 0, 4200]
@@ -595,7 +595,6 @@ async function run() {
         source: 'BANK_FEED',
         sourceId: bankTxId('posted-loan'),
         lines: [
-          ['5200', 1000, 0],
           ['5210', 180, 0],
           ['2300', 1000, 0],
           ['1200', 0, 1180]
@@ -617,12 +616,34 @@ async function run() {
       {
         id: 'demo-je-current-matched-grant',
         reference: 'MAN-2026-CIL-GRANT',
-        date: '2026-05-17',
+        date: '2026-05-15',
         description: 'CIL neighbourhood receipt matched to bank feed',
         source: 'MANUAL',
         lines: [
           ['1200', 4200, 0],
           ['4010', 0, 4200]
+        ]
+      },
+      {
+        id: 'demo-je-current-manual-fete-receipt',
+        reference: 'MAN-2026-FETE-RECEIPT',
+        date: '2026-05-11',
+        description: 'Manually entered village fete stall income',
+        source: 'MANUAL',
+        lines: [
+          ['1200', 250, 0],
+          ['4030', 0, 250]
+        ]
+      },
+      {
+        id: 'demo-je-current-uncleared-cheque',
+        reference: 'MAN-2026-CHQ-1042',
+        date: '2026-05-14',
+        description: 'Cheque 1042: village hall room hire refund',
+        source: 'MANUAL',
+        lines: [
+          ['5110', 375, 0],
+          ['1200', 0, 375]
         ]
       }
     ])
@@ -750,7 +771,7 @@ async function run() {
         parishCouncilId: DEMO_COUNCIL_ID,
         financialYearId: CURRENT_YEAR_ID,
         periodStart: new Date('2026-04-01T00:00:00Z'),
-        periodEnd: new Date('2026-06-30T00:00:00Z'),
+        periodEnd: new Date(`${DEMO_REVIEW_DATE}T00:00:00Z`),
         inputVat: '588.00',
         outputVat: '0.00',
         netVat: '588.00',
@@ -894,7 +915,7 @@ async function run() {
         connectionId: 'demo-bank-current',
         parishCouncilId: DEMO_COUNCIL_ID,
         providerTxId: 'pending-training',
-        date: '2026-05-19',
+        date: '2026-05-13',
         description: 'NORTHANTS ALC TRAINING',
         amount: '-95.00',
         reserveId: 'demo-reserve-general',
@@ -912,7 +933,7 @@ async function run() {
         connectionId: 'demo-bank-current',
         parishCouncilId: DEMO_COUNCIL_ID,
         providerTxId: 'pending-room-hire',
-        date: '2026-05-20',
+        date: '2026-05-14',
         description: 'COMMUNITY ROOM HIRE',
         amount: '85.00',
         reserveId: 'demo-reserve-general',
@@ -930,7 +951,7 @@ async function run() {
         connectionId: 'demo-bank-current',
         parishCouncilId: DEMO_COUNCIL_ID,
         providerTxId: 'pending-large-payment',
-        date: '2026-05-21',
+        date: '2026-05-18',
         description: 'BELLAMY SURFACING LTD',
         amount: '-6400.00',
         reserveId: 'demo-reserve-playground',
@@ -945,6 +966,25 @@ async function run() {
         vatAmount: '1066.67',
         grossAmount: '6400.00',
         notes: 'Large payment and VAT coding demo item.'
+      },
+      {
+        id: bankTxId('pending-manual-fete-receipt'),
+        connectionId: 'demo-bank-current',
+        parishCouncilId: DEMO_COUNCIL_ID,
+        providerTxId: 'pending-manual-fete-receipt',
+        date: '2026-05-12',
+        description: 'SUMUP VILLAGE FETE STALL',
+        amount: '250.00',
+        reserveId: 'demo-reserve-general',
+        merchantName: 'SumUp Village Fete Stall',
+        category: 'Income',
+        transactionType: 'CREDIT',
+        status: 'PENDING',
+        vatRate: 'NO_VAT',
+        vatTreatment: 'OUTSIDE_SCOPE',
+        grossAmount: '250.00',
+        notes:
+          'Manual-entry-first demo: match this to MAN-2026-FETE-RECEIPT instead of posting it again.'
       }
     ])
 
@@ -1064,6 +1104,8 @@ async function seedJournals(
   )
 
   for (const journal of journals) {
+    validateJournalBalances(journal)
+
     await trx.insert(journalEntries).values({
       id: journal.id,
       parishCouncilId: DEMO_COUNCIL_ID,
@@ -1086,6 +1128,30 @@ async function seedJournals(
         credit: formatAmount(credit),
         description: journal.description
       }))
+    )
+  }
+}
+
+function toCents(amount: number) {
+  return Math.round(amount * 100)
+}
+
+function validateJournalBalances(journal: {
+  reference: string
+  lines: Array<[code: string, debit: number, credit: number]>
+}) {
+  const totalDebits = journal.lines.reduce(
+    (sum, [, debit]) => sum + toCents(debit),
+    0
+  )
+  const totalCredits = journal.lines.reduce(
+    (sum, [, , credit]) => sum + toCents(credit),
+    0
+  )
+
+  if (totalDebits !== totalCredits) {
+    throw new Error(
+      `Seed journal ${journal.reference} does not balance: debits ${formatAmount(totalDebits / 100)}, credits ${formatAmount(totalCredits / 100)}.`
     )
   }
 }

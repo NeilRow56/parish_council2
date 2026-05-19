@@ -70,6 +70,19 @@ function getVatLabel({
   return `${vatClaimMethod} - ${vatClaimFrequency}`
 }
 
+const agarRelevantNominalCodeFilter = sql`
+  ${nominalCodes.isActive} = true
+  and ${nominalCodes.isBank} = false
+  and ${nominalCodes.isVatRecoverable} = false
+  and ${nominalCodes.isVatPayable} = false
+  and ${nominalCodes.code} not in ('3090', '3095')
+  and coalesce(${nominalCodes.category}, '') not in ('Bank', 'Control', 'Liabilities', 'Reserves')
+  and (
+    ${nominalCodes.type} in ('INCOME', 'EXPENDITURE')
+    or ${nominalCodes.category} = 'Fixed Assets'
+  )
+`
+
 export default async function DashboardPage() {
   const session = await auth.api.getSession({
     headers: await headers()
@@ -147,9 +160,8 @@ export default async function DashboardPage() {
     currentYear
       ? db
           .select({
-            totalCodes: sql<number>`count(*)::int`,
-            mappedCodes: sql<number>`count(*) filter (where ${nominalCodes.agarBox} is not null)::int`,
-            mappedBoxes: sql<number>`count(distinct ${nominalCodes.agarBox}) filter (where ${nominalCodes.agarBox} is not null)::int`
+            relevantCodes: sql<number>`count(*) filter (where ${agarRelevantNominalCodeFilter})::int`,
+            mappedRelevantCodes: sql<number>`count(*) filter (where ${agarRelevantNominalCodeFilter} and ${nominalCodes.agarBox} is not null)::int`
           })
           .from(nominalCodes)
           .where(
@@ -160,9 +172,8 @@ export default async function DashboardPage() {
           )
       : Promise.resolve([
           {
-            totalCodes: 0,
-            mappedCodes: 0,
-            mappedBoxes: 0
+            relevantCodes: 0,
+            mappedRelevantCodes: 0
           }
         ]),
 
@@ -202,12 +213,16 @@ export default async function DashboardPage() {
     missingLedgerLinks > 0 ||
     Number(bankingSummary?.needsAttention ?? 0) > 0
 
-  // TODO: Expand AGAR readiness beyond mapping coverage when year-end checks are
-  // formalised, for example bank reconciliation, assets, borrowings, and approvals.
-  const mappedBoxes = Number(agarMappingSummary?.mappedBoxes ?? 0)
-  const mappedCodes = Number(agarMappingSummary?.mappedCodes ?? 0)
-  const totalCodes = Number(agarMappingSummary?.totalCodes ?? 0)
-  const agarReady = currentYear && mappedBoxes >= 7
+  // TODO: Expand AGAR readiness beyond actionable nominal-code mapping coverage
+  // when year-end checks are formalised, for example reconciliation and approvals.
+  const agarRelevantCodes = Number(agarMappingSummary?.relevantCodes ?? 0)
+  const mappedAgarRelevantCodes = Number(
+    agarMappingSummary?.mappedRelevantCodes ?? 0
+  )
+  const unmappedAgarRelevantCodes =
+    agarRelevantCodes - mappedAgarRelevantCodes
+  const agarReady =
+    currentYear && agarRelevantCodes > 0 && unmappedAgarRelevantCodes === 0
 
   const nextActions = [
     !currentYear
@@ -230,9 +245,9 @@ export default async function DashboardPage() {
           href: '/bank-connections'
         }
       : null,
-    currentYear && mappedBoxes < 7
+    currentYear && unmappedAgarRelevantCodes > 0
       ? {
-          label: 'Check AGAR nominal code mappings',
+          label: 'Map AGAR-relevant nominal codes',
           href: '/settings/nominal-codes'
         }
       : null,
@@ -308,10 +323,16 @@ export default async function DashboardPage() {
 
           <StatusCard
             title='AGAR readiness'
-            value={agarReady ? 'Mappings ready' : 'Check mappings'}
+            value={
+              agarReady
+                ? 'All AGAR-relevant nominal codes mapped'
+                : 'Check AGAR mappings'
+            }
             description={
               currentYear
-                ? `${mappedBoxes} of 7 AGAR boxes mapped across ${mappedCodes} of ${totalCodes} nominal codes.`
+                ? `${mappedAgarRelevantCodes} of ${agarRelevantCodes} AGAR-relevant nominal code${
+                    agarRelevantCodes === 1 ? '' : 's'
+                  } mapped.`
                 : 'No open financial year found for AGAR reporting.'
             }
             href='/reports/agar-summary'

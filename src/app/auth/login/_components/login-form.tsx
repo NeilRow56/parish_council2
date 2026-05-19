@@ -35,9 +35,7 @@ export default function LoginForm({ next, error: initialError }: Props) {
   const registered = searchParams.get('registered')
 
   const safeNext =
-    next && next.startsWith('/') && !next.startsWith('//')
-      ? next
-      : '/transactions/inbox'
+    next && next.startsWith('/') && !next.startsWith('//') ? next : '/dashboard'
 
   const [error, setError] = useState<string | null>(initialError ?? null)
 

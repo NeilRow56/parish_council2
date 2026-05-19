@@ -11,6 +11,7 @@
     "db:migrate": "tsx ./src/db/migrate.ts",
     "db:studio": "drizzle-kit studio",
     "db:push": "drizzle-kit push",
+    "backfill:nominal-codes": "tsx ./scripts/backfill-default-nominal-codes.ts",
     "demo:seed": "tsx ./scripts/seed-demo-parish-council.ts",
     "demo:reset": "tsx ./scripts/seed-demo-parish-council.ts"
   },

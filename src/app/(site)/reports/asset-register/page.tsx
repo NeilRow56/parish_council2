@@ -8,6 +8,13 @@ import { db } from '@/db'
 import { auth } from '@/lib/auth'
 import { fixedAssets } from '@/db/schema'
 import { financialYears, nominalCodes } from '@/db/schema/nominalLedger'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle
+} from '@/components/ui/card'
 import { FixedAssetRegisterClient } from './_components/fixed-asset-register-client'
 import { ExportPdfButton } from './_components/export-pdf-button'
 
@@ -154,6 +161,62 @@ export default async function AssetRegisterPage({
 
         <ExportPdfButton href={exportHref} />
       </div>
+
+      <Card className='mb-6 border-blue-200 bg-blue-50/70'>
+        <CardHeader>
+          <CardTitle className='text-base text-blue-950'>
+            Fixed asset valuation guidance
+          </CardTitle>
+          <CardDescription className='text-blue-900'>
+            Practical notes for keeping the register consistent with AGAR fixed
+            asset reporting.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className='grid gap-4 text-sm text-blue-950 md:grid-cols-2'>
+            <section>
+              <h2 className='font-medium'>Historic cost</h2>
+              <p className='mt-1 text-blue-900'>
+                Assets should normally be recorded at the original purchase cost
+                paid by the council. Once recorded, values do not change each
+                year unless assets are acquired or disposed of.
+              </p>
+            </section>
+
+            <section>
+              <h2 className='font-medium'>Insurance value exception</h2>
+              <p className='mt-1 text-blue-900'>
+                Where the original purchase cost is unknown, the insurance value
+                at first recognition may be used as a reasonable proxy. Later
+                insurance revaluations should not normally replace the original
+                recorded figure.
+              </p>
+            </section>
+
+            <section>
+              <h2 className='font-medium'>Nominal values</h2>
+              <p className='mt-1 text-blue-900'>
+                Community or donated assets with no meaningful resale value,
+                such as war memorials, may be recorded at a nominal value of £1.
+              </p>
+            </section>
+
+            <section>
+              <h2 className='font-medium'>Alternative valuation approaches</h2>
+              <p className='mt-1 text-blue-900'>
+                Historic cost is the standard and simplest approach. Another
+                reasonable basis can be used if formally approved, applied
+                consistently, and documented.
+              </p>
+            </section>
+          </div>
+
+          <p className='mt-4 rounded-md border border-blue-200 bg-white/70 px-3 py-2 text-sm text-blue-950'>
+            The AGAR fixed asset figure, Box 9, already uses the correct
+            carried-forward basis from the fixed asset register.
+          </p>
+        </CardContent>
+      </Card>
 
       <FixedAssetRegisterClient
         financialYearId={financialYear.id}

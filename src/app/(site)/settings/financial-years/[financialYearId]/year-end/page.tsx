@@ -78,6 +78,18 @@ function isReserveCode(code: string) {
   return numericCode >= 3000 && numericCode < 4000
 }
 
+function isFixedAssetOpeningReserve(code: string) {
+  return code === '3090'
+}
+
+function isBorrowingsOpeningReserve(code: string) {
+  return code === '3095'
+}
+
+function isMemoOpeningReserve(code: string) {
+  return isFixedAssetOpeningReserve(code) || isBorrowingsOpeningReserve(code)
+}
+
 export default async function YearEndPage({ params, searchParams }: PageProps) {
   const { financialYearId } = await params
   const query = await searchParams
@@ -217,20 +229,59 @@ export default async function YearEndPage({ params, searchParams }: PageProps) {
     .reduce((total, row) => total + row.closingBalance, 0)
 
   const otherReserveOpeningTotal = baseRollforwardRows
-    .filter(row => isReserveCode(row.code) && row.id !== generalReserveCode?.id)
+    .filter(
+      row =>
+        isReserveCode(row.code) &&
+        row.id !== generalReserveCode?.id &&
+        !isMemoOpeningReserve(row.code)
+    )
     .reduce((total, row) => total + row.closingBalance, 0)
 
+  const fixedAssetOpeningReserveCode = reserveCodes.find(code =>
+    isFixedAssetOpeningReserve(code.code)
+  )
+  const borrowingsOpeningReserveCode = reserveCodes.find(code =>
+    isBorrowingsOpeningReserve(code.code)
+  )
+  const fixedAssetClosingTotal = baseRollforwardRows
+    .filter(row => row.agarBox === 'BOX_9_FIXED_ASSETS')
+    .reduce((total, row) => total + row.closingBalance, 0)
+  const borrowingsClosingTotal = baseRollforwardRows
+    .filter(row => row.agarBox === 'BOX_10_BORROWINGS')
+    .reduce((total, row) => total + row.closingBalance, 0)
+  const fixedAssetOpeningReserve = fixedAssetOpeningReserveCode
+    ? -fixedAssetClosingTotal
+    : 0
+  const borrowingsOpeningReserve = borrowingsOpeningReserveCode
+    ? -borrowingsClosingTotal
+    : 0
+  const memoOpeningReserveTotal =
+    fixedAssetOpeningReserve + borrowingsOpeningReserve
+
   const expectedGeneralReserveOpening = generalReserveCode
-    ? -(nonReserveOpeningTotal + otherReserveOpeningTotal)
+    ? -(
+        nonReserveOpeningTotal +
+        otherReserveOpeningTotal +
+        memoOpeningReserveTotal
+      )
     : 0
 
-  const rollforwardRows = baseRollforwardRows.map(row => ({
-    ...row,
-    nextOpeningBalance:
-      row.id === generalReserveCode?.id
-        ? expectedGeneralReserveOpening
-        : row.closingBalance
-  }))
+  const rollforwardRows = baseRollforwardRows.map(row => {
+    let nextOpeningBalance = row.closingBalance
+
+    if (row.id === generalReserveCode?.id) {
+      nextOpeningBalance = expectedGeneralReserveOpening
+    } else if (row.id === fixedAssetOpeningReserveCode?.id) {
+      nextOpeningBalance = fixedAssetOpeningReserve
+    } else if (row.id === borrowingsOpeningReserveCode?.id) {
+      nextOpeningBalance = borrowingsOpeningReserve
+    }
+
+    return {
+      ...row,
+      nextOpeningBalance
+    }
+  })
 
   const currentYearSurplusDeficit = incomeExpenditureRows.reduce(
     (total, row) => total - row.movement,
@@ -352,7 +403,7 @@ export default async function YearEndPage({ params, searchParams }: PageProps) {
             />
 
             <BalancingLine
-              label='Other reserve opening balance total'
+              label='Other usable reserve opening balance total'
               value={otherReserveOpeningTotal}
             />
 

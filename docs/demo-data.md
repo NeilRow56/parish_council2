@@ -37,6 +37,12 @@ Rerunning `bun run demo:reset` recreates the demo login, resets the password, ma
 - A current open year, `2026/27`, ready for live workflow demonstrations.
 - A fixed demo review/reconciliation date of `2026-05-18`, with current-year ledger and inbox demo items dated on or before that date.
 - Nominal codes copied from the default chart, including AGAR mappings.
+- Memo-only opening reserve codes for fixed assets and borrowings. These keep
+  Trial Balance opening balances balanced while keeping General Reserve aligned
+  to cash-backed AGAR reserves.
+- Demo reset validates that opening fixed assets are paired to `3090`,
+  opening borrowings are paired to `3095`, and `3000 General Reserve` equals
+  opening bank/current fund reserves only.
 - Opening balances, bank accounts, budgets, reserves, projects, suppliers, VAT rates, fixed assets, borrowings, VAT return rows, posted journals, posted bank transactions, matched transactions, coded inbox items, and pending inbox items.
 
 ## Suggested Demo Flow
@@ -53,6 +59,8 @@ Rerunning `bun run demo:reset` recreates the demo login, resets the password, ma
 - Confirm AGAR capital/reserves are cash-backed balances, with fixed assets and
   borrowings reported separately in Boxes 9 and 10 rather than inflating or
   reducing reserves.
+- In Trial Balance, review `3090` and `3095` as memo-only opening reserves for
+  fixed assets and borrowings.
 - Open Income & Expenditure and confirm VAT is still posted separately for
   reclaim tracking, but is included in the receipts/payments reporting
   presentation.

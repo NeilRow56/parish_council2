@@ -20,6 +20,30 @@ const CURRENT_YEAR_ID = 'demo-fy-2026-27'
 type FinancialYearId = typeof PRIOR_YEAR_ID | typeof CURRENT_YEAR_ID
 type CodeMap = Record<string, string>
 
+const EXPECTED_DEMO_OPENING_BALANCES: Record<
+  FinancialYearId,
+  Record<string, number>
+> = {
+  [PRIOR_YEAR_ID]: {
+    '1200': 22000,
+    '1210': 8000,
+    '1600': 65000,
+    '2300': -18000,
+    '3000': -30000,
+    '3090': -65000,
+    '3095': 18000
+  },
+  [CURRENT_YEAR_ID]: {
+    '1200': 28500,
+    '1210': 8000,
+    '1600': 69800,
+    '2300': -14500,
+    '3000': -36500,
+    '3090': -69800,
+    '3095': 14500
+  }
+}
+
 function codeId(financialYearId: FinancialYearId, code: string) {
   const yearSlug = financialYearId.replace('demo-fy-', '')
 
@@ -360,7 +384,9 @@ async function run() {
       '1210': 8000,
       '1600': 65000,
       '2300': -18000,
-      '3000': -77000
+      '3000': -30000,
+      '3090': -65000,
+      '3095': 18000
     })
 
     await seedOpeningBalances(trx, CURRENT_YEAR_ID, currentCodes, {
@@ -368,7 +394,9 @@ async function run() {
       '1210': 8000,
       '1600': 69800,
       '2300': -14500,
-      '3000': -91800
+      '3000': -36500,
+      '3090': -69800,
+      '3095': 14500
     })
 
     await trx.insert(bankOpeningBalances).values([
@@ -1074,6 +1102,15 @@ async function seedOpeningBalances(
   balances: Record<string, number>
 ) {
   const { nominalOpeningBalances } = await import('@/db/schema/nominalLedger')
+  validateOpeningBalances(financialYearId, balances)
+
+  for (const code of Object.keys(balances)) {
+    if (!codes[code]) {
+      throw new Error(
+        `Opening balance seed for ${financialYearId} references missing nominal code ${code}.`
+      )
+    }
+  }
 
   await trx.insert(nominalOpeningBalances).values(
     Object.entries(balances).map(([code, amount]) => ({
@@ -1153,6 +1190,68 @@ function validateJournalBalances(journal: {
   if (totalDebits !== totalCredits) {
     throw new Error(
       `Seed journal ${journal.reference} does not balance: debits ${formatAmount(totalDebits / 100)}, credits ${formatAmount(totalCredits / 100)}.`
+    )
+  }
+}
+
+function validateOpeningBalances(
+  financialYearId: FinancialYearId,
+  balances: Record<string, number>
+) {
+  const requiredCodes = ['1200', '1210', '1600', '2300', '3000', '3090', '3095']
+  const expectedBalances = EXPECTED_DEMO_OPENING_BALANCES[financialYearId]
+
+  for (const code of requiredCodes) {
+    if (!(code in balances)) {
+      throw new Error(
+        `Opening balance seed for ${financialYearId} is missing nominal code ${code}.`
+      )
+    }
+
+    const expectedAmount = expectedBalances[code]
+
+    if (toCents((balances[code] ?? 0) - expectedAmount) !== 0) {
+      throw new Error(
+        `Opening balance seed for ${financialYearId} code ${code} should be ${formatAmount(expectedAmount)} but received ${formatAmount(balances[code] ?? 0)}.`
+      )
+    }
+  }
+
+  const total = Object.values(balances).reduce(
+    (sum, amount) => sum + toCents(amount),
+    0
+  )
+
+  if (total !== 0) {
+    throw new Error(
+      `Opening balances for ${financialYearId} do not balance: total ${formatAmount(total / 100)}.`
+    )
+  }
+
+  const fixedAssetOpening = balances['1600'] ?? 0
+  const fixedAssetMemoReserve = balances['3090'] ?? 0
+
+  if (toCents(fixedAssetOpening + fixedAssetMemoReserve) !== 0) {
+    throw new Error(
+      `Opening fixed assets for ${financialYearId} must be balanced by 3090 Fixed Asset Opening Reserve.`
+    )
+  }
+
+  const borrowingOpening = balances['2300'] ?? 0
+  const borrowingMemoReserve = balances['3095'] ?? 0
+
+  if (toCents(borrowingOpening + borrowingMemoReserve) !== 0) {
+    throw new Error(
+      `Opening borrowings for ${financialYearId} must be balanced by 3095 Borrowings Opening Reserve.`
+    )
+  }
+
+  const cashBackedOpening = (balances['1200'] ?? 0) + (balances['1210'] ?? 0)
+  const generalReserve = balances['3000'] ?? 0
+
+  if (toCents(cashBackedOpening + generalReserve) !== 0) {
+    throw new Error(
+      `General Reserve opening for ${financialYearId} must equal cash-backed AGAR reserves only.`
     )
   }
 }

@@ -46,6 +46,18 @@ function isReserveCode(code: string) {
   )
 }
 
+function isFixedAssetOpeningReserve(code: string) {
+  return code === '3090'
+}
+
+function isBorrowingsOpeningReserve(code: string) {
+  return code === '3095'
+}
+
+function isMemoOpeningReserve(code: string) {
+  return isFixedAssetOpeningReserve(code) || isBorrowingsOpeningReserve(code)
+}
+
 export async function runYearEndRollforward(formData: FormData) {
   const session = await auth.api.getSession({
     headers: await headers()
@@ -258,6 +270,12 @@ export async function runYearEndRollforward(formData: FormData) {
 
     const generalReserveCode =
       reserveCodes.find(code => code.code === '3000') ?? reserveCodes[0]
+    const fixedAssetOpeningReserveCode = reserveCodes.find(code =>
+      isFixedAssetOpeningReserve(code.code)
+    )
+    const borrowingsOpeningReserveCode = reserveCodes.find(code =>
+      isBorrowingsOpeningReserve(code.code)
+    )
 
     const normalOpeningBalanceByCodeId = new Map(
       balanceSheetCodes.map(code => {
@@ -276,24 +294,55 @@ export async function runYearEndRollforward(formData: FormData) {
       )
 
     const otherReserveOpeningTotal = reserveCodes
-      .filter(code => code.id !== generalReserveCode?.id)
+      .filter(
+        code =>
+          code.id !== generalReserveCode?.id &&
+          !isMemoOpeningReserve(code.code)
+      )
       .reduce(
         (total, code) => total + (normalOpeningBalanceByCodeId.get(code.id) ?? 0),
         0
       )
+    const fixedAssetClosingTotal = balanceSheetCodes
+      .filter(code => code.agarBox === 'BOX_9_FIXED_ASSETS')
+      .reduce(
+        (total, code) => total + (normalOpeningBalanceByCodeId.get(code.id) ?? 0),
+        0
+      )
+    const borrowingsClosingTotal = balanceSheetCodes
+      .filter(code => code.agarBox === 'BOX_10_BORROWINGS')
+      .reduce(
+        (total, code) => total + (normalOpeningBalanceByCodeId.get(code.id) ?? 0),
+        0
+      )
+    const fixedAssetOpeningReserve = fixedAssetOpeningReserveCode
+      ? -fixedAssetClosingTotal
+      : 0
+    const borrowingsOpeningReserve = borrowingsOpeningReserveCode
+      ? -borrowingsClosingTotal
+      : 0
+    const memoOpeningReserveTotal =
+      fixedAssetOpeningReserve + borrowingsOpeningReserve
 
     const generalReserveOpening = -(
-      nonReserveOpeningTotal + otherReserveOpeningTotal
+      nonReserveOpeningTotal +
+      otherReserveOpeningTotal +
+      memoOpeningReserveTotal
     )
 
     const nextOpeningBalances = balanceSheetCodes.map(code => {
       const openingBalance = openingByNominalCode.get(code.id) ?? 0
       const movement = movementByNominalCode.get(code.id) ?? 0
       const baseClosingBalance = openingBalance + movement
-      const nextOpeningBalance =
-        generalReserveCode?.id === code.id
-          ? generalReserveOpening
-          : baseClosingBalance
+      let nextOpeningBalance = baseClosingBalance
+
+      if (generalReserveCode?.id === code.id) {
+        nextOpeningBalance = generalReserveOpening
+      } else if (fixedAssetOpeningReserveCode?.id === code.id) {
+        nextOpeningBalance = fixedAssetOpeningReserve
+      } else if (borrowingsOpeningReserveCode?.id === code.id) {
+        nextOpeningBalance = borrowingsOpeningReserve
+      }
 
       const nextNominalCodeId = nextCodeIdByCode.get(code.code)
 

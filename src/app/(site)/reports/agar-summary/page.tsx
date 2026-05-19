@@ -193,6 +193,7 @@ export default async function AgarSummaryPage({
         coalesce(sum(
           case
             when ${nominalCodes.category} = 'Reserves'
+              and ${nominalCodes.code} not in ('3090', '3095')
             then ${nominalOpeningBalances.amount}
             else 0
           end
@@ -389,9 +390,7 @@ export default async function AgarSummaryPage({
 
   const openingFixedAssets = normalise(openingTotals?.fixedAssets)
   const openingBorrowings = Math.abs(normalise(openingTotals?.borrowings))
-  const balancesBroughtForward = normalise(
-    openingTotals?.cashAndShortTermInvestments
-  )
+  const balancesBroughtForward = Math.abs(normalise(openingTotals?.reserves))
 
   const precept = reportTotals.precept
   const otherReceipts = reportTotals.otherReceipts

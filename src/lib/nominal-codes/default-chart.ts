@@ -153,6 +153,36 @@ export const defaultChart: DefaultNominal[] = [
     isVatPayable: false,
     agarBox: null
   },
+  {
+    code: '3010',
+    name: 'Earmarked Reserves',
+    type: 'BALANCE_SHEET',
+    category: 'Reserves',
+    isBank: false,
+    isVatRecoverable: false,
+    isVatPayable: false,
+    agarBox: null
+  },
+  {
+    code: '3090',
+    name: 'Fixed Asset Opening Reserve (memo only)',
+    type: 'BALANCE_SHEET',
+    category: 'Reserves',
+    isBank: false,
+    isVatRecoverable: false,
+    isVatPayable: false,
+    agarBox: null
+  },
+  {
+    code: '3095',
+    name: 'Borrowings Opening Reserve (memo only)',
+    type: 'BALANCE_SHEET',
+    category: 'Reserves',
+    isBank: false,
+    isVatRecoverable: false,
+    isVatPayable: false,
+    agarBox: null
+  },
 
   // ─── Income ────────────────────────────────────────────────
   {

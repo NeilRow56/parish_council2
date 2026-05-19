@@ -14,7 +14,6 @@ import {
   journalLines,
   nominalCodes
 } from '@/db/schema/nominalLedger'
-import { JournalDetailClient } from './_components/journal-detail-client'
 import { ReverseJournalButton } from './_components/reverse-journal-button'
 
 function formatAmount(value: string | number | null) {
@@ -65,7 +64,10 @@ export default async function JournalDetailPage({
       description: journalEntries.description,
       source: journalEntries.source,
       financialYearId: journalEntries.financialYearId,
-      financialYearLabel: financialYears.label
+      financialYearLabel: financialYears.label,
+      financialYearClosed: financialYears.isClosed,
+      reversesJournalEntryId: journalEntries.reversesJournalEntryId,
+      reversedByJournalEntryId: journalEntries.reversedByJournalEntryId
     })
     .from(journalEntries)
     .leftJoin(
@@ -113,6 +115,11 @@ export default async function JournalDetailPage({
   const totalDebit = lines.reduce((sum, line) => sum + Number(line.debit), 0)
   const totalCredit = lines.reduce((sum, line) => sum + Number(line.credit), 0)
   const difference = totalDebit - totalCredit
+  const canReverse =
+    journal.source === 'MANUAL' &&
+    !journal.financialYearClosed &&
+    !journal.reversesJournalEntryId &&
+    !journal.reversedByJournalEntryId
 
   return (
     <main className='mx-auto max-w-5xl px-6 py-8'>
@@ -158,6 +165,34 @@ export default async function JournalDetailPage({
             <dd className='mt-1 font-medium'>{journal.source}</dd>
           </div>
 
+          {journal.reversesJournalEntryId ? (
+            <div>
+              <dt className='text-zinc-500'>Reverses journal</dt>
+              <dd className='mt-1 font-medium'>
+                <Link
+                  href={`/ledger/journals/${journal.reversesJournalEntryId}`}
+                  className='text-blue-600 hover:underline'
+                >
+                  View original journal
+                </Link>
+              </dd>
+            </div>
+          ) : null}
+
+          {journal.reversedByJournalEntryId ? (
+            <div>
+              <dt className='text-zinc-500'>Reversed by</dt>
+              <dd className='mt-1 font-medium'>
+                <Link
+                  href={`/ledger/journals/${journal.reversedByJournalEntryId}`}
+                  className='text-blue-600 hover:underline'
+                >
+                  View reversal journal
+                </Link>
+              </dd>
+            </div>
+          ) : null}
+
           <div className='md:col-span-2'>
             <dt className='text-zinc-500'>Description</dt>
             <dd className='mt-1 font-medium'>{journal.description}</dd>
@@ -167,13 +202,24 @@ export default async function JournalDetailPage({
 
       <div className='mb-4 flex items-center justify-between gap-4'>
         <p className='text-sm font-semibold'>
-          NB: Only descriptions can be edited. To correct amounts, reverse and
+          Posted journals are immutable. To correct a posting, reverse and
           repost the journal.
         </p>
 
         <div className='flex items-center gap-2'>
-          <ReverseJournalButton journalEntryId={journal.id} />
-          <JournalDetailClient journal={journal} lines={lines} />
+          {canReverse ? (
+            <ReverseJournalButton journalEntryId={journal.id} />
+          ) : (
+            <span className='rounded-md border bg-zinc-50 px-3 py-2 text-sm text-zinc-600'>
+              {journal.financialYearClosed
+                ? 'Closed-year journal'
+                : journal.reversedByJournalEntryId
+                  ? 'Already reversed'
+                  : journal.reversesJournalEntryId
+                    ? 'Reversal journal'
+                    : 'Not reversible here'}
+            </span>
+          )}
         </div>
       </div>
 

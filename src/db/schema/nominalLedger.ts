@@ -200,6 +200,10 @@ export const journalEntries = pgTable(
 
     sourceId: text('source_id'),
 
+    reversesJournalEntryId: text('reverses_journal_entry_id'),
+
+    reversedByJournalEntryId: text('reversed_by_journal_entry_id'),
+
     postedById: text('posted_by_id'),
 
     attachmentUrl: text('attachment_url'),

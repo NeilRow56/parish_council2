@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { RotateCcw } from 'lucide-react'
 import { toast } from 'sonner'
 import { reverseJournalAction } from '../actions'
@@ -10,6 +11,7 @@ export function ReverseJournalButton({
 }: {
   journalEntryId: string
 }) {
+  const router = useRouter()
   const [isPending, startTransition] = useTransition()
   const [confirming, setConfirming] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -24,7 +26,10 @@ export function ReverseJournalButton({
 
     startTransition(async () => {
       try {
-        await reverseJournalAction(journalEntryId)
+        const result = await reverseJournalAction(journalEntryId)
+        toast.success('Journal reversed.')
+        router.push(`/ledger/journals/${result.journalEntryId}`)
+        router.refresh()
       } catch (err) {
         const message =
           err instanceof Error ? err.message : 'Could not reverse journal.'

@@ -4,68 +4,15 @@
 
 import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
-import { redirect } from 'next/navigation'
 import { and, eq } from 'drizzle-orm'
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
-import { journalEntries, journalLines } from '@/db/schema/nominalLedger'
-
-export async function updateJournalDescriptionsAction(input: {
-  journalEntryId: string
-  description: string
-  lines: Array<{
-    id: string
-    description: string
-  }>
-}) {
-  const session = await auth.api.getSession({
-    headers: await headers()
-  })
-
-  if (!session?.user?.parishCouncilId) {
-    throw new Error('Unauthorised')
-  }
-
-  const parishCouncilId = session.user.parishCouncilId
-  const description = input.description.trim()
-
-  if (!description) {
-    throw new Error('Journal description is required.')
-  }
-
-  await db.transaction(async trx => {
-    await trx
-      .update(journalEntries)
-      .set({
-        description
-      })
-      .where(
-        and(
-          eq(journalEntries.id, input.journalEntryId),
-          eq(journalEntries.parishCouncilId, parishCouncilId)
-        )
-      )
-
-    for (const line of input.lines) {
-      await trx
-        .update(journalLines)
-        .set({
-          description: line.description.trim()
-        })
-        .where(
-          and(
-            eq(journalLines.id, line.id),
-            eq(journalLines.journalEntryId, input.journalEntryId),
-            eq(journalLines.parishCouncilId, parishCouncilId)
-          )
-        )
-    }
-  })
-
-  revalidatePath(`/ledger/journals/${input.journalEntryId}`)
-  revalidatePath('/ledger')
-}
+import {
+  financialYears,
+  journalEntries,
+  journalLines
+} from '@/db/schema/nominalLedger'
 
 export async function reverseJournalAction(journalEntryId: string) {
   const session = await auth.api.getSession({
@@ -80,8 +27,22 @@ export async function reverseJournalAction(journalEntryId: string) {
   const userId = session.user.id
 
   const [originalJournal] = await db
-    .select()
+    .select({
+      id: journalEntries.id,
+      parishCouncilId: journalEntries.parishCouncilId,
+      financialYearId: journalEntries.financialYearId,
+      reference: journalEntries.reference,
+      source: journalEntries.source,
+      sourceId: journalEntries.sourceId,
+      attachmentUrl: journalEntries.attachmentUrl,
+      attachmentName: journalEntries.attachmentName,
+      attachmentKey: journalEntries.attachmentKey,
+      reversesJournalEntryId: journalEntries.reversesJournalEntryId,
+      reversedByJournalEntryId: journalEntries.reversedByJournalEntryId,
+      financialYearClosed: financialYears.isClosed
+    })
     .from(journalEntries)
+    .innerJoin(financialYears, eq(financialYears.id, journalEntries.financialYearId))
     .where(
       and(
         eq(journalEntries.id, journalEntryId),
@@ -92,6 +53,22 @@ export async function reverseJournalAction(journalEntryId: string) {
 
   if (!originalJournal) {
     throw new Error('Journal not found.')
+  }
+
+  if (originalJournal.source !== 'MANUAL') {
+    throw new Error('Only manual journals can be reversed here.')
+  }
+
+  if (originalJournal.financialYearClosed) {
+    throw new Error('Closed-year journals cannot be reversed.')
+  }
+
+  if (originalJournal.reversedByJournalEntryId) {
+    throw new Error('This journal has already been reversed.')
+  }
+
+  if (originalJournal.reversesJournalEntryId) {
+    throw new Error('Reversal journals cannot be reversed.')
   }
 
   const originalLines = await db
@@ -123,6 +100,7 @@ export async function reverseJournalAction(journalEntryId: string) {
         description: `Reversal of ${originalJournal.reference}`,
         source: 'MANUAL',
         sourceId: originalJournal.id,
+        reversesJournalEntryId: originalJournal.id,
         postedById: userId,
         attachmentUrl: originalJournal.attachmentUrl,
         attachmentName: originalJournal.attachmentName,
@@ -131,6 +109,18 @@ export async function reverseJournalAction(journalEntryId: string) {
       .returning()
 
     reversalEntryId = reversalEntry.id
+
+    await trx
+      .update(journalEntries)
+      .set({
+        reversedByJournalEntryId: reversalEntry.id
+      })
+      .where(
+        and(
+          eq(journalEntries.id, originalJournal.id),
+          eq(journalEntries.parishCouncilId, parishCouncilId)
+        )
+      )
 
     await trx.insert(journalLines).values(
       originalLines.map(line => ({
@@ -154,5 +144,5 @@ export async function reverseJournalAction(journalEntryId: string) {
   revalidatePath(`/ledger/journals/${journalEntryId}`)
   revalidatePath(`/ledger/journals/${reversalEntryId}`)
 
-  redirect(`/ledger/journals/${reversalEntryId}`)
+  return { success: true, journalEntryId: reversalEntryId }
 }

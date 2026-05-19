@@ -31,7 +31,8 @@ Rerunning `bun run demo:reset` recreates the demo login, resets the password, ma
 
 ## What It Contains
 
-- Demo parish council details and VAT 126 settings.
+- Demo parish council details, VAT 126 settings, and receipts/payments AGAR
+  accounting basis.
 - A closed prior year, `2025/26`, with a completed year-end run.
 - A current open year, `2026/27`, ready for live workflow demonstrations.
 - A fixed demo review/reconciliation date of `2026-05-18`, with current-year ledger and inbox demo items dated on or before that date.
@@ -47,6 +48,8 @@ Rerunning `bun run demo:reset` recreates the demo login, resets the password, ma
 - Open Bank Reconciliation and review pending bank feed items, the unmatched manual total, and the resulting Difference.
 - Expand `Explain` on the current account row and review the unmatched manual cheque `MAN-2026-CHQ-1042` as an uncleared payment with no bank feed item yet.
 - Open VAT 126/VAT return reporting and confirm recoverable VAT is visible.
+- Open the AGAR summary and confirm receipts/payments reporting shows gross
+  cash receipts and payments while VAT remains available for reclaim reporting.
 - Export trial balance, income and expenditure, AGAR summary, budget, bank reconciliation, large payments, fixed assets, and borrowings reports to PDF.
 - View the closed `2025/26` historic reports.
 - Use the open `2026/27` year to demonstrate year-end close, then run `bun run demo:reset` to restore the same starting point.

@@ -42,6 +42,9 @@ export const parishCouncils = pgTable('parish_councils', {
   vatClaimMethod: text('vat_claim_method').notNull().default('VAT126'),
   // VAT126 | VAT_RETURN
 
+  accountingBasis: text('accounting_basis').default('RECEIPTS_AND_PAYMENTS'),
+  // RECEIPTS_AND_PAYMENTS | INCOME_AND_EXPENDITURE
+
   onboardingCompletedAt: timestamp('onboarding_completed_at', {
     mode: 'date'
   }),

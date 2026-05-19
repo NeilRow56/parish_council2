@@ -22,6 +22,7 @@ import Link from 'next/link'
 
 type VatStatus = 'NOT_REGISTERED' | 'REGISTERED'
 type VatClaimFrequency = 'ANNUAL' | 'QUARTERLY' | 'MONTHLY'
+type AccountingBasis = 'RECEIPTS_AND_PAYMENTS' | 'INCOME_AND_EXPENDITURE'
 
 type CouncilFormInitialValues = {
   name: string
@@ -37,6 +38,7 @@ type CouncilFormInitialValues = {
   vatStatus: string
   vatRegistrationNumber: string | null
   vatClaimFrequency: string
+  accountingBasis?: string | null
 }
 
 type Props = {
@@ -100,6 +102,14 @@ export function CouncilOnboardingForm({
       : initialValues.vatClaimFrequency === 'MONTHLY'
         ? 'MONTHLY'
         : 'ANNUAL'
+  )
+
+  const [accountingBasis, setAccountingBasis] = useState<AccountingBasis>(
+    initialValues.accountingBasis === 'RECEIPTS_AND_PAYMENTS'
+      ? 'RECEIPTS_AND_PAYMENTS'
+      : initialValues.accountingBasis === 'INCOME_AND_EXPENDITURE'
+        ? 'INCOME_AND_EXPENDITURE'
+        : 'INCOME_AND_EXPENDITURE'
   )
 
   useEffect(() => {
@@ -252,6 +262,43 @@ export function CouncilOnboardingForm({
           Set opening balances
         </Link>
       </section>
+      <Card>
+        <CardHeader>
+          <CardTitle>Accounting basis</CardTitle>
+        </CardHeader>
+
+        <CardContent className='space-y-3'>
+          <div className='grid gap-2'>
+            <Label htmlFor='accountingBasis'>AGAR reporting basis</Label>
+            <Select
+              name='accountingBasis'
+              value={accountingBasis}
+              onValueChange={value => {
+                setAccountingBasis(value as AccountingBasis)
+                markDirty()
+              }}
+            >
+              <SelectTrigger id='accountingBasis'>
+                <SelectValue placeholder='Select accounting basis' />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value='RECEIPTS_AND_PAYMENTS'>
+                  Receipts and payments
+                </SelectItem>
+                <SelectItem value='INCOME_AND_EXPENDITURE'>
+                  Income and expenditure (accruals basis)
+                </SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+
+          <p className='text-muted-foreground text-sm'>
+            Receipts and payments AGAR totals use gross cash received and paid,
+            including VAT where it forms part of a payment. Income and
+            expenditure keeps the net/VAT split used by accruals reporting.
+          </p>
+        </CardContent>
+      </Card>
       <Card>
         <CardHeader>
           <CardTitle className='flex items-center gap-2'>

@@ -81,7 +81,8 @@ export async function registerAction(formData: FormData) {
     vatStatus: 'NOT_REGISTERED',
     vatRegistrationNumber: null,
     vatClaimFrequency: 'ANNUAL',
-    vatClaimMethod: 'VAT126'
+    vatClaimMethod: 'VAT126',
+    accountingBasis: 'RECEIPTS_AND_PAYMENTS'
   })
 
   await ensureDefaultReserve(parishCouncilId)
@@ -129,7 +130,9 @@ export async function completeCouncilOnboardingAction(formData: FormData) {
     canRecoverVat: formData.get('canRecoverVat') ?? 'off',
     vatStatus: formData.get('vatStatus') ?? 'NOT_REGISTERED',
     vatRegistrationNumber: formData.get('vatRegistrationNumber'),
-    vatClaimFrequency: formData.get('vatClaimFrequency') ?? 'ANNUAL'
+    vatClaimFrequency: formData.get('vatClaimFrequency') ?? 'ANNUAL',
+    accountingBasis:
+      formData.get('accountingBasis') ?? 'RECEIPTS_AND_PAYMENTS'
   })
 
   if (!parsed.success) {
@@ -165,6 +168,7 @@ export async function completeCouncilOnboardingAction(formData: FormData) {
           : null,
       vatClaimFrequency: data.vatClaimFrequency,
       vatClaimMethod: normaliseVatClaimMethod(finalVatStatus),
+      accountingBasis: data.accountingBasis,
 
       onboardingCompletedAt: new Date(),
       updatedAt: new Date()

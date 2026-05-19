@@ -175,6 +175,7 @@ async function run() {
       vatStatus: 'NOT_REGISTERED',
       vatClaimFrequency: 'QUARTERLY',
       vatClaimMethod: 'VAT126',
+      accountingBasis: 'RECEIPTS_AND_PAYMENTS',
       onboardingCompletedAt: new Date('2025-04-01T09:00:00Z'),
       createdAt: new Date('2025-04-01T09:00:00Z'),
       updatedAt: new Date('2026-05-01T09:00:00Z')

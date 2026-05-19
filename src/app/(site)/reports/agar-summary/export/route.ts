@@ -40,9 +40,33 @@ type AgarRow = {
   amount: number
 }
 
+type AccountingBasis = 'RECEIPTS_AND_PAYMENTS' | 'INCOME_AND_EXPENDITURE'
+
+type AgarTotals = {
+  precept: number
+  otherReceipts: number
+  staffCosts: number
+  loanRepayments: number
+  otherPayments: number
+  cashAndShortTermInvestments: number
+  fixedAssets: number
+  borrowings: number
+}
+
+type AgarLine = {
+  journalEntryId: string
+  agarBox: string | null
+  isBank: boolean
+  isVatRecoverable: boolean
+  isVatPayable: boolean
+  debit: string
+  credit: string
+}
+
 type AgarReport = {
   councilName: string | null
   financialYear: FinancialYear
+  accountingBasis: AccountingBasis
   rows: AgarRow[]
 }
 
@@ -62,6 +86,162 @@ function formatDate(value: string | Date) {
 
 function normalise(value: unknown) {
   return Number(value ?? 0)
+}
+
+function getEffectiveAccountingBasis(
+  value: string | null | undefined
+): AccountingBasis {
+  if (value === 'RECEIPTS_AND_PAYMENTS') return 'RECEIPTS_AND_PAYMENTS'
+  return 'INCOME_AND_EXPENDITURE'
+}
+
+function getAccountingBasisLabel(accountingBasis: AccountingBasis) {
+  return accountingBasis === 'RECEIPTS_AND_PAYMENTS'
+    ? 'Receipts and payments'
+    : 'Income and expenditure (accruals basis)'
+}
+
+function allocateGrossAmount({
+  amount,
+  candidates,
+  totals
+}: {
+  amount: number
+  candidates: { box: string; weight: number }[]
+  totals: AgarTotals
+}) {
+  const positiveCandidates = candidates.filter(candidate => candidate.weight > 0)
+  const totalWeight = positiveCandidates.reduce(
+    (sum, candidate) => sum + candidate.weight,
+    0
+  )
+
+  if (amount <= 0 || totalWeight <= 0) return
+
+  for (const candidate of positiveCandidates) {
+    const allocated = (amount * candidate.weight) / totalWeight
+
+    if (candidate.box === 'BOX_2_PRECEPT') totals.precept += allocated
+    if (candidate.box === 'BOX_3_OTHER_RECEIPTS') {
+      totals.otherReceipts += allocated
+    }
+    if (candidate.box === 'BOX_4_STAFF_COSTS') totals.staffCosts += allocated
+    if (candidate.box === 'BOX_5_LOAN_REPAYMENTS') {
+      totals.loanRepayments += allocated
+    }
+    if (candidate.box === 'BOX_6_OTHER_PAYMENTS') {
+      totals.otherPayments += allocated
+    }
+  }
+}
+
+function calculateReceiptsAndPaymentsTotals(
+  baseTotals: AgarTotals,
+  lines: AgarLine[]
+): AgarTotals {
+  const totals = {
+    ...baseTotals,
+    precept: 0,
+    otherReceipts: 0,
+    staffCosts: 0,
+    loanRepayments: 0,
+    otherPayments: 0
+  }
+
+  const linesByJournal = new Map<string, AgarLine[]>()
+
+  for (const line of lines) {
+    const existingLines = linesByJournal.get(line.journalEntryId) ?? []
+    existingLines.push(line)
+    linesByJournal.set(line.journalEntryId, existingLines)
+  }
+
+  for (const journalLinesForEntry of linesByJournal.values()) {
+    const bankDebit = journalLinesForEntry
+      .filter(line => line.isBank)
+      .reduce((sum, line) => sum + normalise(line.debit), 0)
+    const bankCredit = journalLinesForEntry
+      .filter(line => line.isBank)
+      .reduce((sum, line) => sum + normalise(line.credit), 0)
+
+    const nonBankReportingLines = journalLinesForEntry.filter(
+      line => !line.isBank && !line.isVatRecoverable && !line.isVatPayable
+    )
+
+    const incomeCandidates = nonBankReportingLines
+      .filter(
+        line =>
+          line.agarBox === 'BOX_2_PRECEPT' ||
+          line.agarBox === 'BOX_3_OTHER_RECEIPTS'
+      )
+      .map(line => ({
+        box: line.agarBox as string,
+        weight: normalise(line.credit) - normalise(line.debit)
+      }))
+
+    const paymentCandidates = nonBankReportingLines
+      .filter(
+        line =>
+          line.agarBox === 'BOX_4_STAFF_COSTS' ||
+          line.agarBox === 'BOX_5_LOAN_REPAYMENTS' ||
+          line.agarBox === 'BOX_6_OTHER_PAYMENTS'
+      )
+      .map(line => ({
+        box: line.agarBox as string,
+        weight: normalise(line.debit) - normalise(line.credit)
+      }))
+
+    const hasLoanPaymentLine = paymentCandidates.some(
+      candidate => candidate.box === 'BOX_5_LOAN_REPAYMENTS'
+    )
+
+    allocateGrossAmount({
+      amount: bankDebit,
+      candidates: incomeCandidates,
+      totals
+    })
+
+    if (bankDebit > 0 && incomeCandidates.length === 0) {
+      const hasVatControlCredit = journalLinesForEntry.some(
+        line =>
+          (line.isVatRecoverable || line.isVatPayable) &&
+          normalise(line.credit) > 0
+      )
+      const hasBorrowingReceipt = nonBankReportingLines.some(
+        line =>
+          line.agarBox === 'BOX_10_BORROWINGS' &&
+          normalise(line.credit) - normalise(line.debit) > 0
+      )
+
+      if (hasVatControlCredit || hasBorrowingReceipt) {
+        totals.otherReceipts += bankDebit
+      }
+    }
+
+    allocateGrossAmount({
+      amount: bankCredit,
+      candidates: hasLoanPaymentLine
+        ? paymentCandidates.filter(
+            candidate => candidate.box === 'BOX_5_LOAN_REPAYMENTS'
+          )
+        : paymentCandidates,
+      totals
+    })
+
+    if (bankCredit > 0 && paymentCandidates.length === 0) {
+      const hasFixedAssetPurchase = nonBankReportingLines.some(
+        line =>
+          line.agarBox === 'BOX_9_FIXED_ASSETS' &&
+          normalise(line.debit) - normalise(line.credit) > 0
+      )
+
+      if (hasFixedAssetPurchase) {
+        totals.otherPayments += bankCredit
+      }
+    }
+  }
+
+  return totals
 }
 
 function escapeFilename(value: string) {
@@ -221,10 +401,15 @@ async function getAgarReport({
   financialYear: FinancialYear
 }): Promise<AgarReport> {
   const [council] = await db
-    .select({ name: parishCouncils.name })
+    .select({
+      name: parishCouncils.name,
+      accountingBasis: parishCouncils.accountingBasis
+    })
     .from(parishCouncils)
     .where(eq(parishCouncils.id, parishCouncilId))
     .limit(1)
+
+  const accountingBasis = getEffectiveAccountingBasis(council?.accountingBasis)
 
   const [openingTotals] = await db
     .select({
@@ -377,23 +562,70 @@ async function getAgarReport({
       )
     )
 
+  const baseTotals: AgarTotals = {
+    precept: normalise(totals?.precept),
+    otherReceipts: normalise(totals?.otherReceipts),
+    staffCosts: normalise(totals?.staffCosts),
+    loanRepayments: normalise(totals?.loanRepayments),
+    otherPayments: normalise(totals?.otherPayments),
+    cashAndShortTermInvestments: normalise(totals?.cashAndShortTermInvestments),
+    fixedAssets: normalise(totals?.fixedAssets),
+    borrowings: normalise(totals?.borrowings)
+  }
+
+  const agarLineRows =
+    accountingBasis === 'RECEIPTS_AND_PAYMENTS'
+      ? await db
+          .select({
+            journalEntryId: journalLines.journalEntryId,
+            agarBox: nominalCodes.agarBox,
+            isBank: nominalCodes.isBank,
+            isVatRecoverable: nominalCodes.isVatRecoverable,
+            isVatPayable: nominalCodes.isVatPayable,
+            debit: journalLines.debit,
+            credit: journalLines.credit
+          })
+          .from(journalLines)
+          .innerJoin(
+            journalEntries,
+            eq(journalLines.journalEntryId, journalEntries.id)
+          )
+          .innerJoin(
+            nominalCodes,
+            eq(journalLines.nominalCodeId, nominalCodes.id)
+          )
+          .where(
+            and(
+              eq(journalEntries.parishCouncilId, parishCouncilId),
+              eq(journalEntries.financialYearId, financialYear.id),
+              gte(journalEntries.date, financialYear.startDate),
+              lte(journalEntries.date, financialYear.endDate)
+            )
+          )
+      : []
+
+  const reportTotals =
+    accountingBasis === 'RECEIPTS_AND_PAYMENTS'
+      ? calculateReceiptsAndPaymentsTotals(baseTotals, agarLineRows)
+      : baseTotals
+
   const balancesBroughtForward = normalise(openingTotals?.reserves)
 
-  const precept = normalise(totals?.precept)
-  const otherReceipts = normalise(totals?.otherReceipts)
-  const staffCosts = normalise(totals?.staffCosts)
-  const loanRepayments = normalise(totals?.loanRepayments)
-  const otherPayments = normalise(totals?.otherPayments)
+  const precept = reportTotals.precept
+  const otherReceipts = reportTotals.otherReceipts
+  const staffCosts = reportTotals.staffCosts
+  const loanRepayments = reportTotals.loanRepayments
+  const otherPayments = reportTotals.otherPayments
 
   const cashAndShortTermInvestments =
     normalise(openingTotals?.cashAndShortTermInvestments) +
-    normalise(totals?.cashAndShortTermInvestments)
+    reportTotals.cashAndShortTermInvestments
 
   const fixedAssets =
-    normalise(openingTotals?.fixedAssets) + normalise(totals?.fixedAssets)
+    normalise(openingTotals?.fixedAssets) + reportTotals.fixedAssets
 
   const borrowings =
-    normalise(openingTotals?.borrowings) + normalise(totals?.borrowings)
+    normalise(openingTotals?.borrowings) + reportTotals.borrowings
 
   const balancesCarriedForward =
     balancesBroughtForward +
@@ -406,6 +638,7 @@ async function getAgarReport({
   return {
     councilName: council?.name ?? null,
     financialYear,
+    accountingBasis,
     rows: [
       {
         box: '1',
@@ -534,7 +767,8 @@ function agarPdf(report: AgarReport) {
           `${formatDate(report.financialYear.startDate)} to ${formatDate(
             report.financialYear.endDate
           )}`
-        )
+        ),
+        metaCard('Accounting basis', getAccountingBasisLabel(report.accountingBasis))
       ),
       h(
         View,

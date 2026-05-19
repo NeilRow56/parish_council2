@@ -44,7 +44,11 @@ export const councilOnboardingSchema = z
 
     vatClaimFrequency: z
       .enum(['ANNUAL', 'QUARTERLY', 'MONTHLY'])
-      .default('ANNUAL')
+      .default('ANNUAL'),
+
+    accountingBasis: z
+      .enum(['RECEIPTS_AND_PAYMENTS', 'INCOME_AND_EXPENDITURE'])
+      .default('RECEIPTS_AND_PAYMENTS')
   })
   .superRefine((data, ctx) => {
     if (

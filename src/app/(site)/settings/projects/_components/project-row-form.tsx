@@ -116,6 +116,7 @@ export function ProjectRowForm({ project, reserveOptions }: Props) {
           <button
             type='submit'
             formAction={deleteProjectAction}
+            disabled={isPending}
             className='text-destructive rounded border border-solid border-red-600 px-2 py-1 text-sm'
           >
             Delete

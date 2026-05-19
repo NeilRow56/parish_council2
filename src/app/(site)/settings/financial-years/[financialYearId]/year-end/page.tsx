@@ -14,9 +14,9 @@ import {
   yearEndRuns
 } from '@/db/schema/nominalLedger'
 import { auth } from '@/lib/auth'
+import { PendingSubmitButton } from '@/components/shared/pending-submit-button'
 
 import { Badge } from '@/components/ui/badge'
-import { Button } from '@/components/ui/button'
 import {
   Card,
   CardContent,
@@ -39,6 +39,9 @@ import {
 type PageProps = {
   params: Promise<{
     financialYearId: string
+  }>
+  searchParams?: Promise<{
+    yearEndError?: string
   }>
 }
 
@@ -75,8 +78,9 @@ function isReserveCode(code: string) {
   return numericCode >= 3000 && numericCode < 4000
 }
 
-export default async function YearEndPage({ params }: PageProps) {
+export default async function YearEndPage({ params, searchParams }: PageProps) {
   const { financialYearId } = await params
+  const query = await searchParams
 
   const session = await auth.api.getSession({
     headers: await headers()
@@ -490,6 +494,12 @@ export default async function YearEndPage({ params }: PageProps) {
         </CardHeader>
 
         <CardContent>
+          {query?.yearEndError ? (
+            <p className='mb-4 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700'>
+              {query.yearEndError}
+            </p>
+          ) : null}
+
           <form action={runYearEndRollforward}>
             <input
               type='hidden'
@@ -497,9 +507,12 @@ export default async function YearEndPage({ params }: PageProps) {
               value={financialYear.id}
             />
 
-            <Button type='submit' disabled={!canRunYearEnd}>
-              Run year end
-            </Button>
+            <PendingSubmitButton
+              idleLabel='Run year end'
+              pendingLabel='Running year end...'
+              disabled={!canRunYearEnd}
+              className='bg-primary text-primary-foreground hover:bg-primary/90 inline-flex h-10 items-center justify-center rounded-md px-4 py-2 text-sm font-medium shadow disabled:pointer-events-none disabled:opacity-50'
+            />
           </form>
         </CardContent>
       </Card>

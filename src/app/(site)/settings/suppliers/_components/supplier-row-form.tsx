@@ -40,7 +40,8 @@ export function SupplierRowForm({
 
   useEffect(() => {
     if (state.success) toast.success(state.success)
-  }, [state.success])
+    if (state.error) toast.error(state.error)
+  }, [state.success, state.error])
 
   return (
     <form action={formAction} className='px-4 py-4'>
@@ -92,6 +93,7 @@ export function SupplierRowForm({
           <button
             type='submit'
             formAction={deleteSupplierAction}
+            disabled={isPending}
             className='text-destructive rounded border border-red-600 px-2 py-1 text-sm'
           >
             Delete

@@ -101,6 +101,7 @@ export function VatRateRowForm({ vatRate }: Props) {
             <button
               type='submit'
               formAction={deleteVatRateAction}
+              disabled={isPending}
               className='text-destructive rounded border border-solid border-red-600 px-2 py-1 text-sm'
             >
               Delete

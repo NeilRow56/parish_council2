@@ -3,6 +3,7 @@
 import { useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Save } from 'lucide-react'
+import { toast } from 'sonner'
 import { updateJournalDescriptionsAction } from '../actions'
 
 type JournalLineInput = {
@@ -60,6 +61,13 @@ export function EditJournalForm({
   function handleSave() {
     setError(null)
 
+    if (!journalDescription.trim()) {
+      const message = 'Journal description is required.'
+      setError(message)
+      toast.error(message)
+      return
+    }
+
     startTransition(async () => {
       try {
         await updateJournalDescriptionsAction({
@@ -68,11 +76,13 @@ export function EditJournalForm({
           lines: lineDescriptions
         })
 
+        toast.success('Journal updated.')
         router.refresh()
       } catch (err) {
-        setError(
+        const message =
           err instanceof Error ? err.message : 'Could not update journal.'
-        )
+        setError(message)
+        toast.error(message)
       }
     })
   }

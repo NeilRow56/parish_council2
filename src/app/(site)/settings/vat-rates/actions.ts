@@ -161,7 +161,7 @@ export async function deleteVatRateAction(formData: FormData) {
   const id = clean(formData.get('id'))
 
   if (!id) {
-    throw new Error('VAT rate id is required.')
+    return
   }
 
   const [rate] = await db
@@ -176,13 +176,11 @@ export async function deleteVatRateAction(formData: FormData) {
     .limit(1)
 
   if (!rate) {
-    throw new Error('VAT rate not found.')
+    return
   }
 
   if (rate.isSystem) {
-    throw new Error(
-      'System VAT rates cannot be deleted. Deactivate them instead.'
-    )
+    return
   }
 
   await db

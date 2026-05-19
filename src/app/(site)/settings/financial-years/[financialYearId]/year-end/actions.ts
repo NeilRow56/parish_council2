@@ -64,11 +64,14 @@ export async function runYearEndRollforward(formData: FormData) {
   const financialYearId = String(formData.get('financialYearId') || '')
 
   if (!financialYearId) {
-    throw new Error('Financial year is required')
+    redirect('/settings/financial-years?yearEndError=Financial+year+is+required')
   }
 
-  const nextFinancialYearId = await db.transaction(async tx => {
-    const currentYear = await tx.query.financialYears.findFirst({
+  let nextFinancialYearId: string
+
+  try {
+    nextFinancialYearId = await db.transaction(async tx => {
+      const currentYear = await tx.query.financialYears.findFirst({
       where: and(
         eq(financialYears.id, financialYearId),
         eq(financialYears.parishCouncilId, parishCouncilId)
@@ -375,8 +378,19 @@ export async function runYearEndRollforward(formData: FormData) {
       })
       .where(eq(yearEndRuns.id, yearEndRun.id))
 
-    return nextYear.id
-  })
+      return nextYear.id
+    })
+  } catch (error) {
+    const message = encodeURIComponent(
+      error instanceof Error
+        ? error.message
+        : 'Could not run year end. Please check the year-end checks and try again.'
+    )
+
+    redirect(
+      `/settings/financial-years/${financialYearId}/year-end?yearEndError=${message}`
+    )
+  }
 
   void nextFinancialYearId
 

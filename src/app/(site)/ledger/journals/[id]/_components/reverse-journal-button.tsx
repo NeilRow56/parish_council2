@@ -2,6 +2,7 @@
 
 import { useState, useTransition } from 'react'
 import { RotateCcw } from 'lucide-react'
+import { toast } from 'sonner'
 import { reverseJournalAction } from '../actions'
 
 export function ReverseJournalButton({
@@ -25,9 +26,10 @@ export function ReverseJournalButton({
       try {
         await reverseJournalAction(journalEntryId)
       } catch (err) {
-        setError(
+        const message =
           err instanceof Error ? err.message : 'Could not reverse journal.'
-        )
+        setError(message)
+        toast.error(message)
       }
     })
   }

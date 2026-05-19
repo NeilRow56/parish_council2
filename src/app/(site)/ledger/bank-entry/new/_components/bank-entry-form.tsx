@@ -623,7 +623,9 @@ export function BankEntryForm({
         }
 
         const message =
-          'Could not post bank entry. Please check the details and try again.'
+          err instanceof Error
+            ? err.message
+            : 'Could not post bank entry. Please check the details and try again.'
 
         setError(message)
         toast.error(message)

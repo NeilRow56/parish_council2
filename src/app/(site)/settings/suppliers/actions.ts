@@ -132,7 +132,7 @@ export async function deleteSupplierAction(formData: FormData) {
   const id = clean(formData.get('id'))
 
   if (!id) {
-    throw new Error('Supplier id is required.')
+    return
   }
 
   await db

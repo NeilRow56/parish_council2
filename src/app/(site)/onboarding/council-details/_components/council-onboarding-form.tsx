@@ -47,6 +47,7 @@ type Props = {
   submitLabel?: string
   isOnboarding?: boolean
   saved?: boolean
+  error?: string
 }
 
 function SubmitButton({
@@ -82,7 +83,8 @@ export function CouncilOnboardingForm({
   initialValues,
   submitLabel = 'Save changes',
   isOnboarding = false,
-  saved = false
+  saved = false,
+  error
 }: Props) {
   const [isDirty, setIsDirty] = useState(false)
 
@@ -417,6 +419,12 @@ export function CouncilOnboardingForm({
       {saved && !isDirty && (
         <div className='rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700'>
           Changes saved.
+        </div>
+      )}
+
+      {error && !isDirty && (
+        <div className='rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700'>
+          {error}
         </div>
       )}
 

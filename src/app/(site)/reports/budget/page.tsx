@@ -7,6 +7,7 @@ import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
+import { PendingSubmitButton } from '@/components/shared/pending-submit-button'
 
 import {
   budgets,
@@ -27,6 +28,12 @@ type BudgetRow = {
   budget: number
   variance: number
   notes: string
+}
+
+type BudgetSearchParams = {
+  financialYearId?: string
+  budgetError?: string
+  budgetSaved?: string
 }
 
 function formatAmount(value: number) {
@@ -71,8 +78,18 @@ async function saveBudget(formData: FormData) {
   const parishCouncilId = session.user.parishCouncilId
   const financialYearId = String(formData.get('financialYearId') ?? '')
 
+  function redirectWithStatus(params: { error?: string; saved?: boolean }) {
+    const searchParams = new URLSearchParams()
+
+    if (financialYearId) searchParams.set('financialYearId', financialYearId)
+    if (params.error) searchParams.set('budgetError', params.error)
+    if (params.saved) searchParams.set('budgetSaved', '1')
+
+    redirect(`/reports/budget?${searchParams.toString()}`)
+  }
+
   if (!financialYearId) {
-    throw new Error('Missing financial year')
+    redirect('/reports/budget?budgetError=Missing+financial+year')
   }
 
   const [financialYear] = await db
@@ -88,7 +105,9 @@ async function saveBudget(formData: FormData) {
     .limit(1)
 
   if (!financialYear) {
-    throw new Error('Budgets cannot be changed for a closed financial year.')
+    redirectWithStatus({
+      error: 'Budgets cannot be changed for a closed financial year.'
+    })
   }
 
   const entries = Array.from(formData.entries()).filter(([key]) =>
@@ -99,6 +118,12 @@ async function saveBudget(formData: FormData) {
     const nominalCodeId = key.replace('budget:', '')
     const rawValue = String(value ?? '').trim()
     const amount = rawValue === '' ? '0' : rawValue
+
+    if (!Number.isFinite(Number(amount))) {
+      redirectWithStatus({
+        error: 'Budget amounts must be valid numbers.'
+      })
+    }
 
     await db
       .insert(budgets)
@@ -121,16 +146,13 @@ async function saveBudget(formData: FormData) {
   }
 
   revalidatePath('/reports/budget')
-}
-
-type SearchParams = {
-  financialYearId?: string
+  redirectWithStatus({ saved: true })
 }
 
 export default async function BudgetPage({
   searchParams
 }: {
-  searchParams?: Promise<SearchParams>
+  searchParams?: Promise<BudgetSearchParams>
 }) {
   const params = await searchParams
 
@@ -326,6 +348,16 @@ export default async function BudgetPage({
               Closed year: budgets are read-only.
             </p>
           ) : null}
+          {params?.budgetError ? (
+            <p className='mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700'>
+              {params.budgetError}
+            </p>
+          ) : null}
+          {params?.budgetSaved === '1' ? (
+            <p className='mt-3 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700'>
+              Budget saved.
+            </p>
+          ) : null}
         </div>
 
         <ExportPdfButton href={exportHref} />
@@ -336,12 +368,11 @@ export default async function BudgetPage({
 
         {!financialYear.isClosed ? (
           <div className='mb-6 flex justify-end'>
-            <button
-              type='submit'
-              className='rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800'
-            >
-              Save budget
-            </button>
+            <PendingSubmitButton
+              idleLabel='Save budget'
+              pendingLabel='Saving...'
+              className='rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50'
+            />
           </div>
         ) : null}
 

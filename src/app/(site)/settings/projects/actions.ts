@@ -124,7 +124,7 @@ export async function deleteProjectAction(formData: FormData) {
   const id = clean(formData.get('id'))
 
   if (!id) {
-    throw new Error('Project id is required.')
+    return
   }
 
   await db

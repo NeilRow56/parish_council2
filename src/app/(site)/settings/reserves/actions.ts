@@ -117,7 +117,7 @@ export async function deleteReserveAction(formData: FormData) {
   const id = clean(formData.get('id'))
 
   if (!id) {
-    throw new Error('Reserve id is required.')
+    return
   }
 
   const existing = await db.query.reserves.findFirst({
@@ -128,11 +128,11 @@ export async function deleteReserveAction(formData: FormData) {
   })
 
   if (!existing) {
-    throw new Error('Reserve not found.')
+    return
   }
 
   if (existing.isDefault) {
-    throw new Error('The default General reserve cannot be deleted.')
+    return
   }
 
   await db

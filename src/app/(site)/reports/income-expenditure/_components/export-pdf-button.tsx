@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import type { MouseEvent } from 'react'
 import { Loader2 } from 'lucide-react'
+import { toast } from 'sonner'
 
 function getFilename(response: Response) {
   const disposition = response.headers.get('content-disposition')
@@ -25,7 +26,8 @@ export function ExportPdfButton({ href }: { href: string }) {
       const response = await fetch(href)
 
       if (!response.ok) {
-        throw new Error('PDF export failed')
+        toast.error('PDF export failed. Please try again.')
+        return
       }
 
       const blob = await response.blob()
@@ -38,6 +40,8 @@ export function ExportPdfButton({ href }: { href: string }) {
       link.click()
       link.remove()
       window.URL.revokeObjectURL(url)
+    } catch {
+      toast.error('PDF export failed. Please try again.')
     } finally {
       setIsLoading(false)
     }

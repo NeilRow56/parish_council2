@@ -12,6 +12,7 @@ import { redirect } from 'next/navigation'
 type CouncilDetailsPageProps = {
   searchParams?: Promise<{
     saved?: string
+    error?: string
   }>
 }
 
@@ -20,6 +21,7 @@ export default async function CouncilDetailsPage({
 }: CouncilDetailsPageProps) {
   const params = await searchParams
   const saved = params?.saved === '1'
+  const error = params?.error
 
   const currentUser = await getCurrentUser()
 
@@ -52,6 +54,7 @@ export default async function CouncilDetailsPage({
           submitLabel={isOnboarding ? 'Complete setup' : 'Save changes'}
           isOnboarding={isOnboarding}
           saved={saved}
+          error={error}
         />
       </div>
     </main>

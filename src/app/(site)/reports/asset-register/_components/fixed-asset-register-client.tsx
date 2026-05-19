@@ -65,6 +65,28 @@ export function FixedAssetRegisterClient({
   }
 
   function onSubmit(formData: FormData) {
+    const category = String(formData.get('category') ?? '').trim()
+    const description = String(formData.get('description') ?? '').trim()
+    const purchaseCost = String(formData.get('purchaseCost') ?? '').trim()
+    const assetRegisterValue = String(
+      formData.get('assetRegisterValue') ?? ''
+    ).trim()
+
+    if (!category || !description || !assetRegisterValue) {
+      toast.error('Category, description and asset value are required.')
+      return
+    }
+
+    if (!Number.isFinite(Number(assetRegisterValue))) {
+      toast.error('Asset register value must be a valid number.')
+      return
+    }
+
+    if (purchaseCost && !Number.isFinite(Number(purchaseCost))) {
+      toast.error('Purchase cost must be a valid number.')
+      return
+    }
+
     startTransition(async () => {
       const result: ActionResult = editingAsset
         ? await updateFixedAsset(editingAsset.id, formData)

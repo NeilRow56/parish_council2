@@ -60,6 +60,11 @@ interface MatchCandidate {
   nominalName: string
 }
 
+async function readErrorMessage(response: Response, fallback: string) {
+  const data = await response.json().catch(() => null)
+  return data?.error ?? data?.message ?? fallback
+}
+
 type FilterStatus = 'all' | 'PENDING' | 'CODED' | 'EXCLUDED'
 
 function formatBankAmount(amount: string, type: 'CREDIT' | 'DEBIT') {
@@ -279,6 +284,12 @@ export default function TransactionInbox() {
 
     const data = await response.json().catch(() => null)
 
+    if (!response.ok) {
+      toast.error(data?.error ?? 'Could not load match candidates.')
+      setMatchingId(null)
+      return
+    }
+
     setMatchCandidates(previous => ({
       ...previous,
       [txId]: data?.candidates ?? []
@@ -299,9 +310,13 @@ export default function TransactionInbox() {
     setMatchingId(null)
 
     if (!response.ok) {
+      toast.error(
+        await readErrorMessage(response, 'Could not match transaction.')
+      )
       return
     }
 
+    toast.success('Transaction matched.')
     await fetchTransactions()
   }
 
@@ -316,6 +331,9 @@ export default function TransactionInbox() {
     })
 
     if (!response.ok) {
+      toast.error(
+        await readErrorMessage(response, 'Could not assign nominal code.')
+      )
       setUpdatingId(null)
       return
     }
@@ -354,7 +372,15 @@ export default function TransactionInbox() {
   }
 
   async function bulkAssignNominal() {
-    if (selected.size === 0 || !bulkNominalCodeId) return
+    if (selected.size === 0) {
+      toast.error('Select at least one transaction.')
+      return
+    }
+
+    if (!bulkNominalCodeId) {
+      toast.error('Choose a nominal code before assigning.')
+      return
+    }
 
     setPostResult(null)
     setBulkUpdating(true)
@@ -371,15 +397,27 @@ export default function TransactionInbox() {
     setBulkUpdating(false)
 
     if (!response.ok) {
+      toast.error(
+        await readErrorMessage(response, 'Could not assign selected transactions.')
+      )
       return
     }
 
+    toast.success('Nominal code assigned.')
     setBulkNominalCodeId('')
     await fetchTransactions()
   }
 
   async function bulkAssignAndPost() {
-    if (selected.size === 0 || !bulkNominalCodeId) return
+    if (selected.size === 0) {
+      toast.error('Select at least one transaction.')
+      return
+    }
+
+    if (!bulkNominalCodeId) {
+      toast.error('Choose a nominal code before posting.')
+      return
+    }
 
     setPostResult(null)
     setBulkPosting(true)
@@ -402,6 +440,9 @@ export default function TransactionInbox() {
         posted: 0,
         errors: 1
       })
+      toast.error(
+        data?.error ?? data?.message ?? 'Could not post selected transactions.'
+      )
       return
     }
 
@@ -410,6 +451,7 @@ export default function TransactionInbox() {
       errors: data?.errors?.length ?? 0
     })
 
+    toast.success(`${data?.posted ?? 0} transaction(s) posted.`)
     setBulkNominalCodeId('')
     await fetchTransactions()
   }
@@ -463,14 +505,23 @@ export default function TransactionInbox() {
     setPostResult(null)
     setUpdatingId(txId)
 
-    await fetch(`/api/transactions/staged/${txId}`, {
+    const response = await fetch(`/api/transactions/staged/${txId}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ action: 'unexclude' })
     })
 
     setUpdatingId(null)
+
+    if (!response.ok) {
+      toast.error(
+        await readErrorMessage(response, 'Could not restore transaction.')
+      )
+      return
+    }
+
     await fetchTransactions()
+    toast.success('Transaction restored.')
   }
 
   function postSelected() {
@@ -490,13 +541,21 @@ export default function TransactionInbox() {
         body: JSON.stringify({ transactionIds: ids })
       })
 
-      const data = await response.json()
+      const data = await response.json().catch(() => null)
+
+      if (!response.ok) {
+        toast.error(
+          data?.error ?? data?.message ?? 'Could not post transactions.'
+        )
+        return
+      }
 
       setPostResult({
         posted: data.posted,
         errors: data.errors?.length ?? 0
       })
 
+      toast.success(`${data.posted} transaction(s) posted.`)
       await fetchTransactions()
     })
   }

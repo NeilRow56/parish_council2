@@ -56,13 +56,39 @@ export function AddBorrowingDialog({
   )
 
   function handleSubmit(formData: FormData) {
+    const lender = String(formData.get('lender') ?? '').trim()
+    const originalAmount = String(formData.get('originalAmount') ?? '').trim()
+    const interestRate = String(formData.get('interestRate') ?? '').trim()
+
+    if (!lender) {
+      toast.error('Lender is required.')
+      return
+    }
+
+    if (originalAmount && !Number.isFinite(Number(originalAmount))) {
+      toast.error('Original amount must be a valid number.')
+      return
+    }
+
+    if (interestRate && !Number.isFinite(Number(interestRate))) {
+      toast.error('Interest rate must be a valid number.')
+      return
+    }
+
+    if (!selectedNominalCodeId) {
+      toast.error('Select a borrowings nominal code.')
+      return
+    }
+
     startTransition(async () => {
       try {
         await createBorrowing(formData)
         toast.success('Borrowing added')
         setOpen(false)
-      } catch {
-        toast.error('Could not add borrowing')
+      } catch (error) {
+        toast.error(
+          error instanceof Error ? error.message : 'Could not add borrowing'
+        )
       }
     })
   }

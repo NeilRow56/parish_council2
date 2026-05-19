@@ -29,7 +29,11 @@ export function ReserveRowForm({ reserve }: Props) {
     if (state.success) {
       toast.success(state.success)
     }
-  }, [state.success])
+
+    if (state.error) {
+      toast.error(state.error)
+    }
+  }, [state.success, state.error])
 
   return (
     <form action={formAction} className='px-4 py-3'>
@@ -79,6 +83,7 @@ export function ReserveRowForm({ reserve }: Props) {
             <button
               type='submit'
               formAction={deleteReserveAction}
+              disabled={isPending}
               className='text-destructive rounded border border-solid border-red-600 px-2 py-1 text-sm'
             >
               Delete

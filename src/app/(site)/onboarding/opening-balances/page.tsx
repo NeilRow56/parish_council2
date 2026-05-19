@@ -40,8 +40,17 @@ async function saveOpeningBalances(formData: FormData) {
   const parishCouncilId = session.user.parishCouncilId
   const financialYearId = String(formData.get('financialYearId') ?? '')
 
+  function redirectWithStatus(params: { error?: string; saved?: boolean }) {
+    const searchParams = new URLSearchParams()
+
+    if (params.error) searchParams.set('openingError', params.error)
+    if (params.saved) searchParams.set('openingSaved', '1')
+
+    redirect(`/onboarding/opening-balances?${searchParams.toString()}`)
+  }
+
   if (!financialYearId) {
-    throw new Error('Missing financial year')
+    redirectWithStatus({ error: 'Missing financial year.' })
   }
 
   const entries = Array.from(formData.entries()).filter(([key]) =>
@@ -54,6 +63,12 @@ async function saveOpeningBalances(formData: FormData) {
 
     if (amount === '') {
       continue
+    }
+
+    if (!Number.isFinite(Number(amount))) {
+      redirectWithStatus({
+        error: 'Opening balances must be valid numbers.'
+      })
     }
 
     await db
@@ -77,9 +92,18 @@ async function saveOpeningBalances(formData: FormData) {
 
   revalidatePath('/onboarding/opening-balances')
   revalidatePath('/reports/agar-summary')
+  redirectWithStatus({ saved: true })
 }
 
-export default async function OpeningBalancesPage() {
+export default async function OpeningBalancesPage({
+  searchParams
+}: {
+  searchParams?: Promise<{
+    openingError?: string
+    openingSaved?: string
+  }>
+}) {
+  const params = await searchParams
   const session = await auth.api.getSession({
     headers: await headers()
   })
@@ -154,6 +178,16 @@ export default async function OpeningBalancesPage() {
             <p className='text-muted-foreground mt-1'>
               Enter brought-forward balances at the start of the financial year.
             </p>
+            {params?.openingError ? (
+              <p className='mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700'>
+                {params.openingError}
+              </p>
+            ) : null}
+            {params?.openingSaved === '1' ? (
+              <p className='mt-3 rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700'>
+                Opening balances saved.
+              </p>
+            ) : null}
           </div>
 
           <Link href='/onboarding/council-details'>

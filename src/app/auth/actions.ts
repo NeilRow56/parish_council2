@@ -112,7 +112,9 @@ export async function completeCouncilOnboardingAction(formData: FormData) {
     .limit(1)
 
   if (!existingCouncil) {
-    throw new Error('Parish council not found.')
+    redirect(
+      '/onboarding/council-details?error=Parish+council+not+found.'
+    )
   }
 
   const isFirstSetup = !existingCouncil.onboardingCompletedAt
@@ -136,7 +138,10 @@ export async function completeCouncilOnboardingAction(formData: FormData) {
   })
 
   if (!parsed.success) {
-    throw new Error(parsed.error.issues[0]?.message ?? 'Invalid form data.')
+    const message = encodeURIComponent(
+      parsed.error.issues[0]?.message ?? 'Invalid form data.'
+    )
+    redirect(`/onboarding/council-details?error=${message}`)
   }
 
   const data = parsed.data

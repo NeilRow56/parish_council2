@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useTransition } from 'react'
 import { Plus } from 'lucide-react'
+import { toast } from 'sonner'
 
 import { createNominalCodeAction, updateNominalCodeAction } from '../actions'
 
@@ -199,6 +200,27 @@ function CreateNominalCodeForm({
   function submit() {
     setError(null)
 
+    if (!code.trim()) {
+      const message = 'Code is required.'
+      setError(message)
+      toast.error(message)
+      return
+    }
+
+    if (!name.trim()) {
+      const message = 'Name is required.'
+      setError(message)
+      toast.error(message)
+      return
+    }
+
+    if (isBank && type !== 'BALANCE_SHEET') {
+      const message = 'Bank/cash nominal codes must be balance sheet codes.'
+      setError(message)
+      toast.error(message)
+      return
+    }
+
     startTransition(async () => {
       try {
         await createNominalCodeAction({
@@ -217,11 +239,13 @@ function CreateNominalCodeForm({
         setCategory('')
         setAgarBox('')
         setIsBank(false)
+        toast.success('Nominal code added.')
         onDone()
       } catch (err) {
-        setError(
+        const message =
           err instanceof Error ? err.message : 'Could not create nominal code.'
-        )
+        setError(message)
+        toast.error(message)
       }
     })
   }
@@ -329,6 +353,13 @@ function EditNominalCodeRow({
   function submit() {
     setError(null)
 
+    if (!name.trim()) {
+      const message = 'Name is required.'
+      setError(message)
+      toast.error(message)
+      return
+    }
+
     startTransition(async () => {
       try {
         await updateNominalCodeAction({
@@ -339,11 +370,13 @@ function EditNominalCodeRow({
           isActive
         })
 
+        toast.success('Nominal code saved.')
         onDone()
       } catch (err) {
-        setError(
+        const message =
           err instanceof Error ? err.message : 'Could not update nominal code.'
-        )
+        setError(message)
+        toast.error(message)
       }
     })
   }

@@ -26,6 +26,44 @@ import {
 import { Button } from '@/components/ui/button'
 import { SaveOpeningBalancesButton } from '../council-details/_components/save-opening-balance-button'
 
+function parsePositiveMoney(value: FormDataEntryValue | null) {
+  const cleaned = String(value ?? '').replace(/,/g, '').trim()
+
+  if (cleaned === '') return 0
+
+  const parsed = Number(cleaned)
+
+  if (!Number.isFinite(parsed)) {
+    throw new Error('Opening balances must be valid numbers.')
+  }
+
+  if (parsed < 0) {
+    throw new Error('Enter opening balances as positive amounts.')
+  }
+
+  return parsed
+}
+
+function formatMoney(amount: number) {
+  return amount.toFixed(2)
+}
+
+function isFixedAssetCode(code: { category: string | null }) {
+  return code.category === 'Fixed Assets'
+}
+
+function isBorrowingCode(code: { agarBox: string | null }) {
+  return code.agarBox === 'BOX_10_BORROWINGS'
+}
+
+function isMemoReserveCode(code: { code: string }) {
+  return code.code === '3090' || code.code === '3095'
+}
+
+function isNormalReserveCode(code: { category: string | null; code: string }) {
+  return code.category === 'Reserves' && !isMemoReserveCode(code)
+}
+
 async function saveOpeningBalances(formData: FormData) {
   'use server'
 
@@ -40,7 +78,7 @@ async function saveOpeningBalances(formData: FormData) {
   const parishCouncilId = session.user.parishCouncilId
   const financialYearId = String(formData.get('financialYearId') ?? '')
 
-  function redirectWithStatus(params: { error?: string; saved?: boolean }) {
+  function redirectWithStatus(params: { error?: string; saved?: boolean }): never {
     const searchParams = new URLSearchParams()
 
     if (params.error) searchParams.set('openingError', params.error)
@@ -53,45 +91,147 @@ async function saveOpeningBalances(formData: FormData) {
     redirectWithStatus({ error: 'Missing financial year.' })
   }
 
+  const [financialYear] = await db
+    .select({ id: financialYears.id })
+    .from(financialYears)
+    .where(
+      and(
+        eq(financialYears.id, financialYearId),
+        eq(financialYears.parishCouncilId, parishCouncilId),
+        eq(financialYears.isClosed, false)
+      )
+    )
+    .limit(1)
+
+  if (!financialYear) {
+    redirectWithStatus({
+      error: 'Opening balances can only be edited for the open financial year.'
+    })
+  }
+
+  const codes = await db
+    .select({
+      id: nominalCodes.id,
+      code: nominalCodes.code,
+      category: nominalCodes.category,
+      agarBox: nominalCodes.agarBox
+    })
+    .from(nominalCodes)
+    .where(
+      and(
+        eq(nominalCodes.parishCouncilId, parishCouncilId),
+        eq(nominalCodes.financialYearId, financialYearId)
+      )
+    )
+
+  const codesById = new Map(codes.map(code => [code.id, code]))
+  const fixedAssetMemoReserve = codes.find(code => code.code === '3090')
+  const borrowingMemoReserve = codes.find(code => code.code === '3095')
   const entries = Array.from(formData.entries()).filter(([key]) =>
     key.startsWith('openingBalance:')
   )
+  const signedBalances = new Map<string, number>()
+  let fixedAssetOpeningTotal = 0
+  let borrowingOpeningTotal = 0
 
-  for (const [key, value] of entries) {
-    const nominalCodeId = key.replace('openingBalance:', '')
-    const amount = String(value ?? '').trim()
+  try {
+    for (const [key, value] of entries) {
+      const nominalCodeId = key.replace('openingBalance:', '')
+      const code = codesById.get(nominalCodeId)
 
-    if (amount === '') {
-      continue
+      if (!code || isMemoReserveCode(code)) {
+        continue
+      }
+
+      const amount = parsePositiveMoney(value)
+
+      if (isFixedAssetCode(code)) {
+        signedBalances.set(nominalCodeId, amount)
+        fixedAssetOpeningTotal += amount
+        continue
+      }
+
+      if (isBorrowingCode(code)) {
+        signedBalances.set(nominalCodeId, -amount)
+        borrowingOpeningTotal += amount
+        continue
+      }
+
+      if (isNormalReserveCode(code)) {
+        signedBalances.set(nominalCodeId, -amount)
+        continue
+      }
+
+      signedBalances.set(nominalCodeId, amount)
     }
-
-    if (!Number.isFinite(Number(amount))) {
-      redirectWithStatus({
-        error: 'Opening balances must be valid numbers.'
-      })
-    }
-
-    await db
-      .insert(nominalOpeningBalances)
-      .values({
-        parishCouncilId,
-        financialYearId,
-        nominalCodeId,
-        amount
-      })
-      .onConflictDoUpdate({
-        target: [
-          nominalOpeningBalances.financialYearId,
-          nominalOpeningBalances.nominalCodeId
-        ],
-        set: {
-          amount
-        }
-      })
+  } catch (error) {
+    redirectWithStatus({
+      error:
+        error instanceof Error ? error.message : 'Opening balances are invalid.'
+    })
   }
+
+  if (fixedAssetOpeningTotal > 0) {
+    if (!fixedAssetMemoReserve) {
+      redirectWithStatus({
+        error:
+          'Fixed Asset Opening Reserve (3090) is missing. Restore the default nominal codes before saving fixed asset opening balances.'
+      })
+    }
+
+    signedBalances.set(fixedAssetMemoReserve.id, -fixedAssetOpeningTotal)
+  }
+
+  if (borrowingOpeningTotal > 0) {
+    if (!borrowingMemoReserve) {
+      redirectWithStatus({
+        error:
+          'Borrowings Opening Reserve (3095) is missing. Restore the default nominal codes before saving borrowing opening balances.'
+      })
+    }
+
+    signedBalances.set(borrowingMemoReserve.id, borrowingOpeningTotal)
+  }
+
+  const total = Array.from(signedBalances.values()).reduce(
+    (sum, amount) => sum + Math.round(amount * 100),
+    0
+  )
+
+  if (total !== 0) {
+    redirectWithStatus({
+      error:
+        'Opening balances do not balance. Bank and fixed asset debits must be matched by reserve, borrowing, or memo-reserve credits.'
+    })
+  }
+
+  const values = Array.from(signedBalances.entries())
+    .filter(([, amount]) => Math.round(amount * 100) !== 0)
+    .map(([nominalCodeId, amount]) => ({
+      parishCouncilId,
+      financialYearId,
+      nominalCodeId,
+      amount: formatMoney(amount)
+    }))
+
+  await db.transaction(async tx => {
+    await tx
+      .delete(nominalOpeningBalances)
+      .where(
+        and(
+          eq(nominalOpeningBalances.parishCouncilId, parishCouncilId),
+          eq(nominalOpeningBalances.financialYearId, financialYearId)
+        )
+      )
+
+    if (values.length > 0) {
+      await tx.insert(nominalOpeningBalances).values(values)
+    }
+  })
 
   revalidatePath('/onboarding/opening-balances')
   revalidatePath('/reports/agar-summary')
+  revalidatePath('/reports/trial-balance')
   redirectWithStatus({ saved: true })
 }
 
@@ -162,7 +302,7 @@ export default async function OpeningBalancesPage({
 
   const groupedCodes = {
     banks: codes.filter(c => c.category === 'Bank'),
-    reserves: codes.filter(c => c.category === 'Reserves'),
+    reserves: codes.filter(c => isNormalReserveCode(c)),
     fixedAssets: codes.filter(c => c.category === 'Fixed Assets'),
     borrowings: codes.filter(c => c.agarBox === 'BOX_10_BORROWINGS')
   }
@@ -176,7 +316,8 @@ export default async function OpeningBalancesPage({
           <div>
             <h1 className='text-3xl font-bold'>Opening balances</h1>
             <p className='text-muted-foreground mt-1'>
-              Enter brought-forward balances at the start of the financial year.
+              Enter positive brought-forward balances. The system posts reserves
+              and borrowings to the correct credit/debit side automatically.
             </p>
             {params?.openingError ? (
               <p className='mt-3 rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700'>
@@ -199,21 +340,21 @@ export default async function OpeningBalancesPage({
 
         <OpeningBalanceCard
           title='Bank balances'
-          description='Opening balances for current and savings accounts.'
+          description='Enter positive cash balances. These post as debit balances.'
           codes={groupedCodes.banks}
           balancesMap={balancesMap}
         />
 
         <OpeningBalanceCard
           title='Reserves'
-          description='General and earmarked reserve balances.'
+          description='Enter positive reserve balances. These post as credit balances.'
           codes={groupedCodes.reserves}
           balancesMap={balancesMap}
         />
 
         <OpeningBalanceCard
           title='Fixed assets'
-          description='Opening fixed asset balances brought forward.'
+          description='Enter positive asset values. The matching memo reserve is posted automatically.'
           codes={groupedCodes.fixedAssets}
           balancesMap={balancesMap}
         />
@@ -221,7 +362,7 @@ export default async function OpeningBalancesPage({
         {groupedCodes.borrowings.length > 0 ? (
           <OpeningBalanceCard
             title='Borrowings'
-            description='Opening loan and borrowing balances.'
+            description='Enter positive outstanding loan balances. The matching memo reserve is posted automatically.'
             codes={groupedCodes.borrowings}
             balancesMap={balancesMap}
           />
@@ -239,6 +380,23 @@ type OpeningBalanceCode = {
   id: string
   code: string
   name: string
+  category: string | null
+  agarBox: string | null
+}
+
+function formatOpeningBalanceInput(
+  code: OpeningBalanceCode,
+  balancesMap: Map<string, string>
+) {
+  const amount = Number(balancesMap.get(code.id) ?? 0)
+
+  if (amount === 0) return ''
+
+  if (isNormalReserveCode(code) || isBorrowingCode(code)) {
+    return String(Math.abs(amount))
+  }
+
+  return String(amount)
 }
 
 function OpeningBalanceCard({
@@ -277,7 +435,8 @@ function OpeningBalanceCard({
                 name={`openingBalance:${code.id}`}
                 type='number'
                 step='0.01'
-                defaultValue={String(balancesMap.get(code.id) ?? '')}
+                min='0'
+                defaultValue={formatOpeningBalanceInput(code, balancesMap)}
                 placeholder='0.00'
                 className='border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex h-10 w-full rounded-md border px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50'
               />

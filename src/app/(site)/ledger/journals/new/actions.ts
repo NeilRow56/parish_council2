@@ -1,6 +1,5 @@
 'use server'
 
-import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
 import { and, eq } from 'drizzle-orm'
 
@@ -158,5 +157,5 @@ export async function createManualJournalAction(input: {
     )
   })
 
-  redirect('/ledger')
+  return { success: true }
 }

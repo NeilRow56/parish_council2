@@ -3,6 +3,7 @@
 import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 import { createManualJournalAction } from '../actions'
 
 type NominalCodeOption = {
@@ -58,6 +59,12 @@ function formatMoney(value: number) {
     minimumFractionDigits: 2,
     maximumFractionDigits: 2
   })
+}
+
+function parseAmount(value: string) {
+  const amount = Number(value.replace(/,/g, '').trim() || 0)
+
+  return Number.isFinite(amount) ? amount : 0
 }
 
 function NominalCodeSelect({
@@ -133,12 +140,12 @@ export function ManualJournalForm({
 
   const totals = useMemo(() => {
     const debit = lines.reduce(
-      (sum, line) => sum + Number(line.debit.replace(/,/g, '') || 0),
+      (sum, line) => sum + parseAmount(line.debit),
       0
     )
 
     const credit = lines.reduce(
-      (sum, line) => sum + Number(line.credit.replace(/,/g, '') || 0),
+      (sum, line) => sum + parseAmount(line.credit),
       0
     )
 
@@ -166,22 +173,79 @@ export function ManualJournalForm({
   function handleSubmit() {
     setError(null)
 
+    const validationError = validateJournal()
+
+    if (validationError) {
+      toast.error(validationError)
+      setError(validationError)
+      return
+    }
+
     startTransition(async () => {
       try {
-        await createManualJournalAction({
+        const result = await createManualJournalAction({
           financialYearId,
           date,
           description,
           lines
         })
+
+        if (result.success) {
+          toast.success('Manual journal posted.')
+          router.push('/ledger')
+          router.refresh()
+        }
       } catch (err) {
-        setError(err instanceof Error ? err.message : 'Could not post journal.')
+        const message =
+          err instanceof Error ? err.message : 'Could not post journal.'
+        setError(message)
+        toast.error(message)
       }
     })
   }
 
   const balances = Math.round(totals.difference * 100) === 0
-  const canSubmit = balances && totals.debit > 0 && !isPending
+  const canSubmit = !isPending
+
+  function validateJournal() {
+    if (isPending) return 'The journal is already being posted.'
+
+    if (!date) return 'Enter a journal date.'
+
+    if (!description.trim()) return 'Enter a journal description.'
+
+    if (lines.length < 2) return 'A journal must have at least two lines.'
+
+    for (const [index, line] of lines.entries()) {
+      const lineNumber = index + 1
+      const debit = parseAmount(line.debit)
+      const credit = parseAmount(line.credit)
+
+      if (!line.nominalCodeId) {
+        return `Select a nominal code for line ${lineNumber}.`
+      }
+
+      if (debit <= 0 && credit <= 0) {
+        return `Enter a debit or credit amount for line ${lineNumber}.`
+      }
+
+      if (debit > 0 && credit > 0) {
+        return `Line ${lineNumber} cannot have both a debit and a credit.`
+      }
+    }
+
+    if (totals.debit <= 0 || totals.credit <= 0) {
+      return 'Enter at least one debit and one credit amount.'
+    }
+
+    if (!balances) {
+      return `Journal must balance. Difference: ${formatMoney(
+        totals.difference
+      )}.`
+    }
+
+    return null
+  }
 
   return (
     <div className='rounded-lg border bg-white shadow-sm'>

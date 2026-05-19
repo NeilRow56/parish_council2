@@ -389,10 +389,9 @@ export default async function AgarSummaryPage({
 
   const openingFixedAssets = normalise(openingTotals?.fixedAssets)
   const openingBorrowings = Math.abs(normalise(openingTotals?.borrowings))
-  const balancesBroughtForward =
-    Math.abs(normalise(openingTotals?.reserves)) -
-    openingFixedAssets +
-    openingBorrowings
+  const balancesBroughtForward = normalise(
+    openingTotals?.cashAndShortTermInvestments
+  )
 
   const precept = reportTotals.precept
   const otherReceipts = reportTotals.otherReceipts
@@ -420,7 +419,8 @@ export default async function AgarSummaryPage({
     {
       box: '1',
       label: 'Balances brought forward',
-      guidance: 'Total balances and reserves at the beginning of the year.',
+      guidance:
+        'Opening cash-backed balances and reserves, excluding fixed assets and borrowings.',
       amount: balancesBroughtForward
     },
     {
@@ -461,7 +461,7 @@ export default async function AgarSummaryPage({
       box: '7',
       label: '(=) Balances carried forward',
       guidance:
-        'Total balances and reserves at the end of the year. Must equal (1 + 2 + 3) - (4 + 5 + 6).',
+        'Closing cash-backed balances and reserves, excluding fixed assets and borrowings. Must equal (1 + 2 + 3) - (4 + 5 + 6).',
       amount: balancesCarriedForward
     },
     {

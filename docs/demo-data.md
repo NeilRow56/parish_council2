@@ -50,6 +50,9 @@ Rerunning `bun run demo:reset` recreates the demo login, resets the password, ma
 - Open VAT 126/VAT return reporting and confirm recoverable VAT is visible.
 - Open the AGAR summary and confirm receipts/payments reporting shows gross
   cash receipts and payments while VAT remains available for reclaim reporting.
+- Confirm AGAR capital/reserves are cash-backed balances, with fixed assets and
+  borrowings reported separately in Boxes 9 and 10 rather than inflating or
+  reducing reserves.
 - Open Income & Expenditure and confirm VAT is still posted separately for
   reclaim tracking, but is included in the receipts/payments reporting
   presentation.

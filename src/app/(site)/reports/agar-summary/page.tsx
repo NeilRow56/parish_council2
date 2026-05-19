@@ -71,52 +71,11 @@ function getAccountingBasisLabel(accountingBasis: AccountingBasis) {
     : 'Income and expenditure (accruals basis)'
 }
 
-function allocateGrossAmount({
-  amount,
-  candidates,
-  totals
-}: {
-  amount: number
-  candidates: { box: string; weight: number }[]
-  totals: AgarTotals
-}) {
-  const positiveCandidates = candidates.filter(candidate => candidate.weight > 0)
-  const totalWeight = positiveCandidates.reduce(
-    (sum, candidate) => sum + candidate.weight,
-    0
-  )
-
-  if (amount <= 0 || totalWeight <= 0) return
-
-  for (const candidate of positiveCandidates) {
-    const allocated = (amount * candidate.weight) / totalWeight
-
-    if (candidate.box === 'BOX_2_PRECEPT') totals.precept += allocated
-    if (candidate.box === 'BOX_3_OTHER_RECEIPTS') {
-      totals.otherReceipts += allocated
-    }
-    if (candidate.box === 'BOX_4_STAFF_COSTS') totals.staffCosts += allocated
-    if (candidate.box === 'BOX_5_LOAN_REPAYMENTS') {
-      totals.loanRepayments += allocated
-    }
-    if (candidate.box === 'BOX_6_OTHER_PAYMENTS') {
-      totals.otherPayments += allocated
-    }
-  }
-}
-
 function calculateReceiptsAndPaymentsTotals(
   baseTotals: AgarTotals,
   lines: AgarLine[]
 ): AgarTotals {
-  const totals = {
-    ...baseTotals,
-    precept: 0,
-    otherReceipts: 0,
-    staffCosts: 0,
-    loanRepayments: 0,
-    otherPayments: 0
-  }
+  const totals = { ...baseTotals }
 
   const linesByJournal = new Map<string, AgarLine[]>()
 
@@ -127,86 +86,43 @@ function calculateReceiptsAndPaymentsTotals(
   }
 
   for (const journalLinesForEntry of linesByJournal.values()) {
-    const bankDebit = journalLinesForEntry
-      .filter(line => line.isBank)
-      .reduce((sum, line) => sum + normalise(line.debit), 0)
-    const bankCredit = journalLinesForEntry
-      .filter(line => line.isBank)
-      .reduce((sum, line) => sum + normalise(line.credit), 0)
-
     const nonBankReportingLines = journalLinesForEntry.filter(
       line => !line.isBank && !line.isVatRecoverable && !line.isVatPayable
     )
 
-    const incomeCandidates = nonBankReportingLines
-      .filter(
-        line =>
-          line.agarBox === 'BOX_2_PRECEPT' ||
-          line.agarBox === 'BOX_3_OTHER_RECEIPTS'
-      )
-      .map(line => ({
-        box: line.agarBox as string,
-        weight: normalise(line.credit) - normalise(line.debit)
-      }))
-
-    const paymentCandidates = nonBankReportingLines
-      .filter(
-        line =>
-          line.agarBox === 'BOX_4_STAFF_COSTS' ||
-          line.agarBox === 'BOX_5_LOAN_REPAYMENTS' ||
-          line.agarBox === 'BOX_6_OTHER_PAYMENTS'
-      )
-      .map(line => ({
-        box: line.agarBox as string,
-        weight: normalise(line.debit) - normalise(line.credit)
-      }))
-
-    const hasLoanPaymentLine = paymentCandidates.some(
-      candidate => candidate.box === 'BOX_5_LOAN_REPAYMENTS'
+    const hasPaymentBoxLine = nonBankReportingLines.some(
+      line =>
+        line.agarBox === 'BOX_4_STAFF_COSTS' ||
+        line.agarBox === 'BOX_5_LOAN_REPAYMENTS' ||
+        line.agarBox === 'BOX_6_OTHER_PAYMENTS' ||
+        line.agarBox === 'BOX_9_FIXED_ASSETS'
     )
 
-    allocateGrossAmount({
-      amount: bankDebit,
-      candidates: incomeCandidates,
-      totals
-    })
-
-    if (bankDebit > 0 && incomeCandidates.length === 0) {
-      const hasVatControlCredit = journalLinesForEntry.some(
-        line =>
-          (line.isVatRecoverable || line.isVatPayable) &&
-          normalise(line.credit) > 0
+    const fixedAssetPayments = nonBankReportingLines
+      .filter(line => line.agarBox === 'BOX_9_FIXED_ASSETS')
+      .reduce(
+        (sum, line) =>
+          sum + Math.max(0, normalise(line.debit) - normalise(line.credit)),
+        0
       )
-      const hasBorrowingReceipt = nonBankReportingLines.some(
-        line =>
-          line.agarBox === 'BOX_10_BORROWINGS' &&
-          normalise(line.credit) - normalise(line.debit) > 0
+    const borrowingCapitalRepayments = nonBankReportingLines
+      .filter(line => line.agarBox === 'BOX_10_BORROWINGS')
+      .reduce(
+        (sum, line) =>
+          sum + Math.max(0, normalise(line.debit) - normalise(line.credit)),
+        0
       )
 
-      if (hasVatControlCredit || hasBorrowingReceipt) {
-        totals.otherReceipts += bankDebit
+    totals.otherPayments += fixedAssetPayments
+    totals.loanRepayments += borrowingCapitalRepayments
+
+    for (const line of journalLinesForEntry) {
+      if (line.isVatRecoverable && hasPaymentBoxLine) {
+        totals.otherPayments += normalise(line.debit)
       }
-    }
 
-    allocateGrossAmount({
-      amount: bankCredit,
-      candidates: hasLoanPaymentLine
-        ? paymentCandidates.filter(
-            candidate => candidate.box === 'BOX_5_LOAN_REPAYMENTS'
-          )
-        : paymentCandidates,
-      totals
-    })
-
-    if (bankCredit > 0 && paymentCandidates.length === 0) {
-      const hasFixedAssetPurchase = nonBankReportingLines.some(
-        line =>
-          line.agarBox === 'BOX_9_FIXED_ASSETS' &&
-          normalise(line.debit) - normalise(line.credit) > 0
-      )
-
-      if (hasFixedAssetPurchase) {
-        totals.otherPayments += bankCredit
+      if (line.isVatRecoverable || line.isVatPayable) {
+        totals.otherReceipts += normalise(line.credit)
       }
     }
   }
@@ -471,7 +387,12 @@ export default async function AgarSummaryPage({
       ? calculateReceiptsAndPaymentsTotals(baseTotals, agarLineRows)
       : baseTotals
 
-  const balancesBroughtForward = normalise(openingTotals?.reserves)
+  const openingFixedAssets = normalise(openingTotals?.fixedAssets)
+  const openingBorrowings = Math.abs(normalise(openingTotals?.borrowings))
+  const balancesBroughtForward =
+    Math.abs(normalise(openingTotals?.reserves)) -
+    openingFixedAssets +
+    openingBorrowings
 
   const precept = reportTotals.precept
   const otherReceipts = reportTotals.otherReceipts
@@ -483,10 +404,9 @@ export default async function AgarSummaryPage({
     normalise(openingTotals?.cashAndShortTermInvestments) +
     reportTotals.cashAndShortTermInvestments
 
-  const fixedAssets = normalise(openingTotals?.fixedAssets) + reportTotals.fixedAssets
+  const fixedAssets = openingFixedAssets + reportTotals.fixedAssets
 
-  const borrowings =
-    normalise(openingTotals?.borrowings) + reportTotals.borrowings
+  const borrowings = openingBorrowings + reportTotals.borrowings
 
   const balancesCarriedForward =
     balancesBroughtForward +

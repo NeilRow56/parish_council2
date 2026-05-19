@@ -34,14 +34,18 @@ type FinancialYear = {
 
 type ReportRow = {
   nominalCodeId: string
+  ledgerNominalCodeId: string
   code: string
   name: string
   type: 'INCOME' | 'EXPENDITURE'
   amount: number
 }
 
+type AccountingBasis = 'RECEIPTS_AND_PAYMENTS' | 'INCOME_AND_EXPENDITURE'
+
 type IncomeExpenditureReport = {
   financialYear: FinancialYear
+  accountingBasis: AccountingBasis
   incomeRows: ReportRow[]
   expenditureRows: ReportRow[]
   totalIncome: number
@@ -81,6 +85,25 @@ function formatCurrency(value: number) {
   })
 
   return value < 0 ? `£(${amount})` : `£${amount}`
+}
+
+function getEffectiveAccountingBasis(
+  value: string | null | undefined
+): AccountingBasis {
+  if (value === 'RECEIPTS_AND_PAYMENTS') return 'RECEIPTS_AND_PAYMENTS'
+  return 'INCOME_AND_EXPENDITURE'
+}
+
+function getAccountingBasisLabel(accountingBasis: AccountingBasis) {
+  return accountingBasis === 'RECEIPTS_AND_PAYMENTS'
+    ? 'Receipts and payments'
+    : 'Income and expenditure (accruals basis)'
+}
+
+function isIncomeOrExpenditureType(
+  type: string
+): type is 'INCOME' | 'EXPENDITURE' {
+  return type === 'INCOME' || type === 'EXPENDITURE'
 }
 
 const styles = StyleSheet.create({
@@ -234,10 +257,12 @@ async function getFinancialYear({
 
 async function getIncomeExpenditureReport({
   parishCouncilId,
-  financialYear
+  financialYear,
+  accountingBasis
 }: {
   parishCouncilId: string
   financialYear: FinancialYear
+  accountingBasis: AccountingBasis
 }): Promise<IncomeExpenditureReport> {
   const rows = await db
     .select({
@@ -245,6 +270,8 @@ async function getIncomeExpenditureReport({
       code: nominalCodes.code,
       name: nominalCodes.name,
       type: nominalCodes.type,
+      isVatRecoverable: nominalCodes.isVatRecoverable,
+      isVatPayable: nominalCodes.isVatPayable,
       debit: sql<number>`
         coalesce(sum(
           case
@@ -278,35 +305,79 @@ async function getIncomeExpenditureReport({
       and(
         eq(nominalCodes.parishCouncilId, parishCouncilId),
         eq(nominalCodes.financialYearId, financialYear.id),
-        inArray(nominalCodes.type, ['INCOME', 'EXPENDITURE'])
+        accountingBasis === 'RECEIPTS_AND_PAYMENTS'
+          ? sql`(${nominalCodes.type} in ('INCOME', 'EXPENDITURE') or ${nominalCodes.isVatRecoverable} = true or ${nominalCodes.isVatPayable} = true)`
+          : inArray(nominalCodes.type, ['INCOME', 'EXPENDITURE'])
       )
     )
     .groupBy(
       nominalCodes.id,
       nominalCodes.code,
       nominalCodes.name,
-      nominalCodes.type
+      nominalCodes.type,
+      nominalCodes.isVatRecoverable,
+      nominalCodes.isVatPayable
     )
     .orderBy(nominalCodes.code)
 
-  const reportRows = rows.map(row => {
-    const debit = Number(row.debit ?? 0)
-    const credit = Number(row.credit ?? 0)
-    const amount = row.type === 'INCOME' ? credit - debit : debit - credit
+  const reportRows = rows
+    .filter(row => isIncomeOrExpenditureType(row.type))
+    .map(row => {
+      const debit = Number(row.debit ?? 0)
+      const credit = Number(row.credit ?? 0)
+      const amount = row.type === 'INCOME' ? credit - debit : debit - credit
 
-    return {
-      nominalCodeId: row.nominalCodeId,
-      code: row.code,
-      name: row.name,
-      type: row.type as 'INCOME' | 'EXPENDITURE',
-      amount
-    }
-  })
+      return {
+        nominalCodeId: row.nominalCodeId,
+        ledgerNominalCodeId: row.nominalCodeId,
+        code: row.code,
+        name: row.name,
+        type: row.type as 'INCOME' | 'EXPENDITURE',
+        amount
+      }
+    })
 
-  const incomeRows = reportRows.filter(
+  const vatPresentationRows: ReportRow[] =
+    accountingBasis === 'RECEIPTS_AND_PAYMENTS'
+      ? rows.flatMap(row => {
+          const debit = Number(row.debit ?? 0)
+          const credit = Number(row.credit ?? 0)
+          const presentationRows: ReportRow[] = []
+
+          if (row.isVatRecoverable && debit > 0) {
+            presentationRows.push({
+              nominalCodeId: `${row.nominalCodeId}-vat-expenditure`,
+              ledgerNominalCodeId: row.nominalCodeId,
+              code: row.code,
+              name: 'VAT recoverable included as expenditure',
+              type: 'EXPENDITURE',
+              amount: debit
+            })
+          }
+
+          if ((row.isVatRecoverable || row.isVatPayable) && credit > 0) {
+            presentationRows.push({
+              nominalCodeId: `${row.nominalCodeId}-vat-income`,
+              ledgerNominalCodeId: row.nominalCodeId,
+              code: row.code,
+              name: row.isVatRecoverable
+                ? 'VAT reclaimed included as income'
+                : 'Output VAT included as income',
+              type: 'INCOME',
+              amount: credit
+            })
+          }
+
+          return presentationRows
+        })
+      : []
+
+  const presentationRows = [...reportRows, ...vatPresentationRows]
+
+  const incomeRows = presentationRows.filter(
     row => row.type === 'INCOME' && row.amount !== 0
   )
-  const expenditureRows = reportRows.filter(
+  const expenditureRows = presentationRows.filter(
     row => row.type === 'EXPENDITURE' && row.amount !== 0
   )
   const totalIncome = incomeRows.reduce((sum, row) => sum + row.amount, 0)
@@ -317,6 +388,7 @@ async function getIncomeExpenditureReport({
 
   return {
     financialYear,
+    accountingBasis,
     incomeRows,
     expenditureRows,
     totalIncome,
@@ -423,7 +495,9 @@ function incomeExpenditurePdf({
           { style: styles.subtitle },
           `Financial year ${report.financialYear.label} - ${formatDate(
             report.financialYear.startDate
-          )} to ${formatDate(report.financialYear.endDate)}`
+          )} to ${formatDate(report.financialYear.endDate)} - ${getAccountingBasisLabel(
+            report.accountingBasis
+          )}`
         )
       ),
       h(
@@ -502,14 +576,22 @@ export async function GET(request: Request) {
   }
 
   const [parishCouncil] = await db
-    .select({ name: parishCouncils.name })
+    .select({
+      name: parishCouncils.name,
+      accountingBasis: parishCouncils.accountingBasis
+    })
     .from(parishCouncils)
     .where(eq(parishCouncils.id, parishCouncilId))
     .limit(1)
 
+  const accountingBasis = getEffectiveAccountingBasis(
+    parishCouncil?.accountingBasis
+  )
+
   const report = await getIncomeExpenditureReport({
     parishCouncilId,
-    financialYear
+    financialYear,
+    accountingBasis
   })
 
   const pdf = await renderToBuffer(

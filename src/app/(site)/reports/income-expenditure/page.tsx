@@ -11,7 +11,8 @@ import {
   financialYears,
   journalEntries,
   journalLines,
-  nominalCodes
+  nominalCodes,
+  parishCouncils
 } from '@/db/schema'
 import { ExportPdfButton } from './_components/export-pdf-button'
 
@@ -39,6 +40,36 @@ function formatCurrency(value: number) {
 
 type SearchParams = {
   financialYearId?: string
+}
+
+type AccountingBasis = 'RECEIPTS_AND_PAYMENTS' | 'INCOME_AND_EXPENDITURE'
+
+type ReportRow = {
+  nominalCodeId: string
+  ledgerNominalCodeId: string
+  code: string
+  name: string
+  type: 'INCOME' | 'EXPENDITURE'
+  amount: number
+}
+
+function getEffectiveAccountingBasis(
+  value: string | null | undefined
+): AccountingBasis {
+  if (value === 'RECEIPTS_AND_PAYMENTS') return 'RECEIPTS_AND_PAYMENTS'
+  return 'INCOME_AND_EXPENDITURE'
+}
+
+function getAccountingBasisLabel(accountingBasis: AccountingBasis) {
+  return accountingBasis === 'RECEIPTS_AND_PAYMENTS'
+    ? 'Receipts and payments'
+    : 'Income and expenditure (accruals basis)'
+}
+
+function isIncomeOrExpenditureType(
+  type: string
+): type is 'INCOME' | 'EXPENDITURE' {
+  return type === 'INCOME' || type === 'EXPENDITURE'
 }
 
 export default async function IncomeExpenditurePage({
@@ -95,12 +126,24 @@ export default async function IncomeExpenditurePage({
     redirect('/')
   }
 
+  const [council] = await db
+    .select({
+      accountingBasis: parishCouncils.accountingBasis
+    })
+    .from(parishCouncils)
+    .where(eq(parishCouncils.id, parishCouncilId))
+    .limit(1)
+
+  const accountingBasis = getEffectiveAccountingBasis(council?.accountingBasis)
+
   const rows = await db
     .select({
       nominalCodeId: nominalCodes.id,
       code: nominalCodes.code,
       name: nominalCodes.name,
       type: nominalCodes.type,
+      isVatRecoverable: nominalCodes.isVatRecoverable,
+      isVatPayable: nominalCodes.isVatPayable,
       debit: sql<number>`
         coalesce(sum(
           case
@@ -134,36 +177,81 @@ export default async function IncomeExpenditurePage({
       and(
         eq(nominalCodes.parishCouncilId, parishCouncilId),
         eq(nominalCodes.financialYearId, financialYear.id),
-        inArray(nominalCodes.type, ['INCOME', 'EXPENDITURE'])
+        accountingBasis === 'RECEIPTS_AND_PAYMENTS'
+          ? sql`(${nominalCodes.type} in ('INCOME', 'EXPENDITURE') or ${nominalCodes.isVatRecoverable} = true or ${nominalCodes.isVatPayable} = true)`
+          : inArray(nominalCodes.type, ['INCOME', 'EXPENDITURE'])
       )
     )
     .groupBy(
       nominalCodes.id,
       nominalCodes.code,
       nominalCodes.name,
-      nominalCodes.type
+      nominalCodes.type,
+      nominalCodes.isVatRecoverable,
+      nominalCodes.isVatPayable
     )
     .orderBy(nominalCodes.code)
 
-  const reportRows = rows.map(row => {
-    const debit = Number(row.debit ?? 0)
-    const credit = Number(row.credit ?? 0)
+  const reportRows = rows
+    .filter(row => isIncomeOrExpenditureType(row.type))
+    .map(row => {
+      const debit = Number(row.debit ?? 0)
+      const credit = Number(row.credit ?? 0)
 
-    const amount = row.type === 'INCOME' ? credit - debit : debit - credit
+      const amount = row.type === 'INCOME' ? credit - debit : debit - credit
 
-    return {
-      ...row,
-      debit,
-      credit,
-      amount
-    }
-  })
+      return {
+        nominalCodeId: row.nominalCodeId,
+        ledgerNominalCodeId: row.nominalCodeId,
+        code: row.code,
+        name: row.name,
+        type: row.type as 'INCOME' | 'EXPENDITURE',
+        amount
+      }
+    })
 
-  const incomeRows = reportRows.filter(
+  const vatPresentationRows: ReportRow[] =
+    accountingBasis === 'RECEIPTS_AND_PAYMENTS'
+      ? rows.flatMap(row => {
+          const debit = Number(row.debit ?? 0)
+          const credit = Number(row.credit ?? 0)
+          const presentationRows: ReportRow[] = []
+
+          if (row.isVatRecoverable && debit > 0) {
+            presentationRows.push({
+              nominalCodeId: `${row.nominalCodeId}-vat-expenditure`,
+              ledgerNominalCodeId: row.nominalCodeId,
+              code: row.code,
+              name: 'VAT recoverable included as expenditure',
+              type: 'EXPENDITURE',
+              amount: debit
+            })
+          }
+
+          if ((row.isVatRecoverable || row.isVatPayable) && credit > 0) {
+            presentationRows.push({
+              nominalCodeId: `${row.nominalCodeId}-vat-income`,
+              ledgerNominalCodeId: row.nominalCodeId,
+              code: row.code,
+              name: row.isVatRecoverable
+                ? 'VAT reclaimed included as income'
+                : 'Output VAT included as income',
+              type: 'INCOME',
+              amount: credit
+            })
+          }
+
+          return presentationRows
+        })
+      : []
+
+  const presentationRows = [...reportRows, ...vatPresentationRows]
+
+  const incomeRows = presentationRows.filter(
     row => row.type === 'INCOME' && row.amount !== 0
   )
 
-  const expenditureRows = reportRows.filter(
+  const expenditureRows = presentationRows.filter(
     row => row.type === 'EXPENDITURE' && row.amount !== 0
   )
 
@@ -189,6 +277,12 @@ export default async function IncomeExpenditurePage({
             Financial year:{' '}
             <span className='font-medium text-zinc-700'>
               {financialYear.label}
+            </span>
+          </p>
+          <p className='mt-1 text-sm text-zinc-500'>
+            Accounting basis:{' '}
+            <span className='font-medium text-zinc-700'>
+              {getAccountingBasisLabel(accountingBasis)}
             </span>
           </p>
         </div>
@@ -261,7 +355,7 @@ export default async function IncomeExpenditurePage({
                 <tr key={row.nominalCodeId} className='border-t'>
                   <td className='px-4 py-3 font-medium'>
                     <Link
-                      href={`/ledger/${row.nominalCodeId}`}
+                      href={`/ledger/${row.ledgerNominalCodeId}`}
                       className='text-slate-900 hover:text-blue-600 hover:underline'
                     >
                       {row.code}
@@ -270,7 +364,7 @@ export default async function IncomeExpenditurePage({
 
                   <td className='px-4 py-3'>
                     <Link
-                      href={`/ledger/${row.nominalCodeId}`}
+                      href={`/ledger/${row.ledgerNominalCodeId}`}
                       className='text-slate-700 hover:text-blue-600 hover:underline'
                     >
                       {row.name}
@@ -329,7 +423,7 @@ export default async function IncomeExpenditurePage({
                 >
                   <td className='px-4 py-3 font-medium'>
                     <Link
-                      href={`/ledger/${row.nominalCodeId}`}
+                      href={`/ledger/${row.ledgerNominalCodeId}`}
                       className='text-slate-900 hover:text-blue-600 hover:underline'
                     >
                       {row.code}
@@ -338,7 +432,7 @@ export default async function IncomeExpenditurePage({
 
                   <td className='px-4 py-3'>
                     <Link
-                      href={`/ledger/${row.nominalCodeId}`}
+                      href={`/ledger/${row.ledgerNominalCodeId}`}
                       className='text-slate-700 hover:text-blue-600 hover:underline'
                     >
                       {row.name}

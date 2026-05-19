@@ -50,6 +50,9 @@ Rerunning `bun run demo:reset` recreates the demo login, resets the password, ma
 - Open VAT 126/VAT return reporting and confirm recoverable VAT is visible.
 - Open the AGAR summary and confirm receipts/payments reporting shows gross
   cash receipts and payments while VAT remains available for reclaim reporting.
+- Open Income & Expenditure and confirm VAT is still posted separately for
+  reclaim tracking, but is included in the receipts/payments reporting
+  presentation.
 - Export trial balance, income and expenditure, AGAR summary, budget, bank reconciliation, large payments, fixed assets, and borrowings reports to PDF.
 - View the closed `2025/26` historic reports.
 - Use the open `2026/27` year to demonstrate year-end close, then run `bun run demo:reset` to restore the same starting point.

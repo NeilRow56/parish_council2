@@ -2,7 +2,7 @@
 
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
-import { and, asc, eq, gte, isNotNull, lte } from 'drizzle-orm'
+import { and, asc, desc, eq, isNotNull } from 'drizzle-orm'
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
@@ -22,7 +22,6 @@ export default async function NewBankEntryPage() {
   }
 
   const parishCouncilId = session.user.parishCouncilId
-  const today = new Date().toISOString().split('T')[0]
 
   const [financialYear] = await db
     .select({
@@ -33,11 +32,10 @@ export default async function NewBankEntryPage() {
     .where(
       and(
         eq(financialYears.parishCouncilId, parishCouncilId),
-        lte(financialYears.startDate, today),
-        gte(financialYears.endDate, today),
         eq(financialYears.isClosed, false)
       )
     )
+    .orderBy(desc(financialYears.startDate))
     .limit(1)
 
   if (!financialYear) {

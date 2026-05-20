@@ -55,6 +55,7 @@ type AgarTotals = {
 
 type AgarLine = {
   journalEntryId: string
+  excludeFromAgar: boolean
   agarBox: string | null
   isBank: boolean
   isVatRecoverable: boolean
@@ -116,6 +117,10 @@ function calculateReceiptsAndPaymentsTotals(
   }
 
   for (const journalLinesForEntry of linesByJournal.values()) {
+    if (journalLinesForEntry.some(line => line.excludeFromAgar)) {
+      continue
+    }
+
     const nonBankReportingLines = journalLinesForEntry.filter(
       line => !line.isBank && !line.isVatRecoverable && !line.isVatPayable
     )
@@ -326,6 +331,10 @@ async function getAgarReport({
     .limit(1)
 
   const accountingBasis = getEffectiveAccountingBasis(council?.accountingBasis)
+  const includeOperationalAgarEntrySql =
+    accountingBasis === 'RECEIPTS_AND_PAYMENTS'
+      ? sql`${journalEntries.excludeFromAgar} = false`
+      : sql`true`
 
   const [openingTotals] = await db
     .select({
@@ -388,6 +397,7 @@ async function getAgarReport({
         coalesce(sum(
           case
             when ${nominalCodes.agarBox} = 'BOX_2_PRECEPT'
+              and ${includeOperationalAgarEntrySql}
             then ${journalLines.credit} - ${journalLines.debit}
             else 0
           end
@@ -398,6 +408,7 @@ async function getAgarReport({
         coalesce(sum(
           case
             when ${nominalCodes.agarBox} = 'BOX_3_OTHER_RECEIPTS'
+              and ${includeOperationalAgarEntrySql}
             then ${journalLines.credit} - ${journalLines.debit}
             else 0
           end
@@ -408,6 +419,7 @@ async function getAgarReport({
         coalesce(sum(
           case
             when ${nominalCodes.agarBox} = 'BOX_4_STAFF_COSTS'
+              and ${includeOperationalAgarEntrySql}
             then ${journalLines.debit} - ${journalLines.credit}
             else 0
           end
@@ -418,6 +430,7 @@ async function getAgarReport({
         coalesce(sum(
           case
             when ${nominalCodes.agarBox} = 'BOX_5_LOAN_REPAYMENTS'
+              and ${includeOperationalAgarEntrySql}
             then ${journalLines.debit} - ${journalLines.credit}
             else 0
           end
@@ -428,6 +441,7 @@ async function getAgarReport({
         coalesce(sum(
           case
             when ${nominalCodes.agarBox} = 'BOX_6_OTHER_PAYMENTS'
+              and ${includeOperationalAgarEntrySql}
             then ${journalLines.debit} - ${journalLines.credit}
             else 0
           end
@@ -495,6 +509,7 @@ async function getAgarReport({
       ? await db
           .select({
             journalEntryId: journalLines.journalEntryId,
+            excludeFromAgar: journalEntries.excludeFromAgar,
             agarBox: nominalCodes.agarBox,
             isBank: nominalCodes.isBank,
             isVatRecoverable: nominalCodes.isVatRecoverable,

@@ -344,6 +344,7 @@ export async function submitVatReturn(params: {
         )}`,
         source: 'VAT_RETURN',
         sourceId: returnRow.id,
+        excludeFromAgar: true,
         postedById: userId
       })
       .returning()

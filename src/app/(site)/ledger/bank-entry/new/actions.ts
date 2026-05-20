@@ -276,7 +276,7 @@ export async function createBankEntryAction(input: {
   }
 
   const validCodes = await db
-    .select({ id: nominalCodes.id })
+    .select({ id: nominalCodes.id, code: nominalCodes.code })
     .from(nominalCodes)
     .where(
       and(
@@ -291,6 +291,9 @@ export async function createBankEntryAction(input: {
     )
 
   const validCodeIds = new Set(validCodes.map(code => code.id))
+  const vatControlCodeIds = new Set(
+    validCodes.filter(code => code.code === '2100').map(code => code.id)
+  )
 
   for (const line of cleanedLines) {
     if (!validCodeIds.has(line.nominalCodeId)) {
@@ -463,6 +466,8 @@ export async function createBankEntryAction(input: {
         `${input.entryType === 'PAYMENT' ? 'Payment' : 'Receipt'} - ${
           bankAccount.accountName
         }`
+      const isVatSettlement =
+        vatControlCodeIds.has(line.nominalCodeId) && line.vatPence === 0
 
       const [entry] = await trx
         .insert(journalEntries)
@@ -473,6 +478,7 @@ export async function createBankEntryAction(input: {
           date: input.date,
           description,
           source: 'MANUAL',
+          excludeFromAgar: isVatSettlement,
           postedById: userId,
           attachmentUrl: input.attachmentUrl || null,
           attachmentName: input.attachmentName || null,

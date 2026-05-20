@@ -206,6 +206,8 @@ export const journalEntries = pgTable(
 
     postedById: text('posted_by_id'),
 
+    excludeFromAgar: boolean('exclude_from_agar').default(false).notNull(),
+
     attachmentUrl: text('attachment_url'),
     attachmentName: text('attachment_name'),
     attachmentKey: text('attachment_key'),

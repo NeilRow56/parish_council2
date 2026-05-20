@@ -1134,6 +1134,7 @@ async function seedJournals(
     description: string
     source: 'BANK_FEED' | 'MANUAL' | 'YEAR_END' | 'OPENING_BALANCE' | 'VAT_RETURN'
     sourceId?: string
+    excludeFromAgar?: boolean
     lines: Array<[code: string, debit: number, credit: number]>
   }>
 ) {
@@ -1152,7 +1153,9 @@ async function seedJournals(
       date: journal.date,
       description: journal.description,
       source: journal.source,
-      sourceId: journal.sourceId
+      sourceId: journal.sourceId,
+      excludeFromAgar:
+        journal.excludeFromAgar ?? journal.source === 'VAT_RETURN'
     })
 
     await trx.insert(journalLines).values(

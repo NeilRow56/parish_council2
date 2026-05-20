@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
   }
 
   const [analysisCode] = await db
-    .select({ id: nominalCodes.id })
+    .select({ id: nominalCodes.id, code: nominalCodes.code })
     .from(nominalCodes)
     .where(
       and(
@@ -173,6 +173,7 @@ export async function POST(request: NextRequest) {
             description: tx.description,
             source: 'BANK_FEED',
             sourceId: tx.id,
+            excludeFromAgar: analysisCode.code === '2100',
             postedById: userId
           })
           .returning()

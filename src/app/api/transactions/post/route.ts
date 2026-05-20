@@ -140,6 +140,23 @@ export async function POST(request: NextRequest) {
             'Linked bank nominal code is inactive, missing, or not valid for this financial year'
           )
         }
+        const [analysisCode] = await trx
+          .select({ code: nominalCodes.code })
+          .from(nominalCodes)
+          .where(
+            and(
+              eq(nominalCodes.id, nominalCodeId),
+              eq(nominalCodes.parishCouncilId, parishCouncilId),
+              eq(nominalCodes.financialYearId, financialYear.id),
+              eq(nominalCodes.isActive, true)
+            )
+          )
+          .limit(1)
+
+        if (!analysisCode) {
+          throw new Error('Selected nominal code is inactive or missing.')
+        }
+
         // ✅ SAFEGUARD — add this
         if (!tx.transactionType) {
           throw new Error(`Transaction ${tx.id} missing transaction type`)
@@ -164,6 +181,7 @@ export async function POST(request: NextRequest) {
             description: tx.description,
             source: 'BANK_FEED',
             sourceId: tx.id,
+            excludeFromAgar: analysisCode.code === '2100',
             postedById: userId
           })
           .returning()

@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
-import { and, eq, gte, lte } from 'drizzle-orm'
+import { and, desc, eq } from 'drizzle-orm'
 
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
@@ -22,19 +22,16 @@ export default async function NewManualJournalPage() {
     redirect('/auth/register')
   }
 
-  const today = new Date().toISOString().split('T')[0]
-
   const [financialYear] = await db
     .select()
     .from(financialYears)
     .where(
       and(
         eq(financialYears.parishCouncilId, parishCouncilId),
-        lte(financialYears.startDate, today),
-        gte(financialYears.endDate, today),
         eq(financialYears.isClosed, false)
       )
     )
+    .orderBy(desc(financialYears.startDate))
     .limit(1)
 
   if (!financialYear) {

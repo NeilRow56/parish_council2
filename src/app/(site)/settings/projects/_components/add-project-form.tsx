@@ -84,7 +84,7 @@ export function AddProjectForm({ reserveOptions }: Props) {
             name='reserveId'
             defaultValue={defaultReserveId}
             disabled={reserveOptions.length === 0}
-            className='rounded-md border px-3 py-2 text-sm disabled:bg-zinc-50 disabled:text-zinc-500'
+            className='rounded-md border px-3 py-2 text-sm disabled:bg-emerald-50/30 disabled:text-zinc-500'
           >
             {reserveOptions.map(option => (
               <option key={option.id} value={option.id}>

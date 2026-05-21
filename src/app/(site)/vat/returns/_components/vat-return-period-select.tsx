@@ -67,7 +67,7 @@ export function VatReturnPeriodSelect({
           className={`rounded-md border px-3 py-2 text-sm font-medium ${
             mode === 'preset'
               ? 'bg-slate-900 text-white'
-              : 'bg-white text-slate-700 hover:bg-slate-50'
+              : 'bg-white text-slate-700 hover:bg-emerald-50/40'
           }`}
         >
           Preset periods
@@ -79,7 +79,7 @@ export function VatReturnPeriodSelect({
           className={`rounded-md border px-3 py-2 text-sm font-medium ${
             mode === 'custom'
               ? 'bg-slate-900 text-white'
-              : 'bg-white text-slate-700 hover:bg-slate-50'
+              : 'bg-white text-slate-700 hover:bg-emerald-50/40'
           }`}
         >
           Custom dates

@@ -453,7 +453,7 @@ export default async function BankReconciliationPage({
               Reconciliation date: {reconciliationDate}
             </span>
             {financialYear.isClosed ? (
-              <span className='ml-2 rounded-full bg-zinc-100 px-2 py-0.5 text-xs font-medium text-zinc-700'>
+              <span className='ml-2 rounded-full bg-emerald-100/30 px-2 py-0.5 text-xs font-medium text-zinc-700'>
                 Closed / read-only
               </span>
             ) : null}
@@ -467,14 +467,14 @@ export default async function BankReconciliationPage({
             <>
               <Link
                 href='/transactions/inbox'
-                className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-zinc-50'
+                className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-emerald-50/40'
               >
                 Transaction inbox
               </Link>
 
               <Link
                 href='/bank-connections'
-                className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-zinc-50'
+                className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-emerald-50/40'
               >
                 Bank connections
               </Link>
@@ -631,7 +631,7 @@ export default async function BankReconciliationPage({
               <col className='w-44' />
             </colgroup>
 
-            <thead className='bg-zinc-50 text-left text-zinc-600'>
+            <thead className='bg-emerald-50/30 text-left text-zinc-600'>
               <tr>
                 <th className='px-4 py-3 font-medium'>Bank account</th>
                 <th className='px-4 py-3 font-medium'>Nominal code</th>
@@ -750,7 +750,7 @@ export default async function BankReconciliationPage({
                       </td>
                     </tr>
 
-                    <tr className='border-t bg-zinc-50/60'>
+                    <tr className='border-t bg-emerald-50/30'>
                       <td className='px-4 py-3' colSpan={9}>
                         <details>
                           <summary className='cursor-pointer text-xs font-medium text-blue-700 hover:underline'>
@@ -921,7 +921,7 @@ export default async function BankReconciliationPage({
               })}
             </tbody>
 
-            <tfoot className='border-t bg-zinc-50 font-semibold'>
+            <tfoot className='border-t bg-emerald-50/30 font-semibold'>
               <tr>
                 <td className='px-4 py-3' colSpan={2}>
                   Totals

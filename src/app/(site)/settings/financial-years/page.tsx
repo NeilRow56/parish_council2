@@ -194,7 +194,7 @@ export default async function FinancialYearsPage() {
         </CardContent>
       </Card>
 
-      <Card className='border-slate-200 bg-slate-50'>
+      <Card className='border-emerald-100 bg-emerald-50/30'>
         <CardHeader>
           <CardTitle className='text-base'>Read-only prior years</CardTitle>
           <CardDescription>

@@ -64,7 +64,7 @@ export function InvoiceUpload({
 
               toast.success('File removed')
             }}
-            className='shrink-0 rounded-md border px-3 py-2 text-sm hover:bg-slate-50 disabled:opacity-50'
+            className='shrink-0 rounded-md border px-3 py-2 text-sm hover:bg-emerald-50/40 disabled:opacity-50'
           >
             Remove
           </button>

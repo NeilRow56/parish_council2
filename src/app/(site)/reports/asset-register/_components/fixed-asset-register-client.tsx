@@ -298,7 +298,7 @@ export function FixedAssetRegisterClient({
                 {!readOnly ? <col className='w-24' /> : null}
               </colgroup>
 
-              <thead className='bg-zinc-50 text-left text-zinc-600'>
+              <thead className='bg-emerald-50/30 text-left text-zinc-600'>
                 <tr>
                   <th className='px-4 py-3 font-medium'>Ref</th>
                   <th className='px-4 py-3 font-medium'>Category</th>

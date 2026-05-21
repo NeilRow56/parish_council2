@@ -27,8 +27,8 @@ function NavLink({
       href={href}
       className={`rounded-md px-3 py-2 text-sm font-medium transition-colors ${
         active
-          ? 'bg-slate-900 text-white'
-          : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+          ? 'bg-emerald-900 text-white'
+          : 'text-slate-600 hover:bg-emerald-50/60 hover:text-emerald-950'
       }`}
     >
       {label}
@@ -53,15 +53,15 @@ function NavDropdown({
         type='button'
         className={`inline-flex items-center gap-1 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
           active
-            ? 'bg-slate-900 text-white'
-            : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900'
+            ? 'bg-emerald-900 text-white'
+            : 'text-slate-600 hover:bg-emerald-50/60 hover:text-emerald-950'
         }`}
       >
         {label}
         <ChevronDown className='h-4 w-4' />
       </button>
 
-      <div className='invisible absolute top-full left-0 z-50 mt-1 min-w-56 rounded-md border bg-white p-1 opacity-0 shadow-lg transition-all group-hover:visible group-hover:opacity-100'>
+      <div className='invisible absolute top-full left-0 z-50 mt-1 min-w-56 rounded-md border border-emerald-100 bg-white p-1 opacity-0 shadow-lg shadow-emerald-950/10 transition-all group-hover:visible group-hover:opacity-100'>
         {items.map(item => {
           const itemActive =
             pathname === item.href || pathname.startsWith(`${item.href}/`)
@@ -72,8 +72,8 @@ function NavDropdown({
               href={item.href}
               className={`block rounded-md px-3 py-2 text-sm transition-colors ${
                 itemActive
-                  ? 'bg-slate-100 font-medium text-slate-900'
-                  : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
+                  ? 'bg-emerald-50 font-medium text-emerald-950'
+                  : 'text-slate-600 hover:bg-emerald-50/40 hover:text-emerald-950'
               }`}
             >
               {item.label}
@@ -204,7 +204,7 @@ export default function AppNav({
   const settingsItems = getSettingsItems()
 
   return (
-    <header className='border-b bg-white'>
+    <header className='border-b border-emerald-100 bg-white'>
       <div className='mx-auto flex h-14 max-w-400 items-center justify-between px-6'>
         <div className='flex items-center gap-6'>
           <Link href='/dashboard' className='flex shrink-0 items-center'>

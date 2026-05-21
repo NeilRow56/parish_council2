@@ -756,7 +756,7 @@ export function BankEntryForm({
       </div>
 
       <div className='overflow-x-auto'>
-        <div className='flex flex-wrap items-center justify-between gap-3 border-b bg-zinc-50 px-4 py-3 text-sm'>
+        <div className='flex flex-wrap items-center justify-between gap-3 border-b bg-emerald-50/30 px-4 py-3 text-sm'>
           <p className='text-sm text-blue-600'>
             Code each line to a nominal code, reserve and optional project. Use
             the{' '}
@@ -769,7 +769,7 @@ export function BankEntryForm({
             <button
               type='button'
               onClick={() => router.push('/settings/nominal-codes')}
-              className='rounded-md border border-blue-600 bg-white px-3 py-1.5 font-medium hover:bg-zinc-50'
+              className='rounded-md border border-blue-600 bg-white px-3 py-1.5 font-medium hover:bg-emerald-50/40'
             >
               Manage nominal codes
             </button>
@@ -777,7 +777,7 @@ export function BankEntryForm({
             <button
               type='button'
               onClick={() => router.push('/settings/suppliers')}
-              className='rounded-md border border-blue-600 bg-white px-3 py-1.5 font-medium hover:bg-zinc-50'
+              className='rounded-md border border-blue-600 bg-white px-3 py-1.5 font-medium hover:bg-emerald-50/40'
             >
               Manage suppliers
             </button>
@@ -797,7 +797,7 @@ export function BankEntryForm({
             <col className='w-24' />
           </colgroup>
 
-          <thead className='bg-zinc-50 text-left text-zinc-600'>
+          <thead className='bg-emerald-50/30 text-left text-zinc-600'>
             <tr>
               <th className='px-4 py-3 font-medium'>Nominal code</th>
               {entryType === 'PAYMENT' && (
@@ -872,7 +872,7 @@ export function BankEntryForm({
                           <button
                             type='button'
                             onClick={() => openQuickSupplierModal(line.id)}
-                            className='shrink-0 rounded-md border px-2.5 py-2 text-sm font-medium hover:bg-zinc-50'
+                            className='shrink-0 rounded-md border px-2.5 py-2 text-sm font-medium hover:bg-emerald-50/40'
                             title='Add supplier'
                           >
                             +
@@ -991,7 +991,7 @@ export function BankEntryForm({
                             )
                           })
                         }
-                        className='w-full rounded-md border px-3 py-2 text-right disabled:bg-zinc-50 disabled:text-zinc-500'
+                        className='w-full rounded-md border px-3 py-2 text-right disabled:bg-emerald-50/30 disabled:text-zinc-500'
                       />
                     </td>
 
@@ -1030,7 +1030,7 @@ export function BankEntryForm({
                               showDetails: !line.showDetails
                             })
                           }
-                          className='rounded-md p-2 text-zinc-500 hover:bg-zinc-100'
+                          className='rounded-md p-2 text-zinc-500 hover:bg-emerald-100/30'
                           title={
                             line.showDetails
                               ? entryType === 'PAYMENT'
@@ -1052,7 +1052,7 @@ export function BankEntryForm({
                           type='button'
                           onClick={() => removeLine(line.id)}
                           disabled={lines.length <= 1}
-                          className='rounded-md p-2 text-zinc-500 hover:bg-zinc-100 disabled:opacity-40'
+                          className='rounded-md p-2 text-zinc-500 hover:bg-emerald-100/30 disabled:opacity-40'
                           title='Remove line'
                         >
                           <Trash2 className='h-4 w-4' />
@@ -1062,7 +1062,7 @@ export function BankEntryForm({
                   </tr>
 
                   {line.showDetails && (
-                    <tr className='border-t bg-zinc-50/50'>
+                    <tr className='border-t bg-emerald-50/25'>
                       <td
                         className='px-4 py-4'
                         colSpan={entryType === 'PAYMENT' ? 9 : 8}
@@ -1181,7 +1181,7 @@ export function BankEntryForm({
             })}
           </tbody>
 
-          <tfoot className='border-t bg-zinc-50 font-semibold'>
+          <tfoot className='border-t bg-emerald-50/30 font-semibold'>
             <tr>
               <td
                 className='px-4 py-3'
@@ -1211,7 +1211,7 @@ export function BankEntryForm({
           <button
             type='button'
             onClick={addLine}
-            className='inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-zinc-50'
+            className='inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-emerald-50/40'
           >
             <Plus className='h-4 w-4' />
             Add line
@@ -1220,7 +1220,7 @@ export function BankEntryForm({
           <button
             type='button'
             onClick={() => router.push('/ledger')}
-            className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-zinc-50'
+            className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-emerald-50/40'
           >
             Cancel
           </button>
@@ -1293,7 +1293,7 @@ export function BankEntryForm({
                 type='button'
                 onClick={closeQuickSupplierModal}
                 disabled={isQuickSupplierPending}
-                className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-zinc-50 disabled:opacity-50'
+                className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-emerald-50/40 disabled:opacity-50'
               >
                 Cancel
               </button>

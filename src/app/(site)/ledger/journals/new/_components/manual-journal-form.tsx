@@ -296,7 +296,7 @@ export function ManualJournalForm({
             <col className='w-12' />
           </colgroup>
 
-          <thead className='bg-zinc-50 text-left text-zinc-600'>
+          <thead className='bg-emerald-50/30 text-left text-zinc-600'>
             <tr>
               <th className='px-4 py-3 font-medium'>Nominal code</th>
               <th className='px-4 py-3 font-medium'>Line description</th>
@@ -377,7 +377,7 @@ export function ManualJournalForm({
                     type='button'
                     onClick={() => removeLine(line.id)}
                     disabled={lines.length <= 2}
-                    className='rounded-md p-2 text-zinc-500 hover:bg-zinc-100 disabled:opacity-40'
+                    className='rounded-md p-2 text-zinc-500 hover:bg-emerald-100/30 disabled:opacity-40'
                   >
                     <Trash2 className='h-4 w-4' />
                   </button>
@@ -386,7 +386,7 @@ export function ManualJournalForm({
             ))}
           </tbody>
 
-          <tfoot className='border-t bg-zinc-50 font-semibold'>
+          <tfoot className='border-t bg-emerald-50/30 font-semibold'>
             <tr>
               <td className='px-4 py-3' colSpan={2}>
                 Totals
@@ -418,7 +418,7 @@ export function ManualJournalForm({
           <button
             type='button'
             onClick={addLine}
-            className='inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-zinc-50'
+            className='inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-emerald-50/40'
           >
             <Plus className='h-4 w-4' />
             Add line
@@ -427,7 +427,7 @@ export function ManualJournalForm({
           <button
             type='button'
             onClick={() => router.push('/ledger')}
-            className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-zinc-50'
+            className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-emerald-50/40'
           >
             Cancel
           </button>

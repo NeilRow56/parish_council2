@@ -401,7 +401,7 @@ export default async function BudgetPage({
             </colgroup>
 
             <tbody>
-              <tr className='border-b bg-zinc-50 font-semibold'>
+              <tr className='border-b bg-emerald-50/30 font-semibold'>
                 <td className='px-4 py-3' colSpan={2}>
                   Total receipts
                 </td>
@@ -416,7 +416,7 @@ export default async function BudgetPage({
                 </td>
               </tr>
 
-              <tr className='border-b bg-zinc-50 font-semibold'>
+              <tr className='border-b bg-emerald-50/30 font-semibold'>
                 <td className='px-4 py-3' colSpan={2}>
                   Total payments
                 </td>
@@ -431,7 +431,7 @@ export default async function BudgetPage({
                 </td>
               </tr>
 
-              <tr className='bg-zinc-100 font-semibold'>
+              <tr className='bg-emerald-100/30 font-semibold'>
                 <td className='px-4 py-3' colSpan={2}>
                   Excess income over expenditure
                 </td>
@@ -500,7 +500,7 @@ function BudgetSection({
 
   return (
     <section className='overflow-hidden rounded-lg border bg-white shadow-sm'>
-      <div className='border-b bg-zinc-50 px-4 py-3'>
+      <div className='border-b bg-emerald-50/30 px-4 py-3'>
         <h2 className='text-sm font-semibold tracking-wide text-zinc-700 uppercase'>
           {title}
         </h2>
@@ -574,7 +574,7 @@ function BudgetSection({
             ))}
           </tbody>
 
-          <tfoot className='border-t bg-zinc-50 font-semibold'>
+          <tfoot className='border-t bg-emerald-50/30 font-semibold'>
             <tr>
               <td className='px-4 py-3' colSpan={2}>
                 Total {title.toLowerCase()}

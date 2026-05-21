@@ -292,7 +292,7 @@ export default async function IncomeExpenditurePage({
 
           <Link
             href='/ledger'
-            className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-zinc-50'
+            className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-emerald-50/40'
           >
             Back to ledger
           </Link>
@@ -332,7 +332,7 @@ export default async function IncomeExpenditurePage({
 
       <div className='space-y-6'>
         <section className='overflow-hidden rounded-lg border bg-white shadow-sm'>
-          <div className='border-b bg-zinc-50 px-4 py-3'>
+          <div className='border-b bg-emerald-50/30 px-4 py-3'>
             <h2 className='font-semibold'>Income</h2>
           </div>
 
@@ -383,7 +383,7 @@ export default async function IncomeExpenditurePage({
               ))}
             </tbody>
 
-            <tfoot className='border-t bg-zinc-50 font-semibold'>
+            <tfoot className='border-t bg-emerald-50/30 font-semibold'>
               <tr>
                 <td className='px-4 py-3' colSpan={2}>
                   Total income
@@ -397,7 +397,7 @@ export default async function IncomeExpenditurePage({
         </section>
 
         <section className='overflow-hidden rounded-lg border bg-white shadow-sm'>
-          <div className='border-b bg-zinc-50 px-4 py-3'>
+          <div className='border-b bg-emerald-50/30 px-4 py-3'>
             <h2 className='font-semibold'>Expenditure</h2>
           </div>
 
@@ -419,7 +419,7 @@ export default async function IncomeExpenditurePage({
               {expenditureRows.map(row => (
                 <tr
                   key={row.nominalCodeId}
-                  className='border-t transition-colors hover:bg-slate-50'
+                  className='border-t transition-colors hover:bg-emerald-50/40'
                 >
                   <td className='px-4 py-3 font-medium'>
                     <Link
@@ -446,7 +446,7 @@ export default async function IncomeExpenditurePage({
               ))}
             </tbody>
 
-            <tfoot className='border-t bg-zinc-50 font-semibold'>
+            <tfoot className='border-t bg-emerald-50/30 font-semibold'>
               <tr>
                 <td className='px-4 py-3' colSpan={2}>
                   Total expenditure

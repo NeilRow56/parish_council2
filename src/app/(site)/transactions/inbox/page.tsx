@@ -159,7 +159,7 @@ function NominalPicker({
         }
       }}
       disabled={disabled}
-      className='w-full rounded-md border border-slate-200 bg-white px-2 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none disabled:bg-slate-50 disabled:text-slate-400'
+      className='w-full rounded-md border border-emerald-100 bg-white px-2 py-1.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none disabled:bg-emerald-50/30 disabled:text-slate-400'
     >
       <option value=''>Select nominal code…</option>
 
@@ -614,8 +614,8 @@ export default function TransactionInbox() {
   const busy = posting || bulkUpdating || bulkPosting
 
   return (
-    <div className='min-h-screen bg-slate-50 font-sans'>
-      <div className='border-b border-slate-200 bg-white px-6 py-4'>
+    <div className='min-h-screen bg-background font-sans'>
+      <div className='border-b border-emerald-100 bg-white px-6 py-4'>
         <div className='mx-auto flex max-w-6xl items-center justify-between'>
           <div>
             <h1 className='text-xl font-semibold text-slate-900'>
@@ -700,8 +700,8 @@ export default function TransactionInbox() {
                 filterStatus === value
                   ? 'border-slate-900 bg-slate-900 text-white'
                   : value === 'EXCLUDED'
-                    ? 'border-slate-200 bg-white text-slate-400 hover:border-slate-300'
-                    : 'border-slate-200 bg-white text-slate-600 hover:border-slate-300'
+                    ? 'border-emerald-100 bg-white text-slate-400 hover:border-slate-300'
+                    : 'border-emerald-100 bg-white text-slate-600 hover:border-slate-300'
               }`}
             >
               {label}
@@ -723,7 +723,7 @@ export default function TransactionInbox() {
                 setAccountFilter(event.target.value)
                 setPage(1)
               }}
-              className='w-56 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none'
+              className='w-56 rounded-lg border border-emerald-100 bg-white px-3 py-1.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none'
             >
               <option value='all'>All accounts</option>
               {accountOptions.map(account => (
@@ -738,7 +738,7 @@ export default function TransactionInbox() {
               placeholder='Search transactions…'
               value={searchInput}
               onChange={event => setSearchInput(event.target.value)}
-              className='w-56 rounded-lg border border-slate-200 px-3 py-1.5 text-sm focus:ring-2 focus:ring-blue-500 focus:outline-none'
+              className='w-56 rounded-lg border border-emerald-100 px-3 py-1.5 text-sm focus:ring-2 focus:ring-emerald-500 focus:outline-none'
             />
           </div>
         </div>
@@ -794,7 +794,7 @@ export default function TransactionInbox() {
           </div>
         )}
 
-        <div className='overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm'>
+        <div className='overflow-hidden rounded-xl border border-emerald-100 bg-white shadow-sm'>
           {loading ? (
             <div className='flex items-center justify-center py-20 text-sm text-slate-400'>
               Loading transactions…
@@ -809,7 +809,7 @@ export default function TransactionInbox() {
           ) : (
             <table className='w-full text-sm'>
               <thead>
-                <tr className='border-b border-slate-100 bg-slate-50'>
+                <tr className='border-b border-emerald-100 bg-emerald-50/30'>
                   <th className='w-10 px-4 py-3 text-left'>
                     <input
                       type='checkbox'
@@ -862,7 +862,7 @@ export default function TransactionInbox() {
                   return (
                     <Fragment key={transaction.id}>
                       <tr
-                        className={`border-b border-slate-100 transition-colors hover:bg-slate-50 ${
+                        className={`border-b border-emerald-100 transition-colors hover:bg-emerald-50/40 ${
                           isExcluded ? 'opacity-50' : ''
                         } ${
                           selected.has(transaction.id)
@@ -983,7 +983,7 @@ export default function TransactionInbox() {
                       </tr>
 
                       {isExpanded && (
-                        <tr className='border-b border-slate-100 bg-slate-50'>
+                        <tr className='border-b border-emerald-100 bg-emerald-50/30'>
                           <td colSpan={8} className='px-4 py-4'>
                             <MatchCandidatesPanel
                               candidates={matchCandidates[transaction.id] ?? []}
@@ -1018,7 +1018,7 @@ export default function TransactionInbox() {
               <button
                 onClick={() => setPage(current => Math.max(1, current - 1))}
                 disabled={pagination.page <= 1}
-                className='rounded-lg border border-slate-200 px-3 py-1.5 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40'
+                className='rounded-lg border border-emerald-100 px-3 py-1.5 hover:bg-emerald-50/40 disabled:cursor-not-allowed disabled:opacity-40'
               >
                 Previous
               </button>
@@ -1034,7 +1034,7 @@ export default function TransactionInbox() {
                   )
                 }
                 disabled={pagination.page >= pagination.totalPages}
-                className='rounded-lg border border-slate-200 px-3 py-1.5 hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40'
+                className='rounded-lg border border-emerald-100 px-3 py-1.5 hover:bg-emerald-50/40 disabled:cursor-not-allowed disabled:opacity-40'
               >
                 Next
               </button>
@@ -1080,7 +1080,7 @@ function MatchCandidatesPanel({
       </div>
 
       <table className='w-full text-sm'>
-        <thead className='bg-slate-50 text-left text-slate-500'>
+        <thead className='bg-emerald-50/30 text-left text-slate-500'>
           <tr>
             <th className='px-4 py-2 font-medium'>Date</th>
             <th className='px-4 py-2 font-medium'>Reference</th>

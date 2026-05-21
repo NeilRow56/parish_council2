@@ -135,7 +135,7 @@ export default async function JournalDetailPage({
 
         <Link
           href='/ledger'
-          className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-zinc-50'
+          className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-emerald-50/40'
         >
           Back to ledger
         </Link>
@@ -210,7 +210,7 @@ export default async function JournalDetailPage({
           {canReverse ? (
             <ReverseJournalButton journalEntryId={journal.id} />
           ) : (
-            <span className='rounded-md border bg-zinc-50 px-3 py-2 text-sm text-zinc-600'>
+            <span className='rounded-md border bg-emerald-50/30 px-3 py-2 text-sm text-zinc-600'>
               {journal.financialYearClosed
                 ? 'Closed-year journal'
                 : journal.reversedByJournalEntryId
@@ -225,7 +225,7 @@ export default async function JournalDetailPage({
 
       <section className='overflow-hidden rounded-lg border bg-white shadow-sm'>
         <table className='w-full border-collapse text-sm'>
-          <thead className='bg-zinc-50 text-left text-zinc-600'>
+          <thead className='bg-emerald-50/30 text-left text-zinc-600'>
             <tr>
               <th className='px-4 py-3 font-medium'>Nominal code</th>
               <th className='px-4 py-3 font-medium'>Line description</th>
@@ -276,7 +276,7 @@ export default async function JournalDetailPage({
             ))}
           </tbody>
 
-          <tfoot className='border-t bg-zinc-50 font-semibold'>
+          <tfoot className='border-t bg-emerald-50/30 font-semibold'>
             <tr>
               <td className='px-4 py-3' colSpan={5}>
                 Totals

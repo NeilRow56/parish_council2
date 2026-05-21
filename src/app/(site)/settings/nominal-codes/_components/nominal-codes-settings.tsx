@@ -93,7 +93,7 @@ export function NominalCodesSettings({
               className={`rounded-full border px-3 py-1.5 text-sm font-medium ${
                 filter === value
                   ? 'border-slate-900 bg-slate-900 text-white'
-                  : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                  : 'border-emerald-100 bg-white text-slate-600 hover:bg-emerald-50/40'
               }`}
             >
               {label}
@@ -120,7 +120,7 @@ export function NominalCodesSettings({
 
       <div className='overflow-hidden rounded-lg border bg-white shadow-sm'>
         <table className='w-full border-collapse text-sm'>
-          <thead className='bg-zinc-50 text-left text-zinc-600'>
+          <thead className='bg-emerald-50/30 text-left text-zinc-600'>
             <tr>
               <th className='px-4 py-3 font-medium'>Code</th>
               <th className='px-4 py-3 font-medium'>Name</th>
@@ -154,7 +154,7 @@ export function NominalCodesSettings({
                         className={`rounded-full px-2 py-1 text-xs font-medium ${
                           code.isActive
                             ? 'bg-green-50 text-green-700'
-                            : 'bg-zinc-100 text-zinc-500'
+                            : 'bg-emerald-100/30 text-zinc-500'
                         }`}
                       >
                         {code.isActive ? 'Active' : 'Inactive'}
@@ -164,7 +164,7 @@ export function NominalCodesSettings({
                       <button
                         type='button'
                         onClick={() => setEditingId(code.id)}
-                        className='rounded-md border px-3 py-1.5 text-sm hover:bg-zinc-50'
+                        className='rounded-md border px-3 py-1.5 text-sm hover:bg-emerald-50/40'
                       >
                         Edit
                       </button>
@@ -317,7 +317,7 @@ function CreateNominalCodeForm({
         <button
           type='button'
           onClick={onDone}
-          className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-zinc-50'
+          className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-emerald-50/40'
         >
           Cancel
         </button>
@@ -435,7 +435,7 @@ function EditNominalCodeRow({
           <button
             type='button'
             onClick={onDone}
-            className='rounded-md border px-3 py-1.5 text-sm hover:bg-zinc-50'
+            className='rounded-md border px-3 py-1.5 text-sm hover:bg-emerald-50/40'
           >
             Cancel
           </button>

@@ -47,7 +47,7 @@ export function VatRateRowForm({ vatRate }: Props) {
       )}
 
       <div className='grid grid-cols-[160px_1fr_140px_120px_120px_170px] items-center gap-3'>
-        <div className='rounded-md border bg-zinc-50 px-3 py-2 text-sm text-zinc-600'>
+        <div className='rounded-md border bg-emerald-50/30 px-3 py-2 text-sm text-zinc-600'>
           {vatRate.code}
         </div>
 

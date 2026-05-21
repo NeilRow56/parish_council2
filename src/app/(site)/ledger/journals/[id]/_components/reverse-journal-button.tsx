@@ -54,7 +54,7 @@ export function ReverseJournalButton({
         className={
           confirming
             ? 'inline-flex items-center gap-2 rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white hover:bg-red-700 disabled:opacity-50'
-            : 'inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-zinc-50 disabled:opacity-50'
+            : 'inline-flex items-center gap-2 rounded-md border px-3 py-2 text-sm font-medium hover:bg-emerald-50/40 disabled:opacity-50'
         }
       >
         <RotateCcw className='h-4 w-4' />

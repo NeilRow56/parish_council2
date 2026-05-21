@@ -563,7 +563,7 @@ export default async function AgarSummaryPage({
   const exportHref = `/reports/agar-summary/export?financialYearId=${year.id}`
 
   return (
-    <main className='min-h-screen bg-slate-50 p-6'>
+    <main className='min-h-screen bg-background p-6'>
       <div className='mx-auto max-w-7xl space-y-6'>
         <div className='flex items-start justify-between gap-4'>
           <div>
@@ -689,7 +689,7 @@ export default async function AgarSummaryPage({
                     </td>
                   </tr>
                 ))}
-                <tr className='border-t bg-slate-50'>
+                <tr className='border-t bg-emerald-50/30'>
                   <td className='px-4 py-3 font-semibold'>
                     Reconciled Box 8 cash
                   </td>

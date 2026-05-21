@@ -131,7 +131,7 @@ export default async function LedgerPage({ searchParams }: LedgerPageProps) {
   const totalCredit = rows.reduce((sum, row) => sum + Number(row.credit), 0)
 
   return (
-    <main className='min-h-screen bg-slate-50 p-6'>
+    <main className='min-h-screen bg-background p-6'>
       <div className='mx-auto max-w-7xl space-y-6'>
         <div>
           <h1 className='text-2xl font-semibold text-slate-900'>Ledger</h1>
@@ -183,7 +183,7 @@ export default async function LedgerPage({ searchParams }: LedgerPageProps) {
             {query && (
               <Link
                 href='/ledger'
-                className='rounded-md border bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50'
+                className='rounded-md border bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-emerald-50/40'
               >
                 Clear
               </Link>
@@ -213,7 +213,7 @@ export default async function LedgerPage({ searchParams }: LedgerPageProps) {
             </div>
           ) : (
             <table className='w-full text-sm'>
-              <thead className='bg-slate-50 text-left text-slate-500'>
+              <thead className='bg-emerald-50/30 text-left text-slate-500'>
                 <tr>
                   <th className='px-4 py-3 font-medium'>Date</th>
                   <th className='px-4 py-3 font-medium'>Reference</th>
@@ -229,7 +229,7 @@ export default async function LedgerPage({ searchParams }: LedgerPageProps) {
                 {rows.map(row => (
                   <tr
                     key={row.lineId}
-                    className='border-t border-slate-100 hover:bg-slate-50'
+                    className='border-t border-emerald-100 hover:bg-emerald-50/40'
                   >
                     <td className='px-4 py-3 whitespace-nowrap text-slate-600'>
                       {formatDate(row.date)}
@@ -277,7 +277,7 @@ export default async function LedgerPage({ searchParams }: LedgerPageProps) {
                 ))}
               </tbody>
 
-              <tfoot className='border-t bg-slate-50 font-medium'>
+              <tfoot className='border-t bg-emerald-50/30 font-medium'>
                 <tr>
                   <td colSpan={4} className='px-4 py-3 text-right'>
                     Totals shown

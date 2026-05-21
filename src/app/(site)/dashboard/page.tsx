@@ -38,15 +38,15 @@ function StatusCard({
   linkLabel: string
 }) {
   return (
-    <section className='rounded-lg border bg-white p-5 shadow-sm'>
-      <p className='text-sm font-medium text-slate-500'>{title}</p>
+    <section className='rounded-lg border border-emerald-100 bg-white p-5 shadow-sm shadow-emerald-950/5'>
+      <p className='text-sm font-medium text-emerald-800'>{title}</p>
       <p className='mt-2 text-2xl font-semibold text-slate-950'>{value}</p>
       <p className='mt-2 min-h-10 text-sm leading-5 text-slate-600'>
         {description}
       </p>
       <Link
         href={href}
-        className='mt-4 inline-flex text-sm font-medium text-slate-900 hover:underline'
+        className='mt-4 inline-flex text-sm font-medium text-emerald-800 hover:text-emerald-950 hover:underline'
       >
         {linkLabel}
       </Link>
@@ -262,7 +262,7 @@ export default async function DashboardPage() {
   )
 
   return (
-    <main className='min-h-screen bg-slate-50 px-6 py-8'>
+    <main className='min-h-screen bg-background px-6 py-8'>
       <div className='mx-auto max-w-7xl space-y-8'>
         <div className='flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between'>
           <div>
@@ -365,8 +365,8 @@ export default async function DashboardPage() {
         </div>
 
         <div className='grid gap-6 lg:grid-cols-[1fr_0.8fr]'>
-          <section className='rounded-lg border bg-white shadow-sm'>
-            <div className='border-b px-5 py-4'>
+          <section className='rounded-lg border border-emerald-100 bg-white shadow-sm shadow-emerald-950/5'>
+            <div className='border-b border-emerald-100 px-5 py-4'>
               <h2 className='text-base font-semibold text-slate-950'>
                 Recent postings
               </h2>
@@ -381,7 +381,7 @@ export default async function DashboardPage() {
                   <Link
                     key={posting.id}
                     href={`/ledger/journals/${posting.id}`}
-                    className='grid gap-2 px-5 py-4 text-sm hover:bg-slate-50 sm:grid-cols-[120px_120px_1fr_120px]'
+                    className='grid gap-2 px-5 py-4 text-sm hover:bg-emerald-50/30 sm:grid-cols-[120px_120px_1fr_120px]'
                   >
                     <span className='text-slate-500'>
                       {formatDate(posting.date)}
@@ -403,8 +403,8 @@ export default async function DashboardPage() {
             </div>
           </section>
 
-          <section className='rounded-lg border bg-white shadow-sm'>
-            <div className='border-b px-5 py-4'>
+          <section className='rounded-lg border border-emerald-100 bg-white shadow-sm shadow-emerald-950/5'>
+            <div className='border-b border-emerald-100 px-5 py-4'>
               <h2 className='text-base font-semibold text-slate-950'>
                 Next actions
               </h2>
@@ -418,7 +418,7 @@ export default async function DashboardPage() {
                 <Link
                   key={action.href}
                   href={action.href}
-                  className='block px-5 py-4 text-sm font-medium text-slate-900 hover:bg-slate-50'
+                  className='block px-5 py-4 text-sm font-medium text-slate-900 hover:bg-emerald-50/30'
                 >
                   {action.label}
                 </Link>

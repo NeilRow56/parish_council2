@@ -96,7 +96,7 @@ export default async function TrialBalancePage({
 
           <Link
             href='/ledger'
-            className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-zinc-50'
+            className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-emerald-50/40'
           >
             Back to ledger
           </Link>
@@ -134,7 +134,7 @@ export default async function TrialBalancePage({
 
       <div className='overflow-hidden rounded-lg border bg-white shadow-sm'>
         <table className='w-full border-collapse text-sm'>
-          <thead className='bg-zinc-50 text-left text-zinc-600'>
+          <thead className='bg-emerald-50/30 text-left text-zinc-600'>
             <tr>
               <th className='px-4 py-3 font-medium'>Code</th>
               <th className='px-4 py-3 font-medium'>Name</th>
@@ -148,7 +148,7 @@ export default async function TrialBalancePage({
             {report.rows.map(row => (
               <tr
                 key={row.nominalCodeId}
-                className='border-t transition-colors hover:bg-slate-50'
+                className='border-t transition-colors hover:bg-emerald-50/40'
               >
                 <td className='px-4 py-3 font-medium'>
                   <Link
@@ -178,7 +178,7 @@ export default async function TrialBalancePage({
             ))}
           </tbody>
 
-          <tfoot className='border-t bg-zinc-50 font-semibold'>
+          <tfoot className='border-t bg-emerald-50/30 font-semibold'>
             <tr>
               <td className='px-4 py-3' colSpan={3}>
                 Totals

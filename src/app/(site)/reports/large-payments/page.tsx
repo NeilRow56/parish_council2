@@ -71,7 +71,7 @@ export default async function LargePaymentsReportPage({
   const resetHref = `/reports/large-payments?${financialYearQuery}`
 
   return (
-    <main className='min-h-screen bg-slate-50 p-6 print:bg-white'>
+    <main className='min-h-screen bg-background p-6 print:bg-white'>
       <style>
         {`
           @media print {
@@ -150,7 +150,7 @@ export default async function LargePaymentsReportPage({
 
             <Link
               href={resetHref}
-              className='rounded-md border bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50'
+              className='rounded-md border bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-emerald-50/40'
             >
               Reset
             </Link>
@@ -210,7 +210,7 @@ export default async function LargePaymentsReportPage({
             </div>
           ) : (
             <table className='w-full text-sm'>
-              <thead className='bg-slate-50 text-left text-slate-500'>
+              <thead className='bg-emerald-50/30 text-left text-slate-500'>
                 <tr>
                   <th className='px-4 py-3 font-medium'>Date</th>
                   <th className='px-4 py-3 font-medium'>Nominal code</th>
@@ -225,7 +225,7 @@ export default async function LargePaymentsReportPage({
                 {rows.map(row => (
                   <tr
                     key={`${row.reference}-${row.nominalCode}-${row.description}`}
-                    className='border-t border-slate-100'
+                    className='border-t border-emerald-100'
                   >
                     <td className='px-4 py-3 whitespace-nowrap'>
                       {formatDate(row.date)}
@@ -252,7 +252,7 @@ export default async function LargePaymentsReportPage({
                 ))}
               </tbody>
 
-              <tfoot className='border-t bg-slate-50 font-semibold'>
+              <tfoot className='border-t bg-emerald-50/30 font-semibold'>
                 <tr>
                   <td className='px-4 py-3' colSpan={3}>
                     Totals

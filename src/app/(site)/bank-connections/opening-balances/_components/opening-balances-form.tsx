@@ -86,7 +86,7 @@ export function OpeningBalancesForm({
           <col className='w-28' />
         </colgroup>
 
-        <thead className='bg-zinc-50 text-left text-zinc-600'>
+        <thead className='bg-emerald-50/30 text-left text-zinc-600'>
           <tr>
             <th className='px-4 py-3 font-medium'>Bank account</th>
             <th className='px-4 py-3 font-medium'>Nominal code</th>
@@ -135,7 +135,7 @@ export function OpeningBalancesForm({
                   type='button'
                   onClick={() => saveBalance(row.connectionId)}
                   disabled={isPending}
-                  className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-zinc-50 disabled:opacity-50'
+                  className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-emerald-50/40 disabled:opacity-50'
                 >
                   Save
                 </button>

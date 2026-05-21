@@ -39,7 +39,7 @@ export default async function SiteLayout({
   }
 
   return (
-    <div className='min-h-screen bg-white'>
+    <div className='min-h-screen bg-background'>
       <AppNav
         canRecoverVat={council.canRecoverVat ?? false}
         vatStatus={
@@ -49,9 +49,9 @@ export default async function SiteLayout({
         }
       />
 
-      <div className='border-b bg-zinc-50'>
+      <div className='border-b border-emerald-100 bg-emerald-50/30'>
         <div className='mx-auto max-w-400 px-6 py-3'>
-          <p className='text-lg font-medium text-zinc-900'>{council.name}</p>
+          <p className='text-lg font-medium text-slate-950'>{council.name}</p>
         </div>
       </div>
 

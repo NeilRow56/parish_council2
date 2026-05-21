@@ -90,7 +90,7 @@ export default async function OpeningBalancesPage() {
 
         <Link
           href='/bank-connections'
-          className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-zinc-50'
+          className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-emerald-50/40'
         >
           Back to bank connections
         </Link>

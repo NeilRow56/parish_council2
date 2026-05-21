@@ -199,7 +199,7 @@ export default async function NominalLedgerPage({
       : totalDebit - totalCredit
 
   return (
-    <main className='min-h-screen bg-slate-50 p-6'>
+    <main className='min-h-screen bg-background p-6'>
       <div className='mx-auto max-w-7xl space-y-6'>
         <div className='flex items-start justify-between gap-4'>
           <div>
@@ -252,7 +252,7 @@ export default async function NominalLedgerPage({
             </div>
           ) : (
             <table className='w-full text-sm'>
-              <thead className='bg-slate-50 text-left text-slate-500'>
+              <thead className='bg-emerald-50/30 text-left text-slate-500'>
                 <tr>
                   <th className='px-4 py-3 font-medium'>Date</th>
                   <th className='px-4 py-3 font-medium'>Reference</th>
@@ -270,7 +270,7 @@ export default async function NominalLedgerPage({
                 {rows.map(row => (
                   <tr
                     key={row.lineId}
-                    className='border-t border-slate-100 hover:bg-slate-50'
+                    className='border-t border-emerald-100 hover:bg-emerald-50/40'
                   >
                     <td className='px-4 py-3 whitespace-nowrap text-slate-600'>
                       {formatDate(row.date)}
@@ -307,7 +307,7 @@ export default async function NominalLedgerPage({
                 ))}
               </tbody>
 
-              <tfoot className='border-t bg-slate-50 font-medium'>
+              <tfoot className='border-t bg-emerald-50/30 font-medium'>
                 <tr>
                   <td colSpan={3} className='px-4 py-3 text-right'>
                     Totals

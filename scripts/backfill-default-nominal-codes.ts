@@ -8,7 +8,19 @@ if (!databaseUrl) {
   throw new Error('DATABASE_URL is missing after loading .env.local')
 }
 
-const BACKFILL_DEFAULT_CODES = ['2100', '2110', '2120', '2150', '3090', '3095']
+const BACKFILL_DEFAULT_CODES = [
+  '2100',
+  '2110',
+  '2120',
+  '2150',
+  '2160',
+  '2210',
+  '2220',
+  '3090',
+  '3095',
+  '4040',
+  '4050'
+]
 
 function getArg(name: string) {
   const prefix = `--${name}=`
@@ -78,9 +90,7 @@ async function run() {
       name: parishCouncils.name
     })
     .from(parishCouncils)
-    .where(
-      parishCouncilId ? eq(parishCouncils.id, parishCouncilId) : undefined
-    )
+    .where(parishCouncilId ? eq(parishCouncils.id, parishCouncilId) : undefined)
     .orderBy(asc(parishCouncils.name))
 
   if (councils.length === 0) {
@@ -110,7 +120,9 @@ async function run() {
       .orderBy(asc(financialYears.startDate))
 
     if (years.length === 0) {
-      console.log(`- ${council.name} (${council.id}): no financial years found.`)
+      console.log(
+        `- ${council.name} (${council.id}): no financial years found.`
+      )
       continue
     }
 

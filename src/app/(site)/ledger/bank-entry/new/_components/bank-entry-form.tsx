@@ -25,6 +25,7 @@ import {
   type FinancialYearDateRange,
   getFinancialYearDateWarning
 } from '@/lib/financial-years/date-range'
+import { groupNominalCodesForPosting } from '@/lib/nominal-codes/posting-groups'
 
 type BankEntryType = 'PAYMENT' | 'RECEIPT'
 
@@ -45,6 +46,7 @@ type NominalCodeOption = {
   name: string
   type: string
   category: string | null
+  isBank?: boolean
   isVatRecoverable?: boolean
   isVatPayable?: boolean
 }
@@ -219,23 +221,10 @@ function NominalCodeSelect({
   codes: NominalCodeOption[]
   onChange: (value: string) => void
 }) {
-  const groupedCodes = useMemo(() => {
-    const sorted = [...codes].sort((a, b) => {
-      const categoryA = a.category ?? 'General'
-      const categoryB = b.category ?? 'General'
-
-      if (categoryA !== categoryB) return categoryA.localeCompare(categoryB)
-
-      return a.code.localeCompare(b.code, undefined, { numeric: true })
-    })
-
-    return sorted.reduce<Record<string, NominalCodeOption[]>>((acc, code) => {
-      const category = code.category ?? 'General'
-      acc[category] = acc[category] ?? []
-      acc[category].push(code)
-      return acc
-    }, {})
-  }, [codes])
+  const groupedCodes = useMemo(
+    () => groupNominalCodesForPosting(codes),
+    [codes]
+  )
 
   const selectedCode = codes.find(code => code.id === value)
 
@@ -248,9 +237,9 @@ function NominalCodeSelect({
     >
       <option value=''>Select code</option>
 
-      {Object.entries(groupedCodes).map(([category, categoryCodes]) => (
-        <optgroup key={category} label={`— ${category} —`}>
-          {categoryCodes.map(code => (
+      {groupedCodes.map(group => (
+        <optgroup key={group.label} label={`— ${group.label} —`}>
+          {group.codes.map(code => (
             <option key={code.id} value={code.id}>
               {code.code} — {code.name}
             </option>

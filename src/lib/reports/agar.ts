@@ -80,6 +80,8 @@ function liabilityBalance(value: number) {
 }
 
 const vatControlCodes = new Set(['2100', '2110', '2120'])
+const debtorPrepaymentCodes = new Set(['2150', '2160'])
+const creditorAccrualCodes = new Set(['2200', '2210', '2220'])
 
 function isFutureAccrualOrPrepaymentCode(balance: Box7Box8CurrentBalance) {
   const searchable = `${balance.code} ${balance.name} ${
@@ -89,7 +91,9 @@ function isFutureAccrualOrPrepaymentCode(balance: Box7Box8CurrentBalance) {
   return (
     searchable.includes('accrual') ||
     searchable.includes('prepayment') ||
-    searchable.includes('prepaid')
+    searchable.includes('prepaid') ||
+    searchable.includes('receipt in advance') ||
+    searchable.includes('receipts in advance')
   )
 }
 
@@ -106,7 +110,7 @@ function reconciliationRowsForBalance({
     return []
   }
 
-  if (code === '2150') {
+  if (debtorPrepaymentCodes.has(code)) {
     const debtors = assetBalance(balance.balance)
 
     return debtors > 0
@@ -114,7 +118,7 @@ function reconciliationRowsForBalance({
       : []
   }
 
-  if (code === '2200') {
+  if (creditorAccrualCodes.has(code)) {
     const creditors = liabilityBalance(balance.balance)
 
     return creditors > 0
@@ -148,7 +152,11 @@ function reconciliationRowsForBalance({
 
   if (balance.balance < 0) {
     return [
-      { code, label: `Add ${name} (${code})`, amount: Math.abs(balance.balance) }
+      {
+        code,
+        label: `Add ${name} (${code})`,
+        amount: Math.abs(balance.balance)
+      }
     ]
   }
 
@@ -170,10 +178,7 @@ function vatOutstandingRow(
     {
       code: 'VAT_OUTSTANDING',
       label: 'VAT outstanding',
-      amount:
-        vatOutstanding > 0
-          ? -vatOutstanding
-          : Math.abs(vatOutstanding)
+      amount: vatOutstanding > 0 ? -vatOutstanding : Math.abs(vatOutstanding)
     }
   ]
 }
@@ -195,11 +200,13 @@ export function calculateBox7Box8Reconciliation({
   const rows =
     accountingBasis === 'INCOME_AND_EXPENDITURE'
       ? [
-          ...balanceRows.filter(row => row.code === '2150'),
+          ...balanceRows.filter(row => debtorPrepaymentCodes.has(row.code)),
           ...vatOutstandingRow(currentBalances),
-          ...balanceRows.filter(row => row.code === '2200'),
+          ...balanceRows.filter(row => creditorAccrualCodes.has(row.code)),
           ...balanceRows.filter(
-            row => row.code !== '2150' && row.code !== '2200'
+            row =>
+              !debtorPrepaymentCodes.has(row.code) &&
+              !creditorAccrualCodes.has(row.code)
           )
         ]
       : balanceRows

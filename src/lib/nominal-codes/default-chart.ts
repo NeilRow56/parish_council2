@@ -107,7 +107,7 @@ export const defaultChart: DefaultNominal[] = [
     category: 'Fixed Assets',
     agarBox: 'BOX_9_FIXED_ASSETS'
   },
-  // ─── Creditors and debtors ────────────────────────────────────────────────
+  // ─── Control and working balances ────────────────────────────────────────
   {
     code: '2100',
     name: 'VAT / Control Account',
@@ -134,12 +134,30 @@ export const defaultChart: DefaultNominal[] = [
     type: 'BALANCE_SHEET',
     category: 'Control'
   },
+  {
+    code: '2160',
+    name: 'Prepayments',
+    type: 'BALANCE_SHEET',
+    category: 'Control'
+  },
 
   {
     code: '2200',
     name: 'Creditors',
     type: 'BALANCE_SHEET',
-    category: 'Liabilities'
+    category: 'Control'
+  },
+  {
+    code: '2210',
+    name: 'Accruals',
+    type: 'BALANCE_SHEET',
+    category: 'Control'
+  },
+  {
+    code: '2220',
+    name: 'Receipts in advance',
+    type: 'BALANCE_SHEET',
+    category: 'Control'
   },
   // ─── Borrowings ────────────────────────────────────────────────
   {
@@ -216,6 +234,20 @@ export const defaultChart: DefaultNominal[] = [
   {
     code: '4030',
     name: 'Other Income',
+    type: 'INCOME',
+    category: 'Income',
+    agarBox: 'BOX_3_OTHER_RECEIPTS'
+  },
+  {
+    code: '4040',
+    name: 'Interest received',
+    type: 'INCOME',
+    category: 'Income',
+    agarBox: 'BOX_3_OTHER_RECEIPTS'
+  },
+  {
+    code: '4050',
+    name: 'Rents',
     type: 'INCOME',
     category: 'Income',
     agarBox: 'BOX_3_OTHER_RECEIPTS'

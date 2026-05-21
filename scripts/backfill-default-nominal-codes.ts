@@ -8,7 +8,7 @@ if (!databaseUrl) {
   throw new Error('DATABASE_URL is missing after loading .env.local')
 }
 
-const BACKFILL_DEFAULT_CODES = ['3090', '3095']
+const BACKFILL_DEFAULT_CODES = ['2100', '2110', '2120', '2150', '3090', '3095']
 
 function getArg(name: string) {
   const prefix = `--${name}=`

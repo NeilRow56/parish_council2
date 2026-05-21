@@ -13,6 +13,15 @@ import { createElement } from 'react'
 import { db } from '@/db'
 import { parishCouncils } from '@/db/schema'
 import {
+  calculateBox7Box8Reconciliation,
+  calculateReceiptsAndPaymentsTotals,
+  getEffectiveAccountingBasis,
+  type AgarTotals,
+  type AccountingBasis,
+  type Box7Box8CurrentBalance,
+  type Box7Box8Reconciliation
+} from '@/lib/reports/agar'
+import {
   financialYears,
   journalEntries,
   journalLines,
@@ -40,41 +49,26 @@ type AgarRow = {
   amount: number
 }
 
-type AccountingBasis = 'RECEIPTS_AND_PAYMENTS' | 'INCOME_AND_EXPENDITURE'
-
-type AgarTotals = {
-  precept: number
-  otherReceipts: number
-  staffCosts: number
-  loanRepayments: number
-  otherPayments: number
-  cashAndShortTermInvestments: number
-  fixedAssets: number
-  borrowings: number
-}
-
-type AgarLine = {
-  journalEntryId: string
-  excludeFromAgar: boolean
-  agarBox: string | null
-  isBank: boolean
-  isVatRecoverable: boolean
-  isVatPayable: boolean
-  debit: string
-  credit: string
-}
-
 type AgarReport = {
   councilName: string | null
   financialYear: FinancialYear
   accountingBasis: AccountingBasis
   rows: AgarRow[]
+  box7Box8Reconciliation: Box7Box8Reconciliation | null
 }
 
 function formatWholePounds(value: number) {
   return new Intl.NumberFormat('en-GB', {
     maximumFractionDigits: 0
   }).format(Math.round(value))
+}
+
+function formatSignedWholePounds(value: number) {
+  const formatted = formatWholePounds(Math.abs(value))
+
+  if (value > 0) return `+£${formatted}`
+  if (value < 0) return `-£${formatted}`
+  return '£0'
 }
 
 function formatDate(value: string | Date) {
@@ -89,80 +83,10 @@ function normalise(value: unknown) {
   return Number(value ?? 0)
 }
 
-function getEffectiveAccountingBasis(
-  value: string | null | undefined
-): AccountingBasis {
-  if (value === 'RECEIPTS_AND_PAYMENTS') return 'RECEIPTS_AND_PAYMENTS'
-  return 'INCOME_AND_EXPENDITURE'
-}
-
 function getAccountingBasisLabel(accountingBasis: AccountingBasis) {
   return accountingBasis === 'RECEIPTS_AND_PAYMENTS'
     ? 'Receipts and payments'
     : 'Income and expenditure (accruals basis)'
-}
-
-function calculateReceiptsAndPaymentsTotals(
-  baseTotals: AgarTotals,
-  lines: AgarLine[]
-): AgarTotals {
-  const totals = { ...baseTotals }
-
-  const linesByJournal = new Map<string, AgarLine[]>()
-
-  for (const line of lines) {
-    const existingLines = linesByJournal.get(line.journalEntryId) ?? []
-    existingLines.push(line)
-    linesByJournal.set(line.journalEntryId, existingLines)
-  }
-
-  for (const journalLinesForEntry of linesByJournal.values()) {
-    if (journalLinesForEntry.some(line => line.excludeFromAgar)) {
-      continue
-    }
-
-    const nonBankReportingLines = journalLinesForEntry.filter(
-      line => !line.isBank && !line.isVatRecoverable && !line.isVatPayable
-    )
-
-    const hasPaymentBoxLine = nonBankReportingLines.some(
-      line =>
-        line.agarBox === 'BOX_4_STAFF_COSTS' ||
-        line.agarBox === 'BOX_5_LOAN_REPAYMENTS' ||
-        line.agarBox === 'BOX_6_OTHER_PAYMENTS' ||
-        line.agarBox === 'BOX_9_FIXED_ASSETS'
-    )
-
-    const fixedAssetPayments = nonBankReportingLines
-      .filter(line => line.agarBox === 'BOX_9_FIXED_ASSETS')
-      .reduce(
-        (sum, line) =>
-          sum + Math.max(0, normalise(line.debit) - normalise(line.credit)),
-        0
-      )
-    const borrowingCapitalRepayments = nonBankReportingLines
-      .filter(line => line.agarBox === 'BOX_10_BORROWINGS')
-      .reduce(
-        (sum, line) =>
-          sum + Math.max(0, normalise(line.debit) - normalise(line.credit)),
-        0
-      )
-
-    totals.otherPayments += fixedAssetPayments
-    totals.loanRepayments += borrowingCapitalRepayments
-
-    for (const line of journalLinesForEntry) {
-      if (line.isVatRecoverable && hasPaymentBoxLine) {
-        totals.otherPayments += normalise(line.debit)
-      }
-
-      if (line.isVatRecoverable || line.isVatPayable) {
-        totals.otherReceipts += normalise(line.credit)
-      }
-    }
-  }
-
-  return totals
 }
 
 function escapeFilename(value: string) {
@@ -218,6 +142,64 @@ const styles = StyleSheet.create({
   table: {
     border: '1px solid #dbe3ee',
     borderBottom: 0
+  },
+  reconciliationSection: {
+    marginTop: 14
+  },
+  reconciliationHeader: {
+    marginBottom: 6
+  },
+  reconciliationTitle: {
+    fontSize: 11,
+    fontWeight: 700
+  },
+  reconciliationText: {
+    marginTop: 3,
+    color: '#475569',
+    fontSize: 8
+  },
+  reconciliationStatusOk: {
+    marginTop: 6,
+    border: '1px solid #a7f3d0',
+    borderRadius: 4,
+    padding: 5,
+    backgroundColor: '#ecfdf5',
+    color: '#065f46',
+    fontSize: 8,
+    fontWeight: 700
+  },
+  reconciliationStatusWarning: {
+    marginTop: 6,
+    border: '1px solid #fde68a',
+    borderRadius: 4,
+    padding: 5,
+    backgroundColor: '#fffbeb',
+    color: '#92400e',
+    fontSize: 8,
+    fontWeight: 700
+  },
+  reconciliationTable: {
+    border: '1px solid #dbe3ee',
+    borderBottom: 0
+  },
+  reconciliationRow: {
+    flexDirection: 'row',
+    borderBottom: '1px solid #dbe3ee',
+    minHeight: 20
+  },
+  reconciliationTotalRow: {
+    backgroundColor: '#f8fafc'
+  },
+  reconciliationLabel: {
+    flex: 1,
+    paddingHorizontal: 6,
+    paddingVertical: 5
+  },
+  reconciliationAmount: {
+    width: 88,
+    paddingHorizontal: 6,
+    paddingVertical: 5,
+    textAlign: 'right'
   },
   row: {
     flexDirection: 'row',
@@ -510,6 +492,8 @@ async function getAgarReport({
           .select({
             journalEntryId: journalLines.journalEntryId,
             excludeFromAgar: journalEntries.excludeFromAgar,
+            source: journalEntries.source,
+            nominalCode: nominalCodes.code,
             agarBox: nominalCodes.agarBox,
             isBank: nominalCodes.isBank,
             isVatRecoverable: nominalCodes.isVatRecoverable,
@@ -568,10 +552,137 @@ async function getAgarReport({
     loanRepayments -
     otherPayments
 
+  const rawBox7Box8Difference =
+    balancesCarriedForward - cashAndShortTermInvestments
+  const shouldShowBox7Box8Reconciliation =
+    accountingBasis === 'INCOME_AND_EXPENDITURE' ||
+    Math.abs(rawBox7Box8Difference) >= 0.005
+
+  const box7Box8Reconciliation: Box7Box8Reconciliation | null =
+    shouldShowBox7Box8Reconciliation
+      ? await (async () => {
+          const openingRows = await db
+            .select({
+              code: nominalCodes.code,
+              name: nominalCodes.name,
+              category: nominalCodes.category,
+              agarBox: nominalCodes.agarBox,
+              isBank: nominalCodes.isBank,
+              amount: sql<string>`coalesce(sum(${nominalOpeningBalances.amount}), 0)`
+            })
+            .from(nominalOpeningBalances)
+            .innerJoin(
+              nominalCodes,
+              eq(nominalOpeningBalances.nominalCodeId, nominalCodes.id)
+            )
+            .where(
+              and(
+                eq(nominalOpeningBalances.parishCouncilId, parishCouncilId),
+                eq(nominalOpeningBalances.financialYearId, financialYear.id),
+                eq(nominalCodes.type, 'BALANCE_SHEET')
+              )
+            )
+            .groupBy(
+              nominalCodes.code,
+              nominalCodes.name,
+              nominalCodes.category,
+              nominalCodes.agarBox,
+              nominalCodes.isBank
+            )
+
+          const movementRows = await db
+            .select({
+              code: nominalCodes.code,
+              name: nominalCodes.name,
+              category: nominalCodes.category,
+              agarBox: nominalCodes.agarBox,
+              isBank: nominalCodes.isBank,
+              amount: sql<string>`coalesce(sum(${journalLines.debit} - ${journalLines.credit}), 0)`
+            })
+            .from(journalLines)
+            .innerJoin(
+              journalEntries,
+              eq(journalLines.journalEntryId, journalEntries.id)
+            )
+            .innerJoin(
+              nominalCodes,
+              eq(journalLines.nominalCodeId, nominalCodes.id)
+            )
+            .where(
+              and(
+                eq(journalEntries.parishCouncilId, parishCouncilId),
+                eq(journalEntries.financialYearId, financialYear.id),
+                gte(journalEntries.date, financialYear.startDate),
+                lte(journalEntries.date, financialYear.endDate),
+                // The AGAR reconciliation uses AGAR-adjusted balance sheet
+                // balances, so VAT settlement journals do not clear the
+                // debtor/creditor explanation used between Box 7 and Box 8.
+                eq(journalEntries.excludeFromAgar, false),
+                eq(nominalCodes.type, 'BALANCE_SHEET')
+              )
+            )
+            .groupBy(
+              nominalCodes.code,
+              nominalCodes.name,
+              nominalCodes.category,
+              nominalCodes.agarBox,
+              nominalCodes.isBank
+            )
+
+          const balancesByCode = new Map<string, Box7Box8CurrentBalance>()
+
+          for (const row of openingRows) {
+            balancesByCode.set(row.code, {
+              code: row.code,
+              name: row.name,
+              category: row.category,
+              agarBox: row.agarBox,
+              isBank: row.isBank,
+              balance: normalise(row.amount)
+            })
+          }
+
+          for (const row of movementRows) {
+            const existing = balancesByCode.get(row.code)
+
+            balancesByCode.set(row.code, {
+              code: row.code,
+              name: row.name,
+              category: row.category,
+              agarBox: row.agarBox,
+              isBank: row.isBank,
+              balance: (existing?.balance ?? 0) + normalise(row.amount)
+            })
+          }
+
+          const currentBalances = [...balancesByCode.values()]
+          const agarAdjustedBox8Cash = currentBalances
+            .filter(
+              balance =>
+                balance.isBank ||
+                balance.agarBox === 'BOX_8_CASH_AND_SHORT_TERM_INVESTMENTS'
+            )
+            .reduce((sum, balance) => sum + balance.balance, 0)
+
+          const reconciliation = calculateBox7Box8Reconciliation({
+            accountingBasis,
+            box7Reserves: balancesCarriedForward,
+            reportedBox8Cash: agarAdjustedBox8Cash,
+            currentBalances
+          })
+
+          return accountingBasis === 'RECEIPTS_AND_PAYMENTS' &&
+            reconciliation.agrees
+            ? null
+            : reconciliation
+        })()
+      : null
+
   return {
     councilName: council?.name ?? null,
     financialYear,
     accountingBasis,
+    box7Box8Reconciliation,
     rows: [
       {
         box: '1',
@@ -668,6 +779,83 @@ function reportRow(row: AgarRow) {
   )
 }
 
+function reconciliationRow(
+  label: string,
+  amount: string,
+  isTotal = false
+) {
+  const rowStyle = isTotal
+    ? [styles.reconciliationRow, styles.reconciliationTotalRow]
+    : styles.reconciliationRow
+  const labelStyle = isTotal
+    ? [styles.reconciliationLabel, styles.amountText]
+    : styles.reconciliationLabel
+  const amountStyle = isTotal
+    ? [styles.reconciliationAmount, styles.amountText]
+    : styles.reconciliationAmount
+
+  return h(
+    View,
+    { style: rowStyle },
+    h(Text, { style: labelStyle }, label),
+    h(Text, { style: amountStyle }, amount)
+  )
+}
+
+function reconciliationSection(
+  reconciliation: Box7Box8Reconciliation | null
+) {
+  if (!reconciliation) return null
+
+  return h(
+    View,
+    { style: styles.reconciliationSection },
+    h(
+      View,
+      { style: styles.reconciliationHeader },
+      h(Text, { style: styles.reconciliationTitle }, 'Box 7 to Box 8 reconciliation'),
+      h(
+        Text,
+        { style: styles.reconciliationText },
+        'Box 7 is reserves/current fund. Box 8 is cash only; non-cash balances explain the difference.'
+      ),
+      h(
+        Text,
+        {
+          style: reconciliation.agrees
+            ? styles.reconciliationStatusOk
+            : styles.reconciliationStatusWarning
+        },
+        reconciliation.agrees
+          ? 'Agrees to Box 8'
+          : `Difference ${formatSignedWholePounds(reconciliation.difference)}`
+      )
+    ),
+    h(
+      View,
+      { style: styles.reconciliationTable },
+      reconciliationRow(
+        'Box 7 reserves/current fund',
+        `£${formatWholePounds(reconciliation.box7Reserves)}`,
+        true
+      ),
+      reconciliation.rows.map(row =>
+        reconciliationRow(row.label, formatSignedWholePounds(row.amount))
+      ),
+      reconciliationRow(
+        'Reconciled Box 8 cash',
+        `£${formatWholePounds(reconciliation.reconciledBox8Cash)}`,
+        true
+      ),
+      reconciliationRow(
+        'AGAR-adjusted Box 8 cash and short-term investments',
+        `£${formatWholePounds(reconciliation.reportedBox8Cash)}`,
+        true
+      )
+    )
+  )
+}
+
 function agarPdf(report: AgarReport) {
   return h(
     Document,
@@ -729,6 +917,7 @@ function agarPdf(report: AgarReport) {
         ),
         report.rows.map(reportRow)
       ),
+      reconciliationSection(report.box7Box8Reconciliation),
       h(
         Text,
         { style: styles.note },

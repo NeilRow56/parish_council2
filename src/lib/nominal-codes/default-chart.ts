@@ -107,7 +107,7 @@ export const defaultChart: DefaultNominal[] = [
     category: 'Fixed Assets',
     agarBox: 'BOX_9_FIXED_ASSETS'
   },
-  // ─── VAT ────────────────────────────────────────────────
+  // ─── Creditors and debtors ────────────────────────────────────────────────
   {
     code: '2100',
     name: 'VAT / Control Account',
@@ -128,6 +128,13 @@ export const defaultChart: DefaultNominal[] = [
     category: 'Control',
     isVatPayable: true
   },
+  {
+    code: '2150',
+    name: 'Debtors / Receivables',
+    type: 'BALANCE_SHEET',
+    category: 'Control'
+  },
+
   {
     code: '2200',
     name: 'Creditors',

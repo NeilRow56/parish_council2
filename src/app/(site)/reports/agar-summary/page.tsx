@@ -5,6 +5,15 @@ import { db } from '@/db'
 import { auth } from '@/lib/auth'
 import { parishCouncils } from '@/db/schema'
 import {
+  calculateBox7Box8Reconciliation,
+  calculateReceiptsAndPaymentsTotals,
+  getEffectiveAccountingBasis,
+  type AgarTotals,
+  type AccountingBasis,
+  type Box7Box8CurrentBalance,
+  type Box7Box8Reconciliation
+} from '@/lib/reports/agar'
+import {
   financialYears,
   journalEntries,
   journalLines,
@@ -35,104 +44,29 @@ type SearchParams = {
   financialYearId?: string
 }
 
-type AccountingBasis = 'RECEIPTS_AND_PAYMENTS' | 'INCOME_AND_EXPENDITURE'
-
-type AgarTotals = {
-  precept: number
-  otherReceipts: number
-  staffCosts: number
-  loanRepayments: number
-  otherPayments: number
-  cashAndShortTermInvestments: number
-  fixedAssets: number
-  borrowings: number
-}
-
-type AgarLine = {
-  journalEntryId: string
-  excludeFromAgar: boolean
-  agarBox: string | null
-  isBank: boolean
-  isVatRecoverable: boolean
-  isVatPayable: boolean
-  debit: string
-  credit: string
-}
-
-function getEffectiveAccountingBasis(
-  value: string | null | undefined
-): AccountingBasis {
-  if (value === 'RECEIPTS_AND_PAYMENTS') return 'RECEIPTS_AND_PAYMENTS'
-  return 'INCOME_AND_EXPENDITURE'
-}
-
 function getAccountingBasisLabel(accountingBasis: AccountingBasis) {
   return accountingBasis === 'RECEIPTS_AND_PAYMENTS'
     ? 'Receipts and payments'
     : 'Income and expenditure (accruals basis)'
 }
 
-function calculateReceiptsAndPaymentsTotals(
-  baseTotals: AgarTotals,
-  lines: AgarLine[]
-): AgarTotals {
-  const totals = { ...baseTotals }
+function formatSignedWholePounds(value: number) {
+  const formatted = formatWholePounds(Math.abs(value))
 
-  const linesByJournal = new Map<string, AgarLine[]>()
+  if (value > 0) return `+£${formatted}`
+  if (value < 0) return `-£${formatted}`
+  return '£0'
+}
 
-  for (const line of lines) {
-    const existingLines = linesByJournal.get(line.journalEntryId) ?? []
-    existingLines.push(line)
-    linesByJournal.set(line.journalEntryId, existingLines)
-  }
+function ReconciliationAmount({ value }: { value: number }) {
+  const className =
+    value < 0
+      ? 'text-red-700'
+      : value > 0
+        ? 'text-emerald-700'
+        : 'text-slate-900'
 
-  for (const journalLinesForEntry of linesByJournal.values()) {
-    if (journalLinesForEntry.some(line => line.excludeFromAgar)) {
-      continue
-    }
-
-    const nonBankReportingLines = journalLinesForEntry.filter(
-      line => !line.isBank && !line.isVatRecoverable && !line.isVatPayable
-    )
-
-    const hasPaymentBoxLine = nonBankReportingLines.some(
-      line =>
-        line.agarBox === 'BOX_4_STAFF_COSTS' ||
-        line.agarBox === 'BOX_5_LOAN_REPAYMENTS' ||
-        line.agarBox === 'BOX_6_OTHER_PAYMENTS' ||
-        line.agarBox === 'BOX_9_FIXED_ASSETS'
-    )
-
-    const fixedAssetPayments = nonBankReportingLines
-      .filter(line => line.agarBox === 'BOX_9_FIXED_ASSETS')
-      .reduce(
-        (sum, line) =>
-          sum + Math.max(0, normalise(line.debit) - normalise(line.credit)),
-        0
-      )
-    const borrowingCapitalRepayments = nonBankReportingLines
-      .filter(line => line.agarBox === 'BOX_10_BORROWINGS')
-      .reduce(
-        (sum, line) =>
-          sum + Math.max(0, normalise(line.debit) - normalise(line.credit)),
-        0
-      )
-
-    totals.otherPayments += fixedAssetPayments
-    totals.loanRepayments += borrowingCapitalRepayments
-
-    for (const line of journalLinesForEntry) {
-      if (line.isVatRecoverable && hasPaymentBoxLine) {
-        totals.otherPayments += normalise(line.debit)
-      }
-
-      if (line.isVatRecoverable || line.isVatPayable) {
-        totals.otherReceipts += normalise(line.credit)
-      }
-    }
-  }
-
-  return totals
+  return <span className={className}>{formatSignedWholePounds(value)}</span>
 }
 
 export default async function AgarSummaryPage({
@@ -372,6 +306,8 @@ export default async function AgarSummaryPage({
           .select({
             journalEntryId: journalLines.journalEntryId,
             excludeFromAgar: journalEntries.excludeFromAgar,
+            source: journalEntries.source,
+            nominalCode: nominalCodes.code,
             agarBox: nominalCodes.agarBox,
             isBank: nominalCodes.isBank,
             isVatRecoverable: nominalCodes.isVatRecoverable,
@@ -428,6 +364,132 @@ export default async function AgarSummaryPage({
     staffCosts -
     loanRepayments -
     otherPayments
+
+  const rawBox7Box8Difference =
+    balancesCarriedForward - cashAndShortTermInvestments
+  const shouldShowBox7Box8Reconciliation =
+    accountingBasis === 'INCOME_AND_EXPENDITURE' ||
+    Math.abs(rawBox7Box8Difference) >= 0.005
+
+  const box7Box8Reconciliation: Box7Box8Reconciliation | null =
+    shouldShowBox7Box8Reconciliation
+      ? await (async () => {
+          const openingRows = await db
+            .select({
+              code: nominalCodes.code,
+              name: nominalCodes.name,
+              category: nominalCodes.category,
+              agarBox: nominalCodes.agarBox,
+              isBank: nominalCodes.isBank,
+              amount: sql<string>`coalesce(sum(${nominalOpeningBalances.amount}), 0)`
+            })
+            .from(nominalOpeningBalances)
+            .innerJoin(
+              nominalCodes,
+              eq(nominalOpeningBalances.nominalCodeId, nominalCodes.id)
+            )
+            .where(
+              and(
+                eq(nominalOpeningBalances.parishCouncilId, parishCouncilId),
+                eq(nominalOpeningBalances.financialYearId, year.id),
+                eq(nominalCodes.type, 'BALANCE_SHEET')
+              )
+            )
+            .groupBy(
+              nominalCodes.code,
+              nominalCodes.name,
+              nominalCodes.category,
+              nominalCodes.agarBox,
+              nominalCodes.isBank
+            )
+
+          const movementRows = await db
+            .select({
+              code: nominalCodes.code,
+              name: nominalCodes.name,
+              category: nominalCodes.category,
+              agarBox: nominalCodes.agarBox,
+              isBank: nominalCodes.isBank,
+              amount: sql<string>`coalesce(sum(${journalLines.debit} - ${journalLines.credit}), 0)`
+            })
+            .from(journalLines)
+            .innerJoin(
+              journalEntries,
+              eq(journalLines.journalEntryId, journalEntries.id)
+            )
+            .innerJoin(
+              nominalCodes,
+              eq(journalLines.nominalCodeId, nominalCodes.id)
+            )
+            .where(
+              and(
+                eq(journalEntries.parishCouncilId, parishCouncilId),
+                eq(journalEntries.financialYearId, year.id),
+                gte(journalEntries.date, year.startDate),
+                lte(journalEntries.date, year.endDate),
+                // The AGAR reconciliation uses AGAR-adjusted balance sheet
+                // balances, so VAT settlement journals do not clear the
+                // debtor/creditor explanation used between Box 7 and Box 8.
+                eq(journalEntries.excludeFromAgar, false),
+                eq(nominalCodes.type, 'BALANCE_SHEET')
+              )
+            )
+            .groupBy(
+              nominalCodes.code,
+              nominalCodes.name,
+              nominalCodes.category,
+              nominalCodes.agarBox,
+              nominalCodes.isBank
+            )
+
+          const balancesByCode = new Map<string, Box7Box8CurrentBalance>()
+
+          for (const row of openingRows) {
+            balancesByCode.set(row.code, {
+              code: row.code,
+              name: row.name,
+              category: row.category,
+              agarBox: row.agarBox,
+              isBank: row.isBank,
+              balance: normalise(row.amount)
+            })
+          }
+
+          for (const row of movementRows) {
+            const existing = balancesByCode.get(row.code)
+
+            balancesByCode.set(row.code, {
+              code: row.code,
+              name: row.name,
+              category: row.category,
+              agarBox: row.agarBox,
+              isBank: row.isBank,
+              balance: (existing?.balance ?? 0) + normalise(row.amount)
+            })
+          }
+
+          const currentBalances = [...balancesByCode.values()]
+          const agarAdjustedBox8Cash = currentBalances
+            .filter(
+              balance =>
+                balance.isBank ||
+                balance.agarBox === 'BOX_8_CASH_AND_SHORT_TERM_INVESTMENTS'
+            )
+            .reduce((sum, balance) => sum + balance.balance, 0)
+
+          const reconciliation = calculateBox7Box8Reconciliation({
+            accountingBasis,
+            box7Reserves: balancesCarriedForward,
+            reportedBox8Cash: agarAdjustedBox8Cash,
+            currentBalances
+          })
+
+          return accountingBasis === 'RECEIPTS_AND_PAYMENTS' &&
+            reconciliation.agrees
+            ? null
+            : reconciliation
+        })()
+      : null
 
   const rows = [
     {
@@ -580,6 +642,79 @@ export default async function AgarSummaryPage({
             </tbody>
           </table>
         </section>
+
+        {box7Box8Reconciliation ? (
+          <section className='overflow-hidden rounded-xl border bg-white shadow-sm'>
+            <div className='flex items-start justify-between gap-4 border-b p-4'>
+              <div>
+                <h2 className='font-semibold text-slate-900'>
+                  Box 7 to Box 8 reconciliation
+                </h2>
+                <p className='text-sm text-slate-600'>
+                  Box 7 is reserves/current fund. Box 8 is cash only;
+                  non-cash balances explain the difference.
+                </p>
+              </div>
+
+              <div
+                className={
+                  box7Box8Reconciliation.agrees
+                    ? 'rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800'
+                    : 'rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-medium text-amber-800'
+                }
+              >
+                {box7Box8Reconciliation.agrees
+                  ? 'Agrees to Box 8'
+                  : `Difference ${formatSignedWholePounds(
+                      box7Box8Reconciliation.difference
+                    )}`}
+              </div>
+            </div>
+
+            <table className='w-full border-collapse text-sm'>
+              <tbody>
+                <tr className='border-t'>
+                  <td className='px-4 py-3 font-medium'>
+                    Box 7 reserves/current fund
+                  </td>
+                  <td className='px-4 py-3 text-right font-semibold'>
+                    £{formatWholePounds(box7Box8Reconciliation.box7Reserves)}
+                  </td>
+                </tr>
+                {box7Box8Reconciliation.rows.map(row => (
+                  <tr key={row.code} className='border-t'>
+                    <td className='px-4 py-3 text-slate-600'>{row.label}</td>
+                    <td className='px-4 py-3 text-right font-medium'>
+                      <ReconciliationAmount value={row.amount} />
+                    </td>
+                  </tr>
+                ))}
+                <tr className='border-t bg-slate-50'>
+                  <td className='px-4 py-3 font-semibold'>
+                    Reconciled Box 8 cash
+                  </td>
+                  <td className='px-4 py-3 text-right font-semibold'>
+                    £
+                    {formatWholePounds(
+                      box7Box8Reconciliation.reconciledBox8Cash
+                    )}
+                  </td>
+                </tr>
+                <tr className='border-t'>
+                  <td className='px-4 py-3 font-medium'>
+                    AGAR-adjusted Box 8 cash and short-term investments
+                  </td>
+                  <td className='px-4 py-3 text-right font-semibold'>
+                    £
+                    {formatWholePounds(
+                      box7Box8Reconciliation.reportedBox8Cash
+                    )}
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+        ) : null}
 
         <p className='rounded-md border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800'>
           Draft report: boxes 1, 8, 9 and 10 now include opening balances where

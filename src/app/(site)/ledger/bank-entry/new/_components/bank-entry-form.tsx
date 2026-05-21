@@ -730,8 +730,8 @@ export function BankEntryForm({
             Code each line to a nominal code, reserve and optional project. Use
             the{' '}
             <ChevronRight className='inline h-4 w-4 align-[-2px] text-orange-400' />{' '}
-            details button to add VAT126 information and upload a supporting PDF
-            invoice or receipt.
+            details button to add VAT information and upload a supporting PDF
+            invoice or receipt where required.
           </p>
 
           <div className='flex items-center gap-2'>

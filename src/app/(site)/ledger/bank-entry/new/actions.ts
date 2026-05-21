@@ -3,18 +3,21 @@
 'use server'
 
 import { headers } from 'next/headers'
+import { revalidatePath } from 'next/cache'
 import { and, eq, inArray } from 'drizzle-orm'
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
 import { bankConnections } from '@/db/schema/bankConnection'
 import {
+  financialYears,
   journalEntries,
   journalLines,
   nominalCodes
 } from '@/db/schema/nominalLedger'
 import { projects, reserves, suppliers } from '@/db/schema'
 import { utapi } from '@/server/uploadthing'
+import { getFinancialYearDateWarning } from '@/lib/financial-years/date-range'
 
 type BankEntryType = 'PAYMENT' | 'RECEIPT'
 type VatRate = 'NO_VAT' | 'STANDARD_20' | 'REDUCED_5'
@@ -37,6 +40,26 @@ type BankEntryLineInput = {
   vatRate?: VatRate
   vatTreatment?: VatTreatment
   vatAmount?: string
+}
+
+type CreateBankEntryInput = {
+  financialYearId: string
+  date: string
+  bankConnectionId: string
+  entryType: BankEntryType
+  reference: string
+  attachmentUrl?: string
+  attachmentName?: string
+  attachmentKey?: string
+  lines: BankEntryLineInput[]
+}
+
+type CreateBankEntryResult =
+  | { success: true; journalEntryIds: string[] }
+  | { success: false; error: string }
+
+function expectedError(message: string): CreateBankEntryResult {
+  return { success: false, error: message }
 }
 
 function parseAmountToPence(value: string) {
@@ -113,34 +136,53 @@ function uniqueStrings(values: string[]) {
   return Array.from(new Set(values))
 }
 
-export async function createBankEntryAction(input: {
-  financialYearId: string
-  date: string
-  bankConnectionId: string
-  entryType: BankEntryType
-  reference: string
-  attachmentUrl?: string
-  attachmentName?: string
-  attachmentKey?: string
-  lines: BankEntryLineInput[]
-}) {
+async function createBankEntry(
+  input: CreateBankEntryInput
+): Promise<CreateBankEntryResult> {
   const session = await auth.api.getSession({
     headers: await headers()
   })
 
   if (!session?.user?.parishCouncilId) {
-    throw new Error('Unauthorised')
+    return expectedError('Your session has expired. Please sign in again.')
   }
 
   const parishCouncilId = session.user.parishCouncilId
   const userId = session.user.id
 
   if (!input.date) {
-    throw new Error('Date is required.')
+    return expectedError('Date is required.')
   }
 
   if (!['PAYMENT', 'RECEIPT'].includes(input.entryType)) {
-    throw new Error('Invalid entry type.')
+    return expectedError('Invalid entry type.')
+  }
+
+  const [financialYear] = await db
+    .select({
+      id: financialYears.id,
+      label: financialYears.label,
+      startDate: financialYears.startDate,
+      endDate: financialYears.endDate,
+      isClosed: financialYears.isClosed
+    })
+    .from(financialYears)
+    .where(
+      and(
+        eq(financialYears.id, input.financialYearId),
+        eq(financialYears.parishCouncilId, parishCouncilId)
+      )
+    )
+    .limit(1)
+
+  if (!financialYear || financialYear.isClosed) {
+    return expectedError('The selected financial year is not available.')
+  }
+
+  const dateWarning = getFinancialYearDateWarning(input.date, financialYear)
+
+  if (dateWarning) {
+    return expectedError(dateWarning)
   }
 
   const [bankAccount] = await db
@@ -447,6 +489,8 @@ export async function createBankEntryAction(input: {
     outputVatNominalCodeId = outputVatCode.id
   }
 
+  const journalEntryIds: string[] = []
+
   await db.transaction(async trx => {
     for (const [index, line] of cleanedLines.entries()) {
       const sequence = String(index + 1).padStart(2, '0')
@@ -485,6 +529,8 @@ export async function createBankEntryAction(input: {
           attachmentKey: input.attachmentKey || null
         })
         .returning()
+
+      journalEntryIds.push(entry.id)
 
       if (input.entryType === 'PAYMENT') {
         const shouldPostRecoverableVat =
@@ -609,8 +655,30 @@ export async function createBankEntryAction(input: {
     }
   })
 
+  revalidatePath('/ledger')
+
+  for (const journalEntryId of journalEntryIds) {
+    revalidatePath(`/ledger/journals/${journalEntryId}`)
+  }
+
   return {
-    success: true
+    success: true,
+    journalEntryIds
+  }
+}
+
+export async function createBankEntryAction(
+  input: CreateBankEntryInput
+): Promise<CreateBankEntryResult> {
+  try {
+    return await createBankEntry(input)
+  } catch (err) {
+    const message =
+      err instanceof Error
+        ? err.message
+        : 'Could not post bank entry. Please check the details and try again.'
+
+    return expectedError(message)
   }
 }
 

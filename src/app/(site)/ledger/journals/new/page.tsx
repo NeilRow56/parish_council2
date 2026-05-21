@@ -76,6 +76,11 @@ export default async function NewManualJournalPage() {
       <ManualJournalForm
         nominalCodes={codes}
         financialYearId={financialYear.id}
+        financialYear={{
+          label: financialYear.label,
+          startDate: financialYear.startDate,
+          endDate: financialYear.endDate
+        }}
       />
     </main>
   )

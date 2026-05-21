@@ -26,7 +26,9 @@ export default async function NewBankEntryPage() {
   const [financialYear] = await db
     .select({
       id: financialYears.id,
-      label: financialYears.label
+      label: financialYears.label,
+      startDate: financialYears.startDate,
+      endDate: financialYears.endDate
     })
     .from(financialYears)
     .where(
@@ -190,6 +192,11 @@ export default async function NewBankEntryPage() {
 
       <BankEntryForm
         financialYearId={financialYear.id}
+        financialYear={{
+          label: financialYear.label,
+          startDate: financialYear.startDate,
+          endDate: financialYear.endDate
+        }}
         bankAccounts={bankAccounts.map(account => ({
           ...account,
           nominalCodeId: account.nominalCodeId ?? ''

@@ -5,6 +5,10 @@ import { useRouter } from 'next/navigation'
 import { Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { createManualJournalAction } from '../actions'
+import {
+  type FinancialYearDateRange,
+  getFinancialYearDateWarning
+} from '@/lib/financial-years/date-range'
 
 type NominalCodeOption = {
   id: string
@@ -122,10 +126,12 @@ function NominalCodeSelect({
 
 export function ManualJournalForm({
   nominalCodes,
-  financialYearId
+  financialYearId,
+  financialYear
 }: {
   nominalCodes: NominalCodeOption[]
   financialYearId: string
+  financialYear: FinancialYearDateRange
 }) {
   const router = useRouter()
   const [isPosting, setIsPosting] = useState(false)
@@ -142,10 +148,7 @@ export function ManualJournalForm({
   ])
 
   const totals = useMemo(() => {
-    const debit = lines.reduce(
-      (sum, line) => sum + parseAmount(line.debit),
-      0
-    )
+    const debit = lines.reduce((sum, line) => sum + parseAmount(line.debit), 0)
 
     const credit = lines.reduce(
       (sum, line) => sum + parseAmount(line.credit),
@@ -215,12 +218,14 @@ export function ManualJournalForm({
 
   const balances = Math.round(totals.difference * 100) === 0
   const canSubmit = !isPosting && !postedJournalEntryId
+  const dateWarning = getFinancialYearDateWarning(date, financialYear)
 
   function validateJournal() {
     if (isPosting) return 'The journal is already being posted.'
     if (postedJournalEntryId) return 'This journal has already been posted.'
 
     if (!date) return 'Enter a journal date.'
+    if (dateWarning) return dateWarning
 
     if (!description.trim()) return 'Enter a journal description.'
 
@@ -263,6 +268,12 @@ export function ManualJournalForm({
         {error && (
           <p className='rounded-md bg-red-50 px-3 py-2 text-sm text-red-700'>
             {error}
+          </p>
+        )}
+
+        {dateWarning && (
+          <p className='rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800'>
+            {dateWarning}
           </p>
         )}
 

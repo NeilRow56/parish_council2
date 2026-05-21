@@ -21,6 +21,10 @@ import {
 
 import { createBankEntryAction, quickCreateSupplierAction } from '../actions'
 import { InvoiceUpload } from './invoice-upload'
+import {
+  type FinancialYearDateRange,
+  getFinancialYearDateWarning
+} from '@/lib/financial-years/date-range'
 
 type BankEntryType = 'PAYMENT' | 'RECEIPT'
 
@@ -259,6 +263,7 @@ function NominalCodeSelect({
 
 export function BankEntryForm({
   financialYearId,
+  financialYear,
   bankAccounts,
   nominalCodes,
   suppliers,
@@ -268,6 +273,7 @@ export function BankEntryForm({
   vatRates
 }: {
   financialYearId: string
+  financialYear: FinancialYearDateRange
   bankAccounts: BankAccountOption[]
   nominalCodes: NominalCodeOption[]
   suppliers: SupplierOption[]
@@ -277,7 +283,10 @@ export function BankEntryForm({
   vatRates: VatRateOption[]
 }) {
   const router = useRouter()
-  const [isPending, startTransition] = useTransition()
+  const [isPosting, setIsPosting] = useState(false)
+  const [postedJournalEntryIds, setPostedJournalEntryIds] = useState<string[]>(
+    []
+  )
   const [error, setError] = useState<string | null>(null)
 
   const fallbackReserveId =
@@ -515,8 +524,26 @@ export function BankEntryForm({
     })
   }
 
-  function handleSubmit(options?: { skipVat126Warning?: boolean }) {
+  async function handleSubmit(options?: { skipVat126Warning?: boolean }) {
     setError(null)
+
+    const dateWarning = getFinancialYearDateWarning(date, financialYear)
+
+    if (isPosting) {
+      toast.error('The bank entry is already being posted.')
+      return
+    }
+
+    if (postedJournalEntryIds.length > 0) {
+      toast.error('This bank entry has already been posted.')
+      return
+    }
+
+    if (dateWarning) {
+      setError(dateWarning)
+      toast.error(dateWarning)
+      return
+    }
 
     const activeLines = lines.filter(
       line =>
@@ -572,69 +599,78 @@ export function BankEntryForm({
       return
     }
 
-    startTransition(async () => {
-      try {
-        await createBankEntryAction({
-          financialYearId,
-          date,
-          bankConnectionId,
-          entryType,
-          reference,
-          lines: activeLines.map(line => ({
-            nominalCodeId: line.nominalCodeId,
-            supplierId:
-              entryType === 'PAYMENT'
-                ? line.supplierId || undefined
-                : undefined,
-            reserveId: line.reserveId,
-            projectId: line.projectId || undefined,
-            invoiceReference:
-              entryType === 'PAYMENT'
-                ? line.invoiceReference || undefined
-                : undefined,
-            goodsSupplied:
-              entryType === 'PAYMENT'
-                ? line.goodsSupplied || undefined
-                : undefined,
-            supplierVatNumberSnapshot:
-              entryType === 'PAYMENT'
-                ? line.supplierVatNumberSnapshot || undefined
-                : undefined,
-            attachmentUrl: line.attachmentUrl || undefined,
-            attachmentName: line.attachmentName || undefined,
-            attachmentKey: line.attachmentKey || undefined,
-            description: line.description,
-            amount: line.amount,
-            vatRateId: getValidVatRateId(line.vatRateId),
-            vatTreatment: line.vatTreatment,
-            vatAmount: shouldUseVat(entryType, line)
-              ? formatMoney(getLineVatAmount(entryType, line, vatRates))
-              : '0.00'
-          }))
-        })
+    setIsPosting(true)
 
-        toast.success('Entry posted to ledger.')
-        router.push('/ledger')
-      } catch (err) {
-        if (err instanceof Error && err.message === 'SESSION_EXPIRED') {
-          toast.error('Your session has expired. Please sign in again.')
-          router.push('/auth/login?next=/ledger/bank-entry/new')
-          return
-        }
+    try {
+      const result = await createBankEntryAction({
+        financialYearId,
+        date,
+        bankConnectionId,
+        entryType,
+        reference,
+        lines: activeLines.map(line => ({
+          nominalCodeId: line.nominalCodeId,
+          supplierId:
+            entryType === 'PAYMENT' ? line.supplierId || undefined : undefined,
+          reserveId: line.reserveId,
+          projectId: line.projectId || undefined,
+          invoiceReference:
+            entryType === 'PAYMENT'
+              ? line.invoiceReference || undefined
+              : undefined,
+          goodsSupplied:
+            entryType === 'PAYMENT'
+              ? line.goodsSupplied || undefined
+              : undefined,
+          supplierVatNumberSnapshot:
+            entryType === 'PAYMENT'
+              ? line.supplierVatNumberSnapshot || undefined
+              : undefined,
+          attachmentUrl: line.attachmentUrl || undefined,
+          attachmentName: line.attachmentName || undefined,
+          attachmentKey: line.attachmentKey || undefined,
+          description: line.description,
+          amount: line.amount,
+          vatRateId: getValidVatRateId(line.vatRateId),
+          vatTreatment: line.vatTreatment,
+          vatAmount: shouldUseVat(entryType, line)
+            ? formatMoney(getLineVatAmount(entryType, line, vatRates))
+            : '0.00'
+        }))
+      })
 
-        const message =
-          err instanceof Error
-            ? err.message
-            : 'Could not post bank entry. Please check the details and try again.'
-
-        setError(message)
-        toast.error(message)
+      if (!result.success) {
+        setError(result.error)
+        toast.error(result.error)
+        return
       }
-    })
+
+      toast.success('Entry posted to ledger.')
+      setPostedJournalEntryIds(result.journalEntryIds)
+
+      if (result.journalEntryIds.length === 1) {
+        router.push(`/ledger/journals/${result.journalEntryIds[0]}`)
+      } else {
+        router.push('/ledger')
+      }
+    } catch (err) {
+      const message =
+        err instanceof Error
+          ? err.message
+          : 'Could not post bank entry. Please check the details and try again.'
+
+      setError(message)
+      toast.error(message)
+    } finally {
+      setIsPosting(false)
+    }
   }
 
+  const dateWarning = getFinancialYearDateWarning(date, financialYear)
   const canSubmit =
-    !isPending &&
+    !isPosting &&
+    postedJournalEntryIds.length === 0 &&
+    !dateWarning &&
     Boolean(bankConnectionId) &&
     totals.gross > 0 &&
     lines.some(
@@ -651,6 +687,12 @@ export function BankEntryForm({
         {error && (
           <p className='rounded-md bg-red-50 px-3 py-2 text-sm text-red-700'>
             {error}
+          </p>
+        )}
+
+        {dateWarning && (
+          <p className='rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800'>
+            {dateWarning}
           </p>
         )}
 
@@ -1200,7 +1242,11 @@ export function BankEntryForm({
             disabled={!canSubmit || vatRates.length === 0}
             className='rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white disabled:opacity-50'
           >
-            {isPending ? 'Posting...' : 'Post cash/bank entry'}
+            {isPosting
+              ? 'Posting...'
+              : postedJournalEntryIds.length > 0
+                ? 'Posted'
+                : 'Post cash/bank entry'}
           </button>
         </div>
       </div>

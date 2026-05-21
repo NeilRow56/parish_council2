@@ -8,10 +8,12 @@ import { auth } from '@/lib/auth'
 import { db } from '@/db'
 import {
   journalEntries,
+  financialYears,
   journalLines,
   nominalCodes
 } from '@/db/schema/nominalLedger'
 import { reserves } from '@/db/schema'
+import { getFinancialYearDateWarning } from '@/lib/financial-years/date-range'
 
 type JournalLineInput = {
   nominalCodeId: string
@@ -51,6 +53,33 @@ export async function createManualJournalAction(input: {
 
   if (!date || !description) {
     return expectedError('Date and description are required.')
+  }
+
+  const [financialYear] = await db
+    .select({
+      id: financialYears.id,
+      label: financialYears.label,
+      startDate: financialYears.startDate,
+      endDate: financialYears.endDate,
+      isClosed: financialYears.isClosed
+    })
+    .from(financialYears)
+    .where(
+      and(
+        eq(financialYears.id, input.financialYearId),
+        eq(financialYears.parishCouncilId, parishCouncilId)
+      )
+    )
+    .limit(1)
+
+  if (!financialYear || financialYear.isClosed) {
+    return expectedError('The selected financial year is not available.')
+  }
+
+  const dateWarning = getFinancialYearDateWarning(date, financialYear)
+
+  if (dateWarning) {
+    return expectedError(dateWarning)
   }
 
   const [defaultReserve] = await db

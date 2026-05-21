@@ -527,7 +527,7 @@ async function getAgarReport({
 
   const openingFixedAssets = normalise(openingTotals?.fixedAssets)
   const openingBorrowings = Math.abs(normalise(openingTotals?.borrowings))
-  const balancesBroughtForward = Math.abs(normalise(openingTotals?.reserves))
+  const balancesBroughtForward = -normalise(openingTotals?.reserves)
 
   const precept = reportTotals.precept
   const otherReceipts = reportTotals.otherReceipts

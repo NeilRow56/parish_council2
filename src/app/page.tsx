@@ -1,5 +1,8 @@
 import Link from 'next/link'
 
+import { BrandLogo } from '@/components/shared/brand-logo'
+import { branding } from '@/lib/branding'
+
 const features = [
   {
     title: 'Bookkeeping built around council workflows',
@@ -68,8 +71,8 @@ export default function HomePage() {
     <main className='min-h-screen bg-white text-slate-950'>
       <header className='border-b border-emerald-100 bg-white/95 backdrop-blur'>
         <div className='mx-auto flex max-w-7xl items-center justify-between px-6 py-4'>
-          <Link href='/' className='text-lg font-semibold tracking-tight'>
-            WpAccPac
+          <Link href='/' className='inline-flex items-center'>
+            <BrandLogo className='h-10 w-auto max-w-64' />
           </Link>
 
           <nav className='flex items-center gap-3 text-sm'>
@@ -107,14 +110,14 @@ export default function HomePage() {
             </p>
 
             <h1 className='mt-4 max-w-4xl text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl'>
-              Keep parish and town council accounts ready for review,
-              reporting, and year end.
+              Keep parish and town council accounts ready for review, reporting,
+              and year end.
             </h1>
 
             <p className='mt-5 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg'>
-              WpAccPac helps clerks and responsible financial officers manage
-              bank-fed bookkeeping, nominal ledgers, VAT, reconciliations, and
-              AGAR working papers in one focused system.
+              {branding.appName} helps clerks and responsible financial officers
+              manage bank-fed bookkeeping, nominal ledgers, VAT,
+              reconciliations, and AGAR working papers in one focused system.
             </p>
 
             <div className='mt-8 flex flex-col gap-3 sm:flex-row'>
@@ -241,7 +244,10 @@ export default function HomePage() {
         </div>
       </section>
 
-      <section id='pricing' className='mx-auto max-w-7xl scroll-mt-20 px-6 py-14'>
+      <section
+        id='pricing'
+        className='mx-auto max-w-7xl scroll-mt-20 px-6 py-14'
+      >
         <div className='grid gap-8 lg:grid-cols-[0.85fr_1.15fr] lg:items-center'>
           <div>
             <p className='text-sm font-medium text-emerald-800'>Pricing</p>
@@ -295,7 +301,9 @@ export default function HomePage() {
 
       <footer className='border-t border-emerald-100 bg-emerald-50/40'>
         <div className='mx-auto flex max-w-7xl flex-col gap-4 px-6 py-8 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between'>
-          <p>WpAccPac for UK parish and town council finance teams.</p>
+          <p>
+            {branding.appName} for UK parish and town council finance teams.
+          </p>
 
           <div className='flex flex-wrap gap-4'>
             <Link href='/legal/privacy' className='hover:text-emerald-900'>

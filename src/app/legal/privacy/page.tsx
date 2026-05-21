@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 
 import { LegalArticle } from '@/components/public/public-page-shell'
+import { branding } from '@/lib/branding'
 
 export const metadata: Metadata = {
   title: 'Privacy Policy'
@@ -14,7 +15,7 @@ export default function PrivacyPolicyPage() {
       <p>Last updated: 17 May 2026</p>
 
       <p>
-        WpAccPac (“we”, “us”, “our”) provides bookkeeping, accounting,
+        {branding.appName} (“we”, “us”, “our”) provides bookkeeping, accounting,
         reconciliation, AGAR preparation, and financial reporting software for
         UK parish and town councils.
       </p>
@@ -28,7 +29,7 @@ export default function PrivacyPolicyPage() {
 
       <p>
         We collect only the information reasonably required to provide and
-        support the WpAccPac service.
+        support the {branding.appName} service.
       </p>
 
       <h3>Account &amp; Organisation Data</h3>
@@ -56,8 +57,8 @@ export default function PrivacyPolicyPage() {
       <h3>Banking &amp; Open Banking Data</h3>
 
       <p>
-        Where enabled by the council, WpAccPac may connect to bank accounts
-        using regulated Open Banking providers such as TrueLayer.
+        Where enabled by the council, {branding.appName} may connect to bank
+        accounts using regulated Open Banking providers such as TrueLayer.
       </p>
 
       <p>This may include access to:</p>
@@ -72,7 +73,7 @@ export default function PrivacyPolicyPage() {
       <p>
         Bank data is used solely for bookkeeping, reconciliation, transaction
         import, financial reporting, and related accounting functions within
-        WpAccPac.
+        {branding.appName}.
       </p>
 
       <h3>Documents &amp; Supporting Evidence</h3>
@@ -83,8 +84,8 @@ export default function PrivacyPolicyPage() {
           and working papers
         </li>
         <li>
-          WpAccPac also supports external document reference links where users
-          choose to store files within their own systems
+          {branding.appName} also supports external document reference links
+          where users choose to store files within their own systems
         </li>
         <li>
           Uploaded files are stored using managed third-party infrastructure
@@ -106,7 +107,7 @@ export default function PrivacyPolicyPage() {
       <p>Your data is used solely to:</p>
 
       <ul>
-        <li>Provide and operate the WpAccPac platform</li>
+        <li>Provide and operate the {branding.appName} platform</li>
         <li>Store and present accounting records and reports</li>
         <li>Support bank reconciliation and transaction imports</li>
         <li>Generate AGAR and year-end information</li>
@@ -133,7 +134,7 @@ export default function PrivacyPolicyPage() {
       <ul>
         <li>
           <strong>Contract</strong> — where processing is necessary to provide
-          the WpAccPac service
+          the {branding.appName} service
         </li>
 
         <li>
@@ -179,8 +180,8 @@ export default function PrivacyPolicyPage() {
       <h2>5. Third-Party Providers</h2>
 
       <p>
-        WpAccPac uses trusted third-party providers to operate and support the
-        platform.
+        {branding.appName} uses trusted third-party providers to operate and
+        support the platform.
       </p>
 
       <p>
@@ -217,12 +218,14 @@ export default function PrivacyPolicyPage() {
 
       <h2>7. Data Ownership</h2>
 
-      <p>Councils retain ownership of all data entered into WpAccPac.</p>
+      <p>
+        Councils retain ownership of all data entered into {branding.appName}.
+      </p>
 
       <p>
-        In most cases, WpAccPac acts as a data processor, providing tools and
-        infrastructure used to manage council financial records and supporting
-        information.
+        In most cases, {branding.appName} acts as a data processor, providing
+        tools and infrastructure used to manage council financial records and
+        supporting information.
       </p>
 
       <p>
@@ -232,7 +235,8 @@ export default function PrivacyPolicyPage() {
 
       <p>
         Councils remain responsible for ensuring that they have appropriate
-        authority and lawful basis for any personal data stored within WpAccPac.
+        authority and lawful basis for any personal data stored within{' '}
+        {branding.appName}.
       </p>
 
       <h2>8. Data Retention</h2>
@@ -271,15 +275,15 @@ export default function PrivacyPolicyPage() {
       </p>
 
       <p>
-        WpAccPac will provide reasonable assistance where required in relation
-        to valid requests.
+        {branding.appName} will provide reasonable assistance where required in
+        relation to valid requests.
       </p>
 
       <h2>10. Cookies</h2>
 
       <p>
-        WpAccPac currently uses only essential cookies required to operate the
-        application.
+        {branding.appName} currently uses only essential cookies required to
+        operate the application.
       </p>
 
       <p>These may include cookies used for:</p>
@@ -291,8 +295,8 @@ export default function PrivacyPolicyPage() {
       </ul>
 
       <p>
-        WpAccPac does not currently use advertising or behavioural tracking
-        cookies.
+        {branding.appName} does not currently use advertising or behavioural
+        tracking cookies.
       </p>
 
       <p>
@@ -304,9 +308,9 @@ export default function PrivacyPolicyPage() {
       <h2>11. Children&apos;s Data</h2>
 
       <p>
-        WpAccPac is intended for use by councils, finance officers, clerks,
-        accountants, and other authorised users. It is not intended for use by
-        individuals under 18.
+        {branding.appName} is intended for use by councils, finance officers,
+        clerks, accountants, and other authorised users. It is not intended for
+        use by individuals under 18.
       </p>
 
       <h2>12. Contact</h2>
@@ -319,12 +323,12 @@ export default function PrivacyPolicyPage() {
       <p>
         <strong>Email:</strong>{' '}
         <a
-          href='mailto:admin@wpaccpac.org'
+          href={`mailto:${branding.supportEmail}`}
           target='_blank'
           rel='noopener noreferrer'
           className='text-primary underline'
         >
-          admin@wpaccpac.org
+          {branding.supportEmail}
         </a>
       </p>
     </LegalArticle>

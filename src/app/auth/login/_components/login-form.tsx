@@ -10,6 +10,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 
 import { signIn } from '@/lib/auth-client'
 import { BackButton } from '@/components/shared/back-button'
+import { BrandLogo } from '@/components/shared/brand-logo'
 
 const loginSchema = z.object({
   email: z
@@ -83,6 +84,10 @@ export default function LoginForm({ next, error: initialError }: Props) {
         noValidate
         className='w-full max-w-md rounded-xl bg-white p-8 shadow-sm'
       >
+        <Link href='/' className='mb-6 inline-flex items-center'>
+          <BrandLogo className='h-11 w-auto max-w-72' />
+        </Link>
+
         <h1 className='text-2xl font-semibold'>Log in</h1>
 
         {registered && (

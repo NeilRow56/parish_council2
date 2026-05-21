@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 
 import { LegalArticle } from '@/components/public/public-page-shell'
+import { branding } from '@/lib/branding'
 
 export const metadata: Metadata = {
   title: 'Security & Data Ownership'
@@ -15,22 +16,23 @@ export default function SecurityPage() {
       <p>Last updated: 17 May 2026</p>
 
       <p>
-        WpAccPac is designed to help UK parish and town councils maintain
-        bookkeeping records, bank reconciliation evidence, supporting documents,
-        VAT records, and AGAR working papers in a controlled environment.
+        {branding.appName} is designed to help UK parish and town councils
+        maintain bookkeeping records, bank reconciliation evidence, supporting
+        documents, VAT records, and AGAR working papers in a controlled
+        environment.
       </p>
 
       <h2>1. Council data ownership</h2>
 
       <p>
         Councils retain ownership of the accounting records, documents, and
-        related information entered into WpAccPac.
+        related information entered into {branding.appName}.
       </p>
 
       <p>
         In most cases, councils act as data controllers for their own records
-        and WpAccPac acts as a data processor providing software and supporting
-        infrastructure.
+        and {branding.appName} acts as a data processor providing software and
+        supporting infrastructure.
       </p>
 
       <h2>2. Access controls</h2>
@@ -57,10 +59,10 @@ export default function SecurityPage() {
       <h2>4. Infrastructure and storage</h2>
 
       <p>
-        WpAccPac uses managed infrastructure providers for hosting, database
-        storage, authentication, file uploads, and Open Banking integrations.
-        Data is transmitted over encrypted connections where supported by those
-        providers.
+        {branding.appName} uses managed infrastructure providers for hosting,
+        database storage, authentication, file uploads, and Open Banking
+        integrations. Data is transmitted over encrypted connections where
+        supported by those providers.
       </p>
 
       <p>
@@ -72,15 +74,16 @@ export default function SecurityPage() {
       <h2>5. Open Banking</h2>
 
       <p>
-        Where a council enables bank feeds, WpAccPac may use regulated Open
-        Banking providers such as TrueLayer to access account and transaction
-        data for bookkeeping, reconciliation, and reporting purposes.
+        Where a council enables bank feeds, {branding.appName} may use regulated
+        Open Banking providers such as TrueLayer to access account and
+        transaction data for bookkeeping, reconciliation, and reporting
+        purposes.
       </p>
 
       <p>
         Bank permissions are controlled by the bank account holder and can
         normally be revoked through the bank, Open Banking provider, or within
-        WpAccPac where supported.
+        {branding.appName} where supported.
       </p>
 
       <h2>6. Council responsibilities</h2>
@@ -89,7 +92,9 @@ export default function SecurityPage() {
         <li>Keep user access limited to authorised personnel</li>
         <li>Use strong passwords and protect account credentials</li>
         <li>Review imported bank transactions before posting</li>
-        <li>Check reports and year-end figures before submission or audit use</li>
+        <li>
+          Check reports and year-end figures before submission or audit use
+        </li>
         <li>
           Ensure any personal data entered into the system is processed lawfully
         </li>
@@ -108,12 +113,12 @@ export default function SecurityPage() {
       <p>
         For security or data ownership questions, contact{' '}
         <a
-          href='mailto:admin@wpaccpac.org'
+          href={`mailto:${branding.supportEmail}`}
           target='_blank'
           rel='noopener noreferrer'
           className='text-primary underline'
         >
-          admin@wpaccpac.org
+          {branding.supportEmail}
         </a>
         .
       </p>

@@ -2,11 +2,26 @@ import type { Metadata } from 'next'
 import './globals.css'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { Toaster } from '@/components/ui/sonner'
+import { branding } from '@/lib/branding'
 
 export const metadata: Metadata = {
-  title: 'WpAccPac - Parish Council Bookkeeping and AGAR',
-  description:
-    'Bookkeeping, bank reconciliation, VAT, reporting, and AGAR preparation software for UK parish and town councils.'
+  title: branding.metadata.title,
+  description: branding.metadata.description,
+  openGraph: {
+    title: branding.metadata.ogTitle,
+    description: branding.metadata.ogDescription,
+    siteName: branding.siteName
+  },
+  twitter: {
+    card: 'summary',
+    title: branding.metadata.ogTitle,
+    description: branding.metadata.ogDescription
+  },
+  icons: {
+    icon: branding.logoPath,
+    apple: branding.logoPath
+  },
+  applicationName: branding.appName
 }
 
 export default function RootLayout({

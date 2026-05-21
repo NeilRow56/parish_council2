@@ -1,6 +1,9 @@
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 
+import { BrandLogo } from '@/components/shared/brand-logo'
+import { branding } from '@/lib/branding'
+
 const footerLinks = [
   { href: '/legal/privacy', label: 'Privacy' },
   { href: '/legal/gdpr', label: 'GDPR' },
@@ -13,8 +16,8 @@ export function PublicPageShell({ children }: { children: ReactNode }) {
     <main className='min-h-screen bg-[linear-gradient(180deg,#f5fbf7_0%,#ffffff_42%,#f8fbf9_100%)] text-slate-950'>
       <header className='border-b border-emerald-100 bg-white/90 backdrop-blur'>
         <div className='mx-auto flex max-w-7xl items-center justify-between px-6 py-4'>
-          <Link href='/' className='text-lg font-semibold tracking-tight'>
-            WpAccPac
+          <Link href='/' className='inline-flex items-center'>
+            <BrandLogo className='h-10 w-auto max-w-64' />
           </Link>
 
           <nav className='flex items-center gap-3 text-sm'>
@@ -39,7 +42,9 @@ export function PublicPageShell({ children }: { children: ReactNode }) {
 
       <footer className='border-t border-emerald-100 bg-white/80'>
         <div className='mx-auto flex max-w-7xl flex-col gap-4 px-6 py-8 text-sm text-slate-600 sm:flex-row sm:items-center sm:justify-between'>
-          <p>WpAccPac for UK parish and town council finance teams.</p>
+          <p>
+            {branding.appName} for UK parish and town council finance teams.
+          </p>
 
           <div className='flex flex-wrap gap-4'>
             {footerLinks.map(link => (
@@ -64,7 +69,7 @@ export function LegalArticle({ children }: { children: ReactNode }) {
       <section className='border-b border-emerald-100 bg-emerald-50/70'>
         <div className='mx-auto max-w-4xl px-6 py-12'>
           <p className='text-sm font-medium text-emerald-800'>
-            WpAccPac legal information
+            {branding.appName} legal information
           </p>
           <p className='mt-3 max-w-2xl text-sm leading-6 text-slate-700'>
             Practical information about privacy, data protection, security, and

@@ -6,6 +6,7 @@ import { ChevronDown } from 'lucide-react'
 
 // import { signOut } from '@/lib/auth-client'
 import { SignOutButton } from './sign-out-button'
+import { BrandLogo } from './brand-logo'
 
 type NavItem = {
   href: string
@@ -206,8 +207,8 @@ export default function AppNav({
     <header className='border-b bg-white'>
       <div className='mx-auto flex h-14 max-w-400 items-center justify-between px-6'>
         <div className='flex items-center gap-6'>
-          <Link href='/dashboard' className='font-semibold text-slate-900'>
-            WpAccPac
+          <Link href='/dashboard' className='flex shrink-0 items-center'>
+            <BrandLogo className='h-8 w-auto max-w-48' />
           </Link>
 
           <nav className='flex items-center gap-1'>

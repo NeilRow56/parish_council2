@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import Link from 'next/link'
 
 import { LegalArticle } from '@/components/public/public-page-shell'
+import { branding } from '@/lib/branding'
 
 export const metadata: Metadata = {
   title: 'GDPR & UK Data Protection'
@@ -15,13 +16,13 @@ export default function GDPRPage() {
       <p>Last updated: 17 May 2026</p>
 
       <p>
-        WpAccPac is designed to support parish and town councils with
+        {branding.appName} is designed to support parish and town councils with
         bookkeeping, accounting records, AGAR preparation, financial reporting,
         bank reconciliation, and related year-end processes.
       </p>
 
       <p>
-        This page explains how WpAccPac aligns with UK data protection
+        This page explains how {branding.appName} aligns with UK data protection
         requirements under the UK GDPR and the Data Protection Act 2018.
       </p>
 
@@ -33,8 +34,8 @@ export default function GDPRPage() {
       </p>
 
       <p>
-        WpAccPac operates in line with core data protection principles,
-        including:
+        {branding.appName} operates in line with core data protection
+        principles, including:
       </p>
 
       <ul>
@@ -50,34 +51,35 @@ export default function GDPRPage() {
       <h2>2. Roles and responsibilities</h2>
 
       <p>
-        In most cases, parish and town councils using WpAccPac act as the{' '}
-        <strong>data controllers</strong> for the information entered into the
-        platform.
+        In most cases, parish and town councils using {branding.appName} act as
+        the <strong>data controllers</strong> for the information entered into
+        the platform.
       </p>
 
       <p>
-        WpAccPac generally acts as a <strong>data processor</strong>, providing
-        software and infrastructure used to manage accounting records, financial
-        transactions, supporting documents, reconciliations, AGAR working
-        papers, and related data.
+        {branding.appName} generally acts as a <strong>data processor</strong>,
+        providing software and infrastructure used to manage accounting records,
+        financial transactions, supporting documents, reconciliations, AGAR
+        working papers, and related data.
       </p>
 
       <p>
         Councils remain responsible for ensuring that any personal data entered
-        into WpAccPac is processed lawfully and in accordance with applicable
-        data protection obligations.
+        into {branding.appName} is processed lawfully and in accordance with
+        applicable data protection obligations.
       </p>
 
       <h2>3. Bank data and Open Banking</h2>
 
       <p>
-        WpAccPac may allow councils to connect bank accounts using regulated
-        Open Banking providers such as TrueLayer.
+        {branding.appName} may allow councils to connect bank accounts using
+        regulated Open Banking providers such as TrueLayer.
       </p>
 
       <p>
-        Where enabled by the council, WpAccPac may access account balances,
-        transaction data, and related banking information for the purposes of:
+        Where enabled by the council, {branding.appName} may access account
+        balances, transaction data, and related banking information for the
+        purposes of:
       </p>
 
       <ul>
@@ -91,14 +93,14 @@ export default function GDPRPage() {
       <p>
         Bank access permissions are controlled by the bank account holder and
         can normally be revoked through the relevant banking provider or within
-        WpAccPac.
+        {branding.appName}.
       </p>
 
       <h2>4. Data processing</h2>
 
       <p>
-        WpAccPac processes personal data only as reasonably necessary to provide
-        and support the service.
+        {branding.appName} processes personal data only as reasonably necessary
+        to provide and support the service.
       </p>
 
       <p>This may include:</p>
@@ -119,8 +121,8 @@ export default function GDPRPage() {
       <h2>5. Beta and early access</h2>
 
       <p>
-        WpAccPac may from time to time be provided in beta, preview, or early
-        access form while features are being refined and tested.
+        {branding.appName} may from time to time be provided in beta, preview,
+        or early access form while features are being refined and tested.
       </p>
 
       <p>
@@ -136,8 +138,8 @@ export default function GDPRPage() {
       <h2>6. Security and access controls</h2>
 
       <p>
-        WpAccPac uses logical separation of organisation data together with
-        authentication and access controls designed to restrict access to
+        {branding.appName} uses logical separation of organisation data together
+        with authentication and access controls designed to restrict access to
         authorised users.
       </p>
 
@@ -155,15 +157,15 @@ export default function GDPRPage() {
       </p>
 
       <p>
-        WpAccPac will provide reasonable assistance to councils where required
-        in relation to valid data protection requests.
+        {branding.appName} will provide reasonable assistance to councils where
+        required in relation to valid data protection requests.
       </p>
 
       <h2>8. International transfers</h2>
 
       <p>
-        Some infrastructure or service providers used by WpAccPac may process
-        data outside the United Kingdom.
+        Some infrastructure or service providers used by {branding.appName} may
+        process data outside the United Kingdom.
       </p>
 
       <p>
@@ -174,8 +176,8 @@ export default function GDPRPage() {
       <h2>9. ICO registration</h2>
 
       <p>
-        WpAccPac will maintain ICO registration where required by applicable UK
-        data protection legislation.
+        {branding.appName} will maintain ICO registration where required by
+        applicable UK data protection legislation.
       </p>
 
       <h2>10. Further information</h2>
@@ -192,12 +194,12 @@ export default function GDPRPage() {
 
       <p>
         <a
-          href='mailto:admin@wpaccpac.org'
+          href={`mailto:${branding.supportEmail}`}
           target='_blank'
           rel='noopener noreferrer'
           className='text-primary underline'
         >
-          admin@wpaccpac.org
+          {branding.supportEmail}
         </a>
       </p>
     </LegalArticle>

@@ -10,6 +10,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 
 import { signUp } from '@/lib/auth-client'
 import { BackButton } from '@/components/shared/back-button'
+import { BrandLogo } from '@/components/shared/brand-logo'
 
 const registerSchema = z.object({
   councilName: z
@@ -97,6 +98,10 @@ export default function RegisterForm() {
         onSubmit={handleSubmit(onSubmit)}
         noValidate
       >
+        <Link href='/' className='mb-6 inline-flex items-center'>
+          <BrandLogo className='h-11 w-auto max-w-72' />
+        </Link>
+
         <h1 className='text-2xl font-semibold'>Create account</h1>
 
         {error && (

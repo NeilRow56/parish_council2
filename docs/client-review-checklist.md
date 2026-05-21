@@ -1,4 +1,4 @@
-# WpAccPac Client Review Readiness Checklist
+# Parish Council Accounts Client Review Readiness Checklist
 
 Use this checklist before a client review or demo. Each check is intended to be run manually against the deployed review environment and, where useful, repeated locally with seeded demo data.
 

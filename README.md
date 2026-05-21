@@ -1,4 +1,4 @@
-# WpAccPac Parish Accounts
+# Parish Council Accounts
 
 Bookkeeping, reporting, VAT, bank reconciliation, and AGAR preparation software
 for UK parish and town councils.

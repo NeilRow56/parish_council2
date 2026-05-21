@@ -1,6 +1,7 @@
 'use server'
 
 import { headers } from 'next/headers'
+import { revalidatePath } from 'next/cache'
 import { and, eq } from 'drizzle-orm'
 
 import { auth } from '@/lib/auth'
@@ -20,18 +21,26 @@ type JournalLineInput = {
   credit: string
 }
 
+type CreateManualJournalResult =
+  | { success: true; journalEntryId: string }
+  | { success: false; error: string }
+
+function expectedError(message: string): CreateManualJournalResult {
+  return { success: false, error: message }
+}
+
 export async function createManualJournalAction(input: {
   financialYearId: string
   date: string
   description: string
   lines: JournalLineInput[]
-}) {
+}): Promise<CreateManualJournalResult> {
   const session = await auth.api.getSession({
     headers: await headers()
   })
 
   if (!session?.user?.parishCouncilId) {
-    throw new Error('Unauthorised')
+    return expectedError('Your session has expired. Please sign in again.')
   }
 
   const parishCouncilId = session.user.parishCouncilId
@@ -41,7 +50,7 @@ export async function createManualJournalAction(input: {
   const date = input.date
 
   if (!date || !description) {
-    throw new Error('Date and description are required.')
+    return expectedError('Date and description are required.')
   }
 
   const [defaultReserve] = await db
@@ -57,7 +66,7 @@ export async function createManualJournalAction(input: {
     .limit(1)
 
   if (!defaultReserve) {
-    throw new Error('No active default reserve has been configured.')
+    return expectedError('No active default reserve has been configured.')
   }
 
   const cleanedLines = input.lines
@@ -71,16 +80,16 @@ export async function createManualJournalAction(input: {
     .filter(line => line.nominalCodeId && (line.debit > 0 || line.credit > 0))
 
   if (cleanedLines.length < 2) {
-    throw new Error('A journal must have at least two lines.')
+    return expectedError('A journal must have at least two lines.')
   }
 
   for (const line of cleanedLines) {
     if (line.debit > 0 && line.credit > 0) {
-      throw new Error('A line cannot have both a debit and a credit.')
+      return expectedError('A line cannot have both a debit and a credit.')
     }
 
     if (line.debit < 0 || line.credit < 0) {
-      throw new Error('Negative journal amounts are not allowed.')
+      return expectedError('Negative journal amounts are not allowed.')
     }
   }
 
@@ -88,7 +97,7 @@ export async function createManualJournalAction(input: {
   const totalCredit = cleanedLines.reduce((sum, line) => sum + line.credit, 0)
 
   if (Math.round(totalDebit * 100) !== Math.round(totalCredit * 100)) {
-    throw new Error('Journal does not balance.')
+    return expectedError('Journal does not balance.')
   }
 
   const validCodes = await db
@@ -106,7 +115,7 @@ export async function createManualJournalAction(input: {
 
   for (const line of cleanedLines) {
     if (!validCodeIds.has(line.nominalCodeId)) {
-      throw new Error('Invalid nominal code selected.')
+      return expectedError('Invalid nominal code selected.')
     }
   }
 
@@ -124,11 +133,11 @@ export async function createManualJournalAction(input: {
 
   for (const line of cleanedLines) {
     if (!validReserveIds.has(line.reserveId)) {
-      throw new Error('Invalid reserve selected.')
+      return expectedError('Invalid reserve selected.')
     }
   }
 
-  await db.transaction(async trx => {
+  const journalEntryId = await db.transaction(async trx => {
     const reference = `MAN-${Date.now()}`
 
     const [entry] = await trx
@@ -155,7 +164,12 @@ export async function createManualJournalAction(input: {
         description: line.description || description
       }))
     )
+
+    return entry.id
   })
 
-  return { success: true }
+  revalidatePath('/ledger')
+  revalidatePath(`/ledger/journals/${journalEntryId}`)
+
+  return { success: true, journalEntryId }
 }

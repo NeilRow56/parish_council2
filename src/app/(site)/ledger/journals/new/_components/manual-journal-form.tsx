@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState, useTransition } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -128,7 +128,10 @@ export function ManualJournalForm({
   financialYearId: string
 }) {
   const router = useRouter()
-  const [isPending, startTransition] = useTransition()
+  const [isPosting, setIsPosting] = useState(false)
+  const [postedJournalEntryId, setPostedJournalEntryId] = useState<
+    string | null
+  >(null)
   const [error, setError] = useState<string | null>(null)
 
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0])
@@ -170,7 +173,7 @@ export function ManualJournalForm({
     setLines(current => [...current, createEmptyLine()])
   }
 
-  function handleSubmit() {
+  async function handleSubmit() {
     setError(null)
 
     const validationError = validateJournal()
@@ -181,34 +184,41 @@ export function ManualJournalForm({
       return
     }
 
-    startTransition(async () => {
-      try {
-        const result = await createManualJournalAction({
-          financialYearId,
-          date,
-          description,
-          lines
-        })
+    setIsPosting(true)
 
-        if (result.success) {
-          toast.success('Manual journal posted.')
-          router.push('/ledger')
-          router.refresh()
-        }
-      } catch (err) {
-        const message =
-          err instanceof Error ? err.message : 'Could not post journal.'
-        setError(message)
-        toast.error(message)
+    try {
+      const result = await createManualJournalAction({
+        financialYearId,
+        date,
+        description,
+        lines
+      })
+
+      if (!result.success) {
+        setError(result.error)
+        toast.error(result.error)
+        return
       }
-    })
+
+      toast.success('Manual journal posted.')
+      setPostedJournalEntryId(result.journalEntryId)
+      router.push(`/ledger/journals/${result.journalEntryId}`)
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : 'Could not post journal.'
+      setError(message)
+      toast.error(message)
+    } finally {
+      setIsPosting(false)
+    }
   }
 
   const balances = Math.round(totals.difference * 100) === 0
-  const canSubmit = !isPending
+  const canSubmit = !isPosting && !postedJournalEntryId
 
   function validateJournal() {
-    if (isPending) return 'The journal is already being posted.'
+    if (isPosting) return 'The journal is already being posted.'
+    if (postedJournalEntryId) return 'This journal has already been posted.'
 
     if (!date) return 'Enter a journal date.'
 
@@ -431,7 +441,11 @@ export function ManualJournalForm({
             disabled={!canSubmit}
             className='rounded-md bg-zinc-950 px-4 py-2 text-sm font-medium text-white disabled:opacity-50'
           >
-            {isPending ? 'Posting...' : 'Post journal'}
+            {isPosting
+              ? 'Posting...'
+              : postedJournalEntryId
+                ? 'Posted'
+                : 'Post journal'}
           </button>
         </div>
       </div>

@@ -12,7 +12,8 @@ import { db } from '@/db'
 import {
   financialYears,
   nominalCodes,
-  nominalOpeningBalances
+  nominalOpeningBalances,
+  yearEndRuns
 } from '@/db/schema'
 
 import {
@@ -64,6 +65,28 @@ function isNormalReserveCode(code: { category: string | null; code: string }) {
   return code.category === 'Reserves' && !isMemoReserveCode(code)
 }
 
+async function getRollforwardLockForYear({
+  parishCouncilId,
+  financialYearId
+}: {
+  parishCouncilId: string
+  financialYearId: string
+}) {
+  const [rollforwardRun] = await db
+    .select({ id: yearEndRuns.id })
+    .from(yearEndRuns)
+    .where(
+      and(
+        eq(yearEndRuns.parishCouncilId, parishCouncilId),
+        eq(yearEndRuns.toFinancialYearId, financialYearId),
+        eq(yearEndRuns.status, 'COMPLETED')
+      )
+    )
+    .limit(1)
+
+  return Boolean(rollforwardRun)
+}
+
 async function saveOpeningBalances(formData: FormData) {
   'use server'
 
@@ -106,6 +129,18 @@ async function saveOpeningBalances(formData: FormData) {
   if (!financialYear) {
     redirectWithStatus({
       error: 'Opening balances can only be edited for the open financial year.'
+    })
+  }
+
+  const isLockedByRollforward = await getRollforwardLockForYear({
+    parishCouncilId,
+    financialYearId
+  })
+
+  if (isLockedByRollforward) {
+    redirectWithStatus({
+      error:
+        'Opening balances for this financial year were created by year-end rollforward and are locked. To correct them, post an adjustment journal or reverse/re-run the year-end process where appropriate.'
     })
   }
 
@@ -300,6 +335,11 @@ export default async function OpeningBalancesPage({
     openingBalances.map(b => [b.nominalCodeId, b.amount])
   )
 
+  const isLockedByRollforward = await getRollforwardLockForYear({
+    parishCouncilId,
+    financialYearId: financialYear.id
+  })
+
   const groupedCodes = {
     banks: codes.filter(c => c.category === 'Bank'),
     reserves: codes.filter(c => isNormalReserveCode(c)),
@@ -329,6 +369,14 @@ export default async function OpeningBalancesPage({
                 Opening balances saved.
               </p>
             ) : null}
+            {isLockedByRollforward ? (
+              <p className='mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800'>
+                Opening balances for this financial year were created by
+                year-end rollforward and are locked. To correct them, post an
+                adjustment journal or reverse/re-run the year-end process where
+                appropriate.
+              </p>
+            ) : null}
           </div>
 
           <Link href='/onboarding/council-details'>
@@ -343,6 +391,7 @@ export default async function OpeningBalancesPage({
           description='Enter positive cash balances. These post as debit balances.'
           codes={groupedCodes.banks}
           balancesMap={balancesMap}
+          isLocked={isLockedByRollforward}
         />
 
         <OpeningBalanceCard
@@ -350,6 +399,7 @@ export default async function OpeningBalancesPage({
           description='Enter positive reserve balances. These post as credit balances.'
           codes={groupedCodes.reserves}
           balancesMap={balancesMap}
+          isLocked={isLockedByRollforward}
         />
 
         <OpeningBalanceCard
@@ -357,6 +407,7 @@ export default async function OpeningBalancesPage({
           description='Enter positive asset values. The matching memo reserve is posted automatically.'
           codes={groupedCodes.fixedAssets}
           balancesMap={balancesMap}
+          isLocked={isLockedByRollforward}
         />
 
         {groupedCodes.borrowings.length > 0 ? (
@@ -365,11 +416,12 @@ export default async function OpeningBalancesPage({
             description='Enter positive outstanding loan balances. The matching memo reserve is posted automatically.'
             codes={groupedCodes.borrowings}
             balancesMap={balancesMap}
+            isLocked={isLockedByRollforward}
           />
         ) : null}
 
         <div className='flex justify-end'>
-          <SaveOpeningBalancesButton />
+          <SaveOpeningBalancesButton disabled={isLockedByRollforward} />
         </div>
       </div>
     </form>
@@ -403,12 +455,14 @@ function OpeningBalanceCard({
   title,
   description,
   codes,
-  balancesMap
+  balancesMap,
+  isLocked
 }: {
   title: string
   description: string
   codes: OpeningBalanceCode[]
   balancesMap: Map<string, string>
+  isLocked: boolean
 }) {
   return (
     <Card>
@@ -438,6 +492,8 @@ function OpeningBalanceCard({
                 min='0'
                 defaultValue={formatOpeningBalanceInput(code, balancesMap)}
                 placeholder='0.00'
+                readOnly={isLocked}
+                disabled={isLocked}
                 className='border-input bg-background ring-offset-background placeholder:text-muted-foreground focus-visible:ring-ring flex h-10 w-full rounded-md border px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50'
               />
             </div>

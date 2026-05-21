@@ -18,8 +18,8 @@ export const metadata: Metadata = {
     description: branding.metadata.ogDescription
   },
   icons: {
-    icon: branding.logoPath,
-    apple: branding.logoPath
+    icon: branding.iconLogoPath,
+    apple: branding.iconLogoPath
   },
   applicationName: branding.appName
 }

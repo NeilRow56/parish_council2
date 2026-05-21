@@ -3,7 +3,8 @@ export const branding = {
   companyName: 'Parish Council Accounts',
   siteName: 'Parish Council Accounts',
   supportEmail: 'hello@parishaccountssoftware.co.uk',
-  logoPath: '/brand/parish-council-accounts-logo.png',
+  fullLogoPath: '/brand/parish-council-accounts-full-cropped.png',
+  iconLogoPath: '/brand/parish-council-accounts-icon-cropped.png',
   metadata: {
     title: 'Parish Council Accounts - Bookkeeping and AGAR',
     description:

@@ -208,7 +208,7 @@ export default function AppNav({
       <div className='mx-auto flex h-14 max-w-400 items-center justify-between px-6'>
         <div className='flex items-center gap-6'>
           <Link href='/dashboard' className='flex shrink-0 items-center'>
-            <BrandLogo className='h-8 w-auto max-w-48' />
+            <BrandLogo variant='icon' className='h-9 w-auto' />
           </Link>
 
           <nav className='flex items-center gap-1'>

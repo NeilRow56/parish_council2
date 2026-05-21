@@ -38,6 +38,12 @@ const pricingItems = [
   'PDF exports'
 ]
 
+const straplineWords = [
+  { label: 'Simple', className: 'text-red-600' },
+  { label: 'Straightforward', className: 'text-emerald-700' },
+  { label: 'Secure', className: 'text-sky-700' }
+]
+
 const previewRows = [
   {
     label: 'Bank reconciliation',
@@ -71,8 +77,12 @@ export default function HomePage() {
     <main className='min-h-screen bg-white text-slate-950'>
       <header className='border-b border-emerald-100 bg-white/95 backdrop-blur'>
         <div className='mx-auto flex max-w-7xl items-center justify-between px-6 py-4'>
-          <Link href='/' className='inline-flex items-center'>
-            <BrandLogo className='h-10 w-auto max-w-64' />
+          <Link href='/' className='inline-flex items-center gap-3'>
+            <BrandLogo variant='icon' className='h-9 w-auto' />
+            <span className='text-sm font-semibold leading-tight text-slate-950 sm:text-base'>
+              Parish Council
+              <span className='block'>Accounts</span>
+            </span>
           </Link>
 
           <nav className='flex items-center gap-3 text-sm'>
@@ -105,14 +115,36 @@ export default function HomePage() {
 
         <div className='relative mx-auto grid max-w-7xl gap-10 px-6 py-16 lg:grid-cols-[1.1fr_0.9fr] lg:items-center lg:py-20'>
           <div className='max-w-3xl'>
-            <p className='text-sm font-medium text-emerald-800'>
+            <div className='inline-flex max-w-full flex-col items-start gap-4 rounded-xl border border-emerald-100 bg-white/90 p-4 shadow-lg shadow-emerald-950/10 sm:flex-row sm:items-center sm:gap-5 sm:p-5'>
+              <BrandLogo
+                variant='icon'
+                className='h-20 w-auto shrink-0 sm:h-24'
+              />
+
+              <div className='min-w-0'>
+                <h1 className='text-3xl font-bold leading-none tracking-normal text-slate-950 sm:text-5xl lg:text-6xl'>
+                  Parish Council
+                  <span className='block'>Accounts</span>
+                </h1>
+
+                <div className='mt-3 flex flex-wrap gap-x-3 gap-y-1 text-xs font-bold uppercase tracking-normal sm:flex-col sm:gap-0 sm:text-sm'>
+                  {straplineWords.map(word => (
+                    <span key={word.label} className={word.className}>
+                      {word.label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <p className='mt-6 text-sm font-medium text-emerald-800'>
               Bookkeeping and AGAR preparation for parish and town councils
             </p>
 
-            <h1 className='mt-4 max-w-4xl text-4xl font-semibold tracking-tight text-slate-950 sm:text-5xl'>
+            <h2 className='mt-4 max-w-4xl text-3xl font-semibold tracking-normal text-slate-950 sm:text-4xl'>
               Keep parish and town council accounts ready for review, reporting,
               and year end.
-            </h1>
+            </h2>
 
             <p className='mt-5 max-w-2xl text-base leading-7 text-slate-600 sm:text-lg'>
               {branding.appName} helps clerks and responsible financial officers

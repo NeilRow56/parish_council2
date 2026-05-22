@@ -13,6 +13,7 @@ import {
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
+import { user } from '@/db/schema/authSchema'
 import { bankOpeningBalances, bankTransactions } from '@/db/schema'
 import {
   bankReconciliations,
@@ -259,9 +260,12 @@ export default async function ManualReconciliationPage({
       statementBalance: bankReconciliations.statementBalance,
       statementAttachmentUrl: bankReconciliations.statementAttachmentUrl,
       statementAttachmentName: bankReconciliations.statementAttachmentName,
-      statementAttachmentKey: bankReconciliations.statementAttachmentKey
+      statementAttachmentKey: bankReconciliations.statementAttachmentKey,
+      reconciledAt: bankReconciliations.reconciledAt,
+      reconciledByName: user.name
     })
     .from(bankReconciliations)
+    .leftJoin(user, eq(user.id, bankReconciliations.reconciledByUserId))
     .where(
       and(
         eq(bankReconciliations.parishCouncilId, parishCouncilId),

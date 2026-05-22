@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
-import { and, eq, inArray, isNull, lte } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, isNull, lte } from 'drizzle-orm'
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
@@ -19,6 +19,10 @@ import { utapi } from '@/server/uploadthing'
 
 type ClearManualBankLinesResult =
   | { success: true; clearedCount: number }
+  | { success: false; error: string }
+
+type UndoManualBankLinesResult =
+  | { success: true; unclearedCount: number }
   | { success: false; error: string }
 
 type StatementEvidence = {
@@ -138,8 +142,55 @@ async function upsertStatementEvidence(input: {
   statementDate: string
   statementBalance: string
   createdByUserId: string
+  reconciledByUserId?: string
+  reconciledAt?: Date
   attachment?: { url: string; name: string; key: string }
 }) {
+  const existingWhere = and(
+    eq(bankReconciliations.parishCouncilId, input.parishCouncilId),
+    eq(bankReconciliations.financialYearId, input.financialYearId),
+    eq(bankReconciliations.bankNominalCodeId, input.bankNominalCodeId),
+    eq(bankReconciliations.statementDate, input.statementDate)
+  )
+
+  const [existingEvidence] = await db
+    .select({ id: bankReconciliations.id })
+    .from(bankReconciliations)
+    .where(existingWhere)
+    .limit(1)
+
+  if (existingEvidence) {
+    const [evidence] = await db
+      .update(bankReconciliations)
+      .set({
+        statementBalance: input.statementBalance,
+        ...(input.attachment
+          ? {
+              statementAttachmentUrl: input.attachment.url,
+              statementAttachmentName: input.attachment.name,
+              statementAttachmentKey: input.attachment.key
+            }
+          : {}),
+        ...(input.reconciledByUserId
+          ? {
+              reconciledByUserId: input.reconciledByUserId,
+              reconciledAt: input.reconciledAt ?? new Date()
+            }
+          : {}),
+        updatedAt: new Date()
+      })
+      .where(eq(bankReconciliations.id, existingEvidence.id))
+      .returning({
+        id: bankReconciliations.id,
+        statementBalance: bankReconciliations.statementBalance,
+        statementAttachmentUrl: bankReconciliations.statementAttachmentUrl,
+        statementAttachmentName: bankReconciliations.statementAttachmentName,
+        statementAttachmentKey: bankReconciliations.statementAttachmentKey
+      })
+
+    return evidence
+  }
+
   const [evidence] = await db
     .insert(bankReconciliations)
     .values({
@@ -151,7 +202,9 @@ async function upsertStatementEvidence(input: {
       statementAttachmentUrl: input.attachment?.url,
       statementAttachmentName: input.attachment?.name,
       statementAttachmentKey: input.attachment?.key,
-      createdByUserId: input.createdByUserId
+      createdByUserId: input.createdByUserId,
+      reconciledByUserId: input.reconciledByUserId,
+      reconciledAt: input.reconciledAt
     })
     .onConflictDoUpdate({
       target: [
@@ -167,6 +220,12 @@ async function upsertStatementEvidence(input: {
               statementAttachmentUrl: input.attachment.url,
               statementAttachmentName: input.attachment.name,
               statementAttachmentKey: input.attachment.key
+            }
+          : {}),
+        ...(input.reconciledByUserId
+          ? {
+              reconciledByUserId: input.reconciledByUserId,
+              reconciledAt: input.reconciledAt ?? new Date()
             }
           : {}),
         updatedAt: new Date()
@@ -243,6 +302,7 @@ export async function saveStatementEvidenceAction(input: {
   }
 
   revalidatePath('/banking/manual-reconciliation')
+  revalidatePath(`/banking/manual-reconciliation/${evidence.id}`)
   revalidatePath('/reports/bank-reconciliation')
 
   return { success: true, evidence }
@@ -301,6 +361,7 @@ export async function removeStatementEvidenceAttachmentAction(input: {
   await utapi.deleteFiles(evidence.attachmentKey)
 
   revalidatePath('/banking/manual-reconciliation')
+  revalidatePath(`/banking/manual-reconciliation/${evidence.id}`)
   revalidatePath('/reports/bank-reconciliation')
 
   return { success: true }
@@ -392,13 +453,15 @@ export async function clearManualBankLinesAction(input: {
   const reconciliationReference =
     input.reconciliationReference?.trim().slice(0, 200) || null
 
-  await upsertStatementEvidence({
+  const reconciliation = await upsertStatementEvidence({
     parishCouncilId,
     financialYearId: financialYear.id,
     bankNominalCodeId: bankNominalCode.id,
     statementDate: input.statementDate,
     statementBalance,
-    createdByUserId: session.user.id
+    createdByUserId: session.user.id,
+    reconciledByUserId: session.user.id,
+    reconciledAt: clearedAt
   })
 
   const updatedLines = await db
@@ -406,6 +469,7 @@ export async function clearManualBankLinesAction(input: {
     .set({
       clearedAt,
       clearedByUserId: session.user.id,
+      reconciliationId: reconciliation.id,
       clearedStatementDate: input.statementDate,
       reconciliationReference
     })
@@ -419,7 +483,149 @@ export async function clearManualBankLinesAction(input: {
   }
 
   revalidatePath('/banking/manual-reconciliation')
+  revalidatePath(`/banking/manual-reconciliation/${reconciliation.id}`)
   revalidatePath('/reports/bank-reconciliation')
 
   return { success: true, clearedCount: updatedLines.length }
+}
+
+export async function undoManualBankLineClearingAction(input: {
+  reconciliationId: string
+  lineIds?: string[]
+}): Promise<UndoManualBankLinesResult> {
+  const session = await auth.api.getSession({
+    headers: await headers()
+  })
+
+  if (!session?.user?.parishCouncilId) {
+    return expectedError('Your session has expired. Please sign in again.')
+  }
+
+  if (!input.reconciliationId) {
+    return expectedError('Choose a reconciliation to undo.')
+  }
+
+  const parishCouncilId = session.user.parishCouncilId
+  const selectedLineIds = input.lineIds
+    ? uniqueLineIds(input.lineIds)
+    : undefined
+
+  if (input.lineIds && !selectedLineIds?.length) {
+    return expectedError('Select at least one cleared bank line to undo.')
+  }
+
+  const [reconciliation] = await db
+    .select({
+      id: bankReconciliations.id,
+      financialYearId: bankReconciliations.financialYearId,
+      bankNominalCodeId: bankReconciliations.bankNominalCodeId,
+      isClosed: financialYears.isClosed
+    })
+    .from(bankReconciliations)
+    .innerJoin(
+      financialYears,
+      eq(financialYears.id, bankReconciliations.financialYearId)
+    )
+    .where(
+      and(
+        eq(bankReconciliations.id, input.reconciliationId),
+        eq(bankReconciliations.parishCouncilId, parishCouncilId),
+        eq(financialYears.parishCouncilId, parishCouncilId)
+      )
+    )
+    .limit(1)
+
+  if (!reconciliation) {
+    return expectedError('That manual reconciliation could not be found.')
+  }
+
+  if (reconciliation.isClosed) {
+    return expectedError('Closed financial years are read-only.')
+  }
+
+  const candidateLines = await db
+    .select({
+      id: journalLines.id,
+      journalEntryId: journalEntries.id
+    })
+    .from(journalLines)
+    .innerJoin(journalEntries, eq(journalEntries.id, journalLines.journalEntryId))
+    .innerJoin(nominalCodes, eq(nominalCodes.id, journalLines.nominalCodeId))
+    .where(
+      and(
+        eq(journalLines.parishCouncilId, parishCouncilId),
+        eq(journalLines.reconciliationId, reconciliation.id),
+        eq(journalLines.nominalCodeId, reconciliation.bankNominalCodeId),
+        isNotNull(journalLines.clearedAt),
+        selectedLineIds ? inArray(journalLines.id, selectedLineIds) : undefined,
+        eq(journalEntries.parishCouncilId, parishCouncilId),
+        eq(journalEntries.financialYearId, reconciliation.financialYearId),
+        eq(journalEntries.source, 'MANUAL'),
+        eq(nominalCodes.parishCouncilId, parishCouncilId),
+        eq(nominalCodes.financialYearId, reconciliation.financialYearId),
+        eq(nominalCodes.isBank, true)
+      )
+    )
+
+  if (!candidateLines.length) {
+    return expectedError('There are no cleared manual bank lines to undo.')
+  }
+
+  if (selectedLineIds && candidateLines.length !== selectedLineIds.length) {
+    return expectedError(
+      'One or more selected lines are not eligible to undo clearing.'
+    )
+  }
+
+  const matchedEntries = await db
+    .select({ journalEntryId: bankTransactions.matchedJournalEntryId })
+    .from(bankTransactions)
+    .where(
+      and(
+        eq(bankTransactions.parishCouncilId, parishCouncilId),
+        inArray(
+          bankTransactions.matchedJournalEntryId,
+          candidateLines.map(line => line.journalEntryId)
+        )
+      )
+    )
+    .limit(1)
+
+  if (matchedEntries.length) {
+    return expectedError(
+      'A selected bank line is matched to a bank-feed transaction and cannot be changed here.'
+    )
+  }
+
+  const updatedLines = await db
+    .update(journalLines)
+    .set({
+      reconciliationId: null,
+      clearedAt: null,
+      clearedByUserId: null,
+      clearedStatementDate: null,
+      reconciliationReference: null
+    })
+    .where(
+      and(
+        inArray(
+          journalLines.id,
+          candidateLines.map(line => line.id)
+        ),
+        eq(journalLines.reconciliationId, reconciliation.id)
+      )
+    )
+    .returning({ id: journalLines.id })
+
+  if (updatedLines.length !== candidateLines.length) {
+    return expectedError(
+      'Some lines changed while undoing clearing. Refresh and try again.'
+    )
+  }
+
+  revalidatePath('/banking/manual-reconciliation')
+  revalidatePath(`/banking/manual-reconciliation/${reconciliation.id}`)
+  revalidatePath('/reports/bank-reconciliation')
+
+  return { success: true, unclearedCount: updatedLines.length }
 }

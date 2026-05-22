@@ -17,6 +17,7 @@ import {
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
+import { user } from '@/db/schema/authSchema'
 
 import {
   bankReconciliations,
@@ -459,17 +460,31 @@ export default async function BankReconciliationPage({
       statementBalance: bankReconciliations.statementBalance,
       statementAttachmentUrl: bankReconciliations.statementAttachmentUrl,
       statementAttachmentName: bankReconciliations.statementAttachmentName,
+      reconciledAt: bankReconciliations.reconciledAt,
+      reconciledByName: user.name,
+      clearedItemCount: sql<number>`count(${journalLines.id})`,
       createdAt: bankReconciliations.createdAt,
       updatedAt: bankReconciliations.updatedAt
     })
     .from(bankReconciliations)
     .innerJoin(nominalCodes, eq(nominalCodes.id, bankReconciliations.bankNominalCodeId))
+    .leftJoin(
+      journalLines,
+      eq(journalLines.reconciliationId, bankReconciliations.id)
+    )
+    .leftJoin(user, eq(user.id, bankReconciliations.reconciledByUserId))
     .where(
       and(
         eq(bankReconciliations.parishCouncilId, parishCouncilId),
         eq(bankReconciliations.financialYearId, financialYear.id),
         eq(nominalCodes.parishCouncilId, parishCouncilId)
       )
+    )
+    .groupBy(
+      bankReconciliations.id,
+      nominalCodes.code,
+      nominalCodes.name,
+      user.name
     )
     .orderBy(desc(bankReconciliations.updatedAt), desc(bankReconciliations.createdAt))
 
@@ -1022,10 +1037,10 @@ export default async function BankReconciliationPage({
       <section className='mt-6 overflow-hidden rounded-lg border bg-white shadow-sm'>
         <div className='border-b px-5 py-4'>
           <h2 className='text-base font-semibold text-zinc-950'>
-            Manual reconciliation evidence
+            Manual reconciliation history
           </h2>
           <p className='mt-1 text-sm text-zinc-600'>
-            Statement records saved for {financialYear.label}. Attachments are
+            Statement sessions saved for {financialYear.label}. Attachments are
             managed from Manual reconciliation.
           </p>
         </div>
@@ -1045,8 +1060,12 @@ export default async function BankReconciliationPage({
                   <th className='px-4 py-3 text-right font-medium'>
                     Statement balance
                   </th>
+                  <th className='px-4 py-3 text-right font-medium'>
+                    Cleared items
+                  </th>
                   <th className='px-4 py-3 font-medium'>Attachment</th>
-                  <th className='px-5 py-3 font-medium'>Updated</th>
+                  <th className='px-4 py-3 font-medium'>Reconciled</th>
+                  <th className='px-5 py-3 font-medium'>Details</th>
                 </tr>
               </thead>
               <tbody>
@@ -1061,6 +1080,9 @@ export default async function BankReconciliationPage({
                     <td className='px-4 py-3'>{item.statementDate}</td>
                     <td className='px-4 py-3 text-right'>
                       {formatCurrency(Number(item.statementBalance))}
+                    </td>
+                    <td className='px-4 py-3 text-right'>
+                      {Number(item.clearedItemCount)}
                     </td>
                     <td className='px-4 py-3'>
                       {item.statementAttachmentUrl ? (
@@ -1077,8 +1099,29 @@ export default async function BankReconciliationPage({
                         <span className='text-zinc-500'>No PDF attached</span>
                       )}
                     </td>
-                    <td className='px-5 py-3 text-zinc-600'>
-                      {formatTimestamp(item.updatedAt ?? item.createdAt)}
+                    <td className='px-4 py-3 text-zinc-600'>
+                      {item.reconciledAt ? (
+                        <>
+                          <span className='block'>
+                            {formatTimestamp(item.reconciledAt)}
+                          </span>
+                          <span className='block text-xs'>
+                            {item.reconciledByName ?? 'User unavailable'}
+                          </span>
+                        </>
+                      ) : (
+                        <span className='text-zinc-500'>
+                          Evidence saved {formatTimestamp(item.updatedAt ?? item.createdAt)}
+                        </span>
+                      )}
+                    </td>
+                    <td className='px-5 py-3'>
+                      <Link
+                        href={`/banking/manual-reconciliation/${item.id}`}
+                        className='font-medium text-blue-700 hover:underline'
+                      >
+                        View details
+                      </Link>
                     </td>
                   </tr>
                 ))}

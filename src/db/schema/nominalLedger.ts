@@ -286,6 +286,10 @@ export const journalLines = pgTable(
     clearedByUserId: text('cleared_by_user_id').references(() => user.id, {
       onDelete: 'set null'
     }),
+    reconciliationId: text('reconciliation_id').references(
+      () => bankReconciliations.id,
+      { onDelete: 'set null' }
+    ),
     clearedStatementDate: date('cleared_statement_date'),
     reconciliationReference: text('reconciliation_reference')
   },
@@ -296,7 +300,8 @@ export const journalLines = pgTable(
     index('journal_line_supplier_idx').on(t.supplierId),
     index('journal_line_reserve_idx').on(t.reserveId),
     index('journal_line_project_idx').on(t.projectId),
-    index('journal_line_cleared_at_idx').on(t.clearedAt)
+    index('journal_line_cleared_at_idx').on(t.clearedAt),
+    index('journal_line_reconciliation_idx').on(t.reconciliationId)
   ]
 )
 
@@ -332,6 +337,13 @@ export const bankReconciliations = pgTable(
     createdByUserId: text('created_by_user_id').references(() => user.id, {
       onDelete: 'set null'
     }),
+    reconciledByUserId: text('reconciled_by_user_id').references(
+      () => user.id,
+      {
+        onDelete: 'set null'
+      }
+    ),
+    reconciledAt: timestamp('reconciled_at'),
 
     createdAt: timestamp('created_at').defaultNow().notNull(),
     updatedAt: timestamp('updated_at').defaultNow().notNull()

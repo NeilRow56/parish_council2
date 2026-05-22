@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useTransition } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
@@ -32,6 +32,8 @@ type StatementEvidence = {
   statementAttachmentUrl: string | null
   statementAttachmentName: string | null
   statementAttachmentKey: string | null
+  reconciledAt?: Date | null
+  reconciledByName?: string | null
 }
 
 function parseAmount(value: string) {
@@ -48,6 +50,13 @@ function formatCurrency(value: number) {
 
 function signedLedgerMovement(line: ManualBankLine) {
   return Number(line.debit ?? 0) - Number(line.credit ?? 0)
+}
+
+function formatTimestamp(value: Date) {
+  return value.toLocaleString('en-GB', {
+    dateStyle: 'medium',
+    timeStyle: 'short'
+  })
 }
 
 export function ManualReconciliationPanel({
@@ -85,6 +94,7 @@ export function ManualReconciliationPanel({
   const [isClearing, setIsClearing] = useState(false)
   const [isSavingEvidence, setIsSavingEvidence] = useState(false)
   const [isUploading, setIsUploading] = useState(false)
+  const [isLoadingSession, startSessionTransition] = useTransition()
 
   const selectedLines = useMemo(
     () => lines.filter(line => selectedLineIds.has(line.id)),
@@ -116,10 +126,9 @@ export function ManualReconciliationPanel({
     const params = new URLSearchParams()
     params.set('bankNominalCodeId', nextAccountId)
     params.set('statementDate', nextDate)
-    if (balance.trim()) {
-      params.set('statementBalance', balance.trim())
-    }
-    router.push(`/banking/manual-reconciliation?${params.toString()}`)
+    startSessionTransition(() => {
+      router.push(`/banking/manual-reconciliation?${params.toString()}`)
+    })
   }
 
   function toggleLine(lineId: string) {
@@ -166,15 +175,19 @@ export function ManualReconciliationPanel({
       }
 
       toast.success(
-        `${result.clearedCount} manual bank line${
+        `${result.clearedCount} bank item${
           result.clearedCount === 1 ? '' : 's'
-        } marked cleared.`
+        } cleared.`
       )
       setSelectedLineIds(new Set())
       setReference('')
       router.refresh()
-    } catch {
-      toast.error('Could not mark the selected bank lines cleared.')
+    } catch (error) {
+      toast.error(
+        error instanceof Error && error.message
+          ? error.message
+          : 'Could not mark the selected bank lines cleared.'
+      )
     } finally {
       setIsClearing(false)
     }
@@ -252,11 +265,12 @@ export function ManualReconciliationPanel({
   return (
     <div className='space-y-6'>
       <section className='rounded-lg border bg-white p-5 shadow-sm'>
-        <div className='grid gap-4 lg:grid-cols-[minmax(220px,1fr)_180px_200px_auto] lg:items-end'>
+        <div className='grid gap-4 lg:grid-cols-[minmax(220px,1fr)_180px_200px] lg:items-end'>
           <label className='grid gap-1.5 text-sm'>
             <span className='font-medium text-slate-900'>Bank account</span>
             <select
               value={accountId}
+              disabled={isLoadingSession}
               onChange={event => {
                 const nextAccountId = event.target.value
                 setAccountId(nextAccountId)
@@ -277,7 +291,12 @@ export function ManualReconciliationPanel({
             <input
               type='date'
               value={date}
-              onChange={event => setDate(event.target.value)}
+              disabled={isLoadingSession}
+              onChange={event => {
+                const nextDate = event.target.value
+                setDate(nextDate)
+                updateSearch(accountId, nextDate)
+              }}
               className='rounded-md border bg-white px-3 py-2'
             />
           </label>
@@ -295,19 +314,55 @@ export function ManualReconciliationPanel({
               placeholder='0.00'
             />
           </label>
-
-          <button
-            type='button'
-            onClick={() => updateSearch(accountId, date)}
-            className='rounded-md border px-4 py-2 text-sm font-medium hover:bg-emerald-50/40'
-          >
-            Load items
-          </button>
         </div>
 
         <p className='mt-3 text-sm text-slate-600'>
           {selectedAccountLabel} · Open financial year {financialYearLabel}
+          {isLoadingSession ? ' · Loading reconciliation...' : ''}
         </p>
+
+        {evidence ? (
+          <div className='mt-4 flex flex-col gap-3 rounded-md border border-emerald-200 bg-emerald-50/40 p-3 sm:flex-row sm:items-center sm:justify-between'>
+            <div>
+              <span className='inline-flex rounded-full border border-emerald-200 bg-white px-2.5 py-1 text-xs font-semibold text-emerald-900'>
+                Existing reconciliation loaded
+              </span>
+              <p className='mt-2 text-sm text-slate-700'>
+                {evidence.reconciledAt
+                  ? `Reconciled ${formatTimestamp(evidence.reconciledAt)}${
+                      evidence.reconciledByName
+                        ? ` by ${evidence.reconciledByName}`
+                        : ''
+                    }.`
+                  : 'Statement evidence is saved for this bank account and date.'}
+              </p>
+            </div>
+            <div className='flex flex-wrap gap-2'>
+              <Link
+                href={`/banking/manual-reconciliation/${evidence.id}`}
+                className='rounded-md border bg-white px-3 py-2 text-sm font-medium hover:bg-emerald-50/40'
+              >
+                View reconciliation
+              </Link>
+              {evidence.statementAttachmentUrl ? (
+                <a
+                  href={evidence.statementAttachmentUrl}
+                  target='_blank'
+                  rel='noreferrer'
+                  className='rounded-md border bg-white px-3 py-2 text-sm font-medium hover:bg-emerald-50/40'
+                >
+                  Open statement PDF
+                </a>
+              ) : null}
+              <Link
+                href={`/banking/manual-reconciliation/${evidence.id}`}
+                className='rounded-md border bg-white px-3 py-2 text-sm font-medium hover:bg-emerald-50/40'
+              >
+                Undo cleared items
+              </Link>
+            </div>
+          </div>
+        ) : null}
 
         <div className='mt-4 rounded-md border bg-emerald-50/20 p-3'>
           <div className='flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between'>

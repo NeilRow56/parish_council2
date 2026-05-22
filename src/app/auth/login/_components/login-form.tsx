@@ -3,7 +3,7 @@
 import { useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowBigRight } from 'lucide-react'
+import { ArrowBigRight, Loader2 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { zodResolver } from '@hookform/resolvers/zod'
@@ -39,11 +39,12 @@ export default function LoginForm({ next, error: initialError }: Props) {
     next && next.startsWith('/') && !next.startsWith('//') ? next : '/dashboard'
 
   const [error, setError] = useState<string | null>(initialError ?? null)
+  const [isSubmitting, setIsSubmitting] = useState(false)
 
   const {
     register,
     handleSubmit,
-    formState: { errors, isSubmitting }
+    formState: { errors }
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -53,7 +54,10 @@ export default function LoginForm({ next, error: initialError }: Props) {
   })
 
   async function onSubmit(values: LoginFormValues) {
+    if (isSubmitting) return
+
     setError(null)
+    setIsSubmitting(true)
 
     try {
       const result = await signIn.email({
@@ -63,6 +67,7 @@ export default function LoginForm({ next, error: initialError }: Props) {
 
       if (result.error) {
         setError(result.error.message ?? 'Login failed.')
+        setIsSubmitting(false)
         return
       }
 
@@ -74,6 +79,7 @@ export default function LoginForm({ next, error: initialError }: Props) {
           ? err.message
           : 'Something went wrong. Please try again.'
       )
+      setIsSubmitting(false)
     }
   }
 
@@ -150,9 +156,17 @@ export default function LoginForm({ next, error: initialError }: Props) {
         <button
           type='submit'
           disabled={isSubmitting}
+          aria-busy={isSubmitting}
           className='mt-6 w-full rounded-md bg-zinc-950 px-4 py-2 text-white disabled:opacity-50'
         >
-          {isSubmitting ? 'Logging in...' : 'Log in'}
+          {isSubmitting ? (
+            <span className='inline-flex items-center gap-2'>
+              <Loader2 className='h-4 w-4 animate-spin' aria-hidden='true' />
+              Logging in...
+            </span>
+          ) : (
+            'Log in'
+          )}
         </button>
 
         <p className='mt-4 text-sm text-zinc-600'>

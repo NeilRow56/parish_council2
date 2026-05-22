@@ -280,7 +280,14 @@ export const journalLines = pgTable(
       .default('0.00')
       .notNull(),
 
-    description: text('description')
+    description: text('description'),
+
+    clearedAt: timestamp('cleared_at'),
+    clearedByUserId: text('cleared_by_user_id').references(() => user.id, {
+      onDelete: 'set null'
+    }),
+    clearedStatementDate: date('cleared_statement_date'),
+    reconciliationReference: text('reconciliation_reference')
   },
   t => [
     index('journal_line_entry_idx').on(t.journalEntryId),
@@ -288,7 +295,58 @@ export const journalLines = pgTable(
     index('journal_line_parish_idx').on(t.parishCouncilId),
     index('journal_line_supplier_idx').on(t.supplierId),
     index('journal_line_reserve_idx').on(t.reserveId),
-    index('journal_line_project_idx').on(t.projectId)
+    index('journal_line_project_idx').on(t.projectId),
+    index('journal_line_cleared_at_idx').on(t.clearedAt)
+  ]
+)
+
+export const bankReconciliations = pgTable(
+  'bank_reconciliations',
+  {
+    id: text('id')
+      .$defaultFn(() => createId())
+      .primaryKey(),
+
+    parishCouncilId: text('parish_council_id')
+      .notNull()
+      .references(() => parishCouncils.id, { onDelete: 'cascade' }),
+
+    financialYearId: text('financial_year_id')
+      .notNull()
+      .references(() => financialYears.id, { onDelete: 'cascade' }),
+
+    bankNominalCodeId: text('bank_nominal_code_id')
+      .notNull()
+      .references(() => nominalCodes.id),
+
+    statementDate: date('statement_date').notNull(),
+    statementBalance: decimal('statement_balance', {
+      precision: 12,
+      scale: 2
+    }).notNull(),
+
+    statementAttachmentUrl: text('statement_attachment_url'),
+    statementAttachmentName: text('statement_attachment_name'),
+    statementAttachmentKey: text('statement_attachment_key'),
+
+    createdByUserId: text('created_by_user_id').references(() => user.id, {
+      onDelete: 'set null'
+    }),
+
+    createdAt: timestamp('created_at').defaultNow().notNull(),
+    updatedAt: timestamp('updated_at').defaultNow().notNull()
+  },
+  t => [
+    uniqueIndex('bank_reconciliation_statement_unique_idx').on(
+      t.parishCouncilId,
+      t.financialYearId,
+      t.bankNominalCodeId,
+      t.statementDate
+    ),
+    index('bank_reconciliation_parish_year_idx').on(
+      t.parishCouncilId,
+      t.financialYearId
+    )
   ]
 )
 

@@ -4,12 +4,22 @@ import Link from 'next/link'
 import { Fragment } from 'react/jsx-runtime'
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
-import { and, desc, eq, inArray, isNotNull, lte, sql } from 'drizzle-orm'
+import {
+  and,
+  desc,
+  eq,
+  inArray,
+  isNotNull,
+  isNull,
+  lte,
+  sql
+} from 'drizzle-orm'
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
 
 import {
+  bankReconciliations,
   financialYears,
   journalEntries,
   journalLines,
@@ -66,6 +76,13 @@ function formatSignedAmount(value: number) {
   })
 
   return value < 0 ? `(${amount})` : amount
+}
+
+function formatTimestamp(value: Date) {
+  return value.toLocaleString('en-GB', {
+    dateStyle: 'medium',
+    timeStyle: 'short'
+  })
 }
 
 export default async function BankReconciliationPage({
@@ -289,6 +306,7 @@ export default async function BankReconciliationPage({
           eq(journalEntries.financialYearId, financialYear.id),
           eq(journalEntries.source, 'MANUAL'),
           eq(nominalCodes.isBank, true),
+          isNull(journalLines.clearedAt),
           lte(journalEntries.date, reconciliationDate)
         )
       )
@@ -432,17 +450,39 @@ export default async function BankReconciliationPage({
     }))
   )
   const exportHref = `/reports/bank-reconciliation/export?financialYearId=${financialYear.id}`
+  const reconciliationEvidence = await db
+    .select({
+      id: bankReconciliations.id,
+      nominalCode: nominalCodes.code,
+      nominalName: nominalCodes.name,
+      statementDate: bankReconciliations.statementDate,
+      statementBalance: bankReconciliations.statementBalance,
+      statementAttachmentUrl: bankReconciliations.statementAttachmentUrl,
+      statementAttachmentName: bankReconciliations.statementAttachmentName,
+      createdAt: bankReconciliations.createdAt,
+      updatedAt: bankReconciliations.updatedAt
+    })
+    .from(bankReconciliations)
+    .innerJoin(nominalCodes, eq(nominalCodes.id, bankReconciliations.bankNominalCodeId))
+    .where(
+      and(
+        eq(bankReconciliations.parishCouncilId, parishCouncilId),
+        eq(bankReconciliations.financialYearId, financialYear.id),
+        eq(nominalCodes.parishCouncilId, parishCouncilId)
+      )
+    )
+    .orderBy(desc(bankReconciliations.updatedAt), desc(bankReconciliations.createdAt))
 
   return (
     <main className='mx-auto max-w-7xl px-6 py-8'>
-      <div className='mb-8 flex items-start justify-between gap-4'>
+      <div className='mb-8 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between'>
         <div>
           <h1 className='text-2xl font-semibold tracking-tight'>
             Bank Reconciliation
           </h1>
           <p className='mt-1 text-sm text-zinc-600'>
             Reconcile nominal ledger bank balances to adjusted bank balances
-            after pending inbox and unmatched manual bank movements.
+            after pending inbox and uncleared manual bank movements.
           </p>
           <p className='mt-2 text-sm text-zinc-500'>
             Financial year:{' '}
@@ -460,8 +500,15 @@ export default async function BankReconciliationPage({
           </p>
         </div>
 
-        <div className='flex gap-2'>
+        <div className='flex flex-wrap gap-2'>
           <ExportPdfButton href={exportHref} />
+
+          <Link
+            href='/banking/manual-reconciliation'
+            className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-emerald-50/40'
+          >
+            Manual reconciliation
+          </Link>
 
           {showOpenYearActions ? (
             <>
@@ -478,6 +525,7 @@ export default async function BankReconciliationPage({
               >
                 Bank connections
               </Link>
+
             </>
           ) : null}
         </div>
@@ -499,7 +547,7 @@ export default async function BankReconciliationPage({
         </div>
 
         <div className='rounded-lg border bg-white p-4 shadow-sm'>
-          <p className='text-sm text-zinc-500'>Unmatched manual</p>
+          <p className='text-sm text-zinc-500'>Uncleared manual</p>
           <p
             className={
               Math.round(totalUnmatchedManualNetMovement * 100) === 0
@@ -757,8 +805,8 @@ export default async function BankReconciliationPage({
                             Explain reconciliation items for {row.accountLabel}
                           </summary>
 
-                          <div className='mt-3 grid gap-4 text-xs text-zinc-700 lg:grid-cols-2'>
-                            <div className='rounded-md border bg-white p-3'>
+                          <div className='mt-3 grid gap-4 text-xs text-zinc-700 lg:grid-cols-3'>
+                            <div className='rounded-md border bg-white p-3 lg:col-span-2'>
                               <p className='font-medium text-zinc-900'>
                                 Pending inbox movements
                               </p>
@@ -838,19 +886,19 @@ export default async function BankReconciliationPage({
                               </div>
                             </div>
 
-                            <div className='rounded-md border bg-white p-3'>
+                            <div className='rounded-md border bg-white p-3 lg:col-span-2'>
                               <p className='font-medium text-zinc-900'>
-                                Unmatched manual bank ledger entries
+                                Uncleared manual bank ledger entries
                               </p>
 
                               {row.manualBankLedgerItems.length === 0 ? (
                                 <p className='mt-1 text-zinc-500'>
-                                  No unmatched manual bank entries for this
+                                  No uncleared manual bank entries for this
                                   account.
                                 </p>
                               ) : (
                                 <div className='mt-2 overflow-x-auto'>
-                                  <table className='w-full min-w-[680px] text-xs'>
+                                  <table className='w-full min-w-[620px] text-xs'>
                                     <thead className='text-zinc-500'>
                                       <tr>
                                         <th className='py-1 pr-2 text-left font-medium'>
@@ -968,6 +1016,75 @@ export default async function BankReconciliationPage({
               </tr>
             </tfoot>
           </table>
+        )}
+      </section>
+
+      <section className='mt-6 overflow-hidden rounded-lg border bg-white shadow-sm'>
+        <div className='border-b px-5 py-4'>
+          <h2 className='text-base font-semibold text-zinc-950'>
+            Manual reconciliation evidence
+          </h2>
+          <p className='mt-1 text-sm text-zinc-600'>
+            Statement records saved for {financialYear.label}. Attachments are
+            managed from Manual reconciliation.
+          </p>
+        </div>
+
+        {reconciliationEvidence.length === 0 ? (
+          <div className='px-5 py-8 text-sm text-zinc-600'>
+            No manual reconciliation statement records have been saved for this
+            financial year.
+          </div>
+        ) : (
+          <div className='overflow-x-auto'>
+            <table className='w-full min-w-[760px] text-sm'>
+              <thead className='bg-emerald-50/30 text-left text-zinc-600'>
+                <tr>
+                  <th className='px-5 py-3 font-medium'>Bank account</th>
+                  <th className='px-4 py-3 font-medium'>Statement date</th>
+                  <th className='px-4 py-3 text-right font-medium'>
+                    Statement balance
+                  </th>
+                  <th className='px-4 py-3 font-medium'>Attachment</th>
+                  <th className='px-5 py-3 font-medium'>Updated</th>
+                </tr>
+              </thead>
+              <tbody>
+                {reconciliationEvidence.map(item => (
+                  <tr key={item.id} className='border-t'>
+                    <td className='px-5 py-3'>
+                      <span className='font-medium text-zinc-900'>
+                        {item.nominalCode}
+                      </span>{' '}
+                      <span className='text-zinc-600'>{item.nominalName}</span>
+                    </td>
+                    <td className='px-4 py-3'>{item.statementDate}</td>
+                    <td className='px-4 py-3 text-right'>
+                      {formatCurrency(Number(item.statementBalance))}
+                    </td>
+                    <td className='px-4 py-3'>
+                      {item.statementAttachmentUrl ? (
+                        <a
+                          href={item.statementAttachmentUrl}
+                          target='_blank'
+                          rel='noreferrer'
+                          title={item.statementAttachmentName ?? undefined}
+                          className='font-medium text-blue-700 hover:underline'
+                        >
+                          Open statement
+                        </a>
+                      ) : (
+                        <span className='text-zinc-500'>No PDF attached</span>
+                      )}
+                    </td>
+                    <td className='px-5 py-3 text-zinc-600'>
+                      {formatTimestamp(item.updatedAt ?? item.createdAt)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         )}
       </section>
     </main>

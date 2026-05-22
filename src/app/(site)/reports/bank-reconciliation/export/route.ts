@@ -6,7 +6,7 @@ import {
   View,
   renderToBuffer
 } from '@react-pdf/renderer'
-import { and, desc, eq, inArray, isNotNull, lte, sql } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm'
 import { headers } from 'next/headers'
 import { createElement } from 'react'
 
@@ -423,6 +423,7 @@ async function getBankReconciliationReport({
           eq(journalEntries.financialYearId, financialYear.id),
           eq(journalEntries.source, 'MANUAL'),
           eq(nominalCodes.isBank, true),
+          isNull(journalLines.clearedAt),
           lte(journalEntries.date, financialYear.endDate)
         )
       )
@@ -635,7 +636,7 @@ function bankReconciliationPdf(report: BankReconciliationReport) {
         summaryCard('Inbox receipts', formatCurrency(report.totalInboxReceipts)),
         summaryCard('Inbox payments', formatCurrency(report.totalInboxPayments)),
         summaryCard(
-          'Unmatched manual',
+          'Uncleared manual',
           formatDifference(report.totalUnmatchedManualNetMovement)
         ),
         summaryCard(

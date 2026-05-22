@@ -18,7 +18,9 @@ import {
   type ReconciledBankLine
 } from './_components/reconciliation-lines-panel'
 
-function formatCurrency(value: string | number) {
+function formatCurrency(value: string | number | null) {
+  if (value === null) return 'Not entered'
+
   return new Intl.NumberFormat('en-GB', {
     style: 'currency',
     currency: 'GBP'

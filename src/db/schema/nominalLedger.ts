@@ -328,7 +328,7 @@ export const bankReconciliations = pgTable(
     statementBalance: decimal('statement_balance', {
       precision: 12,
       scale: 2
-    }).notNull(),
+    }),
 
     statementAttachmentUrl: text('statement_attachment_url'),
     statementAttachmentName: text('statement_attachment_name'),

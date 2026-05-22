@@ -1079,7 +1079,9 @@ export default async function BankReconciliationPage({
                     </td>
                     <td className='px-4 py-3'>{item.statementDate}</td>
                     <td className='px-4 py-3 text-right'>
-                      {formatCurrency(Number(item.statementBalance))}
+                      {item.statementBalance === null
+                        ? 'Not entered'
+                        : formatCurrency(Number(item.statementBalance))}
                     </td>
                     <td className='px-4 py-3 text-right'>
                       {Number(item.clearedItemCount)}

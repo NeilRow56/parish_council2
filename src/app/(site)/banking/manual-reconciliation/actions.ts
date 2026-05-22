@@ -2,17 +2,18 @@
 
 import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
-import { and, eq, inArray, isNotNull, isNull, lte } from 'drizzle-orm'
+import { and, eq, inArray, isNotNull, isNull, lte, sql } from 'drizzle-orm'
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
-import { bankTransactions } from '@/db/schema'
+import { bankOpeningBalances, bankTransactions } from '@/db/schema'
 import {
   bankReconciliations,
   financialYears,
   journalEntries,
   journalLines,
-  nominalCodes
+  nominalCodes,
+  nominalOpeningBalances
 } from '@/db/schema/nominalLedger'
 import { getFinancialYearDateWarning } from '@/lib/financial-years/date-range'
 import { utapi } from '@/server/uploadthing'
@@ -27,7 +28,7 @@ type UndoManualBankLinesResult =
 
 type StatementEvidence = {
   id: string
-  statementBalance: string
+  statementBalance: string | null
   statementAttachmentUrl: string | null
   statementAttachmentName: string | null
   statementAttachmentKey: string | null
@@ -135,12 +136,140 @@ async function getStatementContext(input: {
   } as const
 }
 
+async function getCalculatedClearedBalance(input: {
+  parishCouncilId: string
+  financialYearId: string
+  bankNominalCodeId: string
+  statementDate: string
+  selectedLineIds: string[]
+}) {
+  const [balanceRow] = await db
+    .select({
+      nominalOpeningBalance: sql<number>`coalesce(max(${nominalOpeningBalances.amount}), 0)`,
+      bankOpeningBalance: sql<number>`coalesce(max(${bankOpeningBalances.openingBalance}), 0)`,
+      debit: sql<number>`
+        coalesce(
+          sum(case when ${journalEntries.id} is not null then ${journalLines.debit} else 0 end),
+          0
+        )
+      `,
+      credit: sql<number>`
+        coalesce(
+          sum(case when ${journalEntries.id} is not null then ${journalLines.credit} else 0 end),
+          0
+        )
+      `
+    })
+    .from(nominalCodes)
+    .leftJoin(
+      nominalOpeningBalances,
+      and(
+        eq(nominalOpeningBalances.nominalCodeId, nominalCodes.id),
+        eq(nominalOpeningBalances.financialYearId, input.financialYearId),
+        eq(nominalOpeningBalances.parishCouncilId, input.parishCouncilId)
+      )
+    )
+    .leftJoin(
+      bankOpeningBalances,
+      and(
+        eq(bankOpeningBalances.nominalCodeId, nominalCodes.id),
+        eq(bankOpeningBalances.financialYearId, input.financialYearId),
+        eq(bankOpeningBalances.parishCouncilId, input.parishCouncilId)
+      )
+    )
+    .leftJoin(journalLines, eq(journalLines.nominalCodeId, nominalCodes.id))
+    .leftJoin(
+      journalEntries,
+      and(
+        eq(journalEntries.id, journalLines.journalEntryId),
+        eq(journalEntries.financialYearId, input.financialYearId),
+        eq(journalEntries.parishCouncilId, input.parishCouncilId),
+        lte(journalEntries.date, input.statementDate)
+      )
+    )
+    .where(
+      and(
+        eq(nominalCodes.id, input.bankNominalCodeId),
+        eq(nominalCodes.parishCouncilId, input.parishCouncilId),
+        eq(nominalCodes.financialYearId, input.financialYearId)
+      )
+    )
+    .groupBy(nominalCodes.id)
+
+  const unclearedLines = await db
+    .select({
+      id: journalLines.id,
+      journalEntryId: journalEntries.id,
+      debit: journalLines.debit,
+      credit: journalLines.credit
+    })
+    .from(journalLines)
+    .innerJoin(journalEntries, eq(journalEntries.id, journalLines.journalEntryId))
+    .where(
+      and(
+        eq(journalLines.parishCouncilId, input.parishCouncilId),
+        eq(journalLines.nominalCodeId, input.bankNominalCodeId),
+        isNull(journalLines.clearedAt),
+        eq(journalEntries.parishCouncilId, input.parishCouncilId),
+        eq(journalEntries.financialYearId, input.financialYearId),
+        eq(journalEntries.source, 'MANUAL'),
+        lte(journalEntries.date, input.statementDate)
+      )
+    )
+
+  const matchedJournalEntryIds = unclearedLines.length
+    ? new Set(
+        (
+          await db
+            .select({
+              journalEntryId: bankTransactions.matchedJournalEntryId
+            })
+            .from(bankTransactions)
+            .where(
+              and(
+                eq(bankTransactions.parishCouncilId, input.parishCouncilId),
+                inArray(
+                  bankTransactions.matchedJournalEntryId,
+                  unclearedLines.map(line => line.journalEntryId)
+                )
+              )
+            )
+        )
+          .map(row => row.journalEntryId)
+          .filter((id): id is string => Boolean(id))
+      )
+    : new Set<string>()
+
+  const selectedLineIds = new Set(input.selectedLineIds)
+  const remainingUnclearedMovement = unclearedLines
+    .filter(
+      line =>
+        !selectedLineIds.has(line.id) &&
+        !matchedJournalEntryIds.has(line.journalEntryId)
+    )
+    .reduce(
+      (sum, line) => sum + Number(line.debit ?? 0) - Number(line.credit ?? 0),
+      0
+    )
+
+  const nominalOpeningBalance = Number(balanceRow?.nominalOpeningBalance ?? 0)
+  const bankOpeningBalance = Number(balanceRow?.bankOpeningBalance ?? 0)
+  const openingBalance =
+    nominalOpeningBalance !== 0 ? nominalOpeningBalance : bankOpeningBalance
+  const ledgerBalance =
+    openingBalance +
+    Number(balanceRow?.debit ?? 0) -
+    Number(balanceRow?.credit ?? 0)
+
+  return ledgerBalance - remainingUnclearedMovement
+}
+
 async function upsertStatementEvidence(input: {
   parishCouncilId: string
   financialYearId: string
   bankNominalCodeId: string
   statementDate: string
-  statementBalance: string
+  statementBalance?: string
   createdByUserId: string
   reconciledByUserId?: string
   reconciledAt?: Date
@@ -163,7 +292,9 @@ async function upsertStatementEvidence(input: {
     const [evidence] = await db
       .update(bankReconciliations)
       .set({
-        statementBalance: input.statementBalance,
+        ...(input.statementBalance !== undefined
+          ? { statementBalance: input.statementBalance }
+          : {}),
         ...(input.attachment
           ? {
               statementAttachmentUrl: input.attachment.url,
@@ -198,7 +329,7 @@ async function upsertStatementEvidence(input: {
       financialYearId: input.financialYearId,
       bankNominalCodeId: input.bankNominalCodeId,
       statementDate: input.statementDate,
-      statementBalance: input.statementBalance,
+      statementBalance: input.statementBalance ?? null,
       statementAttachmentUrl: input.attachment?.url,
       statementAttachmentName: input.attachment?.name,
       statementAttachmentKey: input.attachment?.key,
@@ -214,7 +345,9 @@ async function upsertStatementEvidence(input: {
         bankReconciliations.statementDate
       ],
       set: {
-        statementBalance: input.statementBalance,
+        ...(input.statementBalance !== undefined
+          ? { statementBalance: input.statementBalance }
+          : {}),
         ...(input.attachment
           ? {
               statementAttachmentUrl: input.attachment.url,
@@ -257,10 +390,6 @@ export async function saveStatementEvidenceAction(input: {
 
   const statementBalance = parseStatementBalance(input.statementBalance)
 
-  if (!statementBalance) {
-    return expectedError('Enter a valid statement balance.')
-  }
-
   if (
     input.attachment &&
     (!input.attachment.url || !input.attachment.name || !input.attachment.key)
@@ -288,7 +417,7 @@ export async function saveStatementEvidenceAction(input: {
     financialYearId: context.financialYear.id,
     bankNominalCodeId: context.bankNominalCode.id,
     statementDate: input.statementDate,
-    statementBalance,
+    statementBalance: statementBalance ?? undefined,
     createdByUserId: context.session.user.id,
     attachment: input.attachment
   })
@@ -446,6 +575,23 @@ export async function clearManualBankLinesAction(input: {
   if (matchedEntries.length) {
     return expectedError(
       'A selected bank line is already matched to a bank-feed transaction.'
+    )
+  }
+
+  const calculatedClearedBalance = await getCalculatedClearedBalance({
+    parishCouncilId,
+    financialYearId: financialYear.id,
+    bankNominalCodeId: bankNominalCode.id,
+    statementDate: input.statementDate,
+    selectedLineIds: lineIds
+  })
+
+  if (
+    Math.round((Number(statementBalance) - calculatedClearedBalance) * 100) !==
+    0
+  ) {
+    return expectedError(
+      'Difference to statement must be £0.00 before clearing selected items.'
     )
   }
 

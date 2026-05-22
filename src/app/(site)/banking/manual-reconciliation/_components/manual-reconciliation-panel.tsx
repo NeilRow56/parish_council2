@@ -28,7 +28,7 @@ type BankAccountOption = {
 
 type StatementEvidence = {
   id: string
-  statementBalance: string
+  statementBalance: string | null
   statementAttachmentUrl: string | null
   statementAttachmentName: string | null
   statementAttachmentKey: string | null
@@ -36,9 +36,11 @@ type StatementEvidence = {
   reconciledByName?: string | null
 }
 
-function parseAmount(value: string) {
+function parseStatementAmount(value: string) {
+  if (!value.trim()) return null
+
   const parsed = Number(value.replace(/,/g, '').trim())
-  return Number.isFinite(parsed) ? parsed : 0
+  return Number.isFinite(parsed) ? parsed : null
 }
 
 function formatCurrency(value: number) {
@@ -111,8 +113,14 @@ export function ManualReconciliationPanel({
     [lines, selectedLineIds]
   )
 
+  const statementBalanceAmount = parseStatementAmount(balance)
   const calculatedClearedBalance = ledgerBalance - remainingUnclearedMovement
-  const difference = parseAmount(balance) - calculatedClearedBalance
+  const difference =
+    statementBalanceAmount === null
+      ? null
+      : statementBalanceAmount - calculatedClearedBalance
+  const isBalanced =
+    difference !== null && Math.round(difference * 100) === 0
   const selectedReceipts = selectedLines.reduce(
     (sum, line) => sum + Number(line.debit ?? 0),
     0
@@ -154,6 +162,18 @@ export function ManualReconciliationPanel({
 
     if (!selectedLineIds.size) {
       toast.error('Select at least one bank line to mark cleared.')
+      return
+    }
+
+    if (statementBalanceAmount === null) {
+      toast.error('Enter the balance from the bank statement first.')
+      return
+    }
+
+    if (!isBalanced) {
+      toast.error(
+        'Difference to statement must be £0.00 before clearing selected items.'
+      )
       return
     }
 
@@ -311,8 +331,11 @@ export function ManualReconciliationPanel({
               value={balance}
               onChange={event => setBalance(event.target.value)}
               className='rounded-md border bg-white px-3 py-2 text-right'
-              placeholder='0.00'
+              placeholder='Enter statement balance'
             />
+            <span className='text-xs text-slate-500'>
+              Enter the closing balance shown on the bank statement.
+            </span>
           </label>
         </div>
 
@@ -454,19 +477,28 @@ export function ManualReconciliationPanel({
           </p>
         </div>
         <div className='rounded-lg border bg-white p-4 shadow-sm'>
-          <p className='text-sm text-slate-500'>Calculated cleared balance</p>
+          <p className='text-sm text-slate-500'>
+            Calculated cleared balance
+          </p>
           <p className='mt-1 text-xl font-semibold'>
             {formatCurrency(calculatedClearedBalance)}
+          </p>
+          <p className='mt-1 text-xs text-slate-500'>
+            Expected statement balance after selected items are cleared.
           </p>
         </div>
         <div className='rounded-lg border bg-white p-4 shadow-sm'>
           <p className='text-sm text-slate-500'>Difference to statement</p>
           <p
             className={`mt-1 text-xl font-semibold ${
-              Math.round(difference * 100) === 0 ? '' : 'text-red-600'
+              difference === null || isBalanced ? '' : 'text-red-600'
             }`}
           >
-            {formatCurrency(difference)}
+            {difference === null ? 'Enter balance' : formatCurrency(difference)}
+          </p>
+          <p className='mt-1 text-xs text-slate-500'>
+            Highlights missing postings, timing differences, charges, interest,
+            or errors.
           </p>
         </div>
       </section>
@@ -479,6 +511,10 @@ export function ManualReconciliationPanel({
             </h2>
             <p className='mt-1 text-sm text-slate-600'>
               Select items that appear on the statement dated {date}.
+            </p>
+            <p className='mt-1 text-xs text-slate-500'>
+              Clearing can complete only when the statement balance and
+              calculated cleared balance agree.
             </p>
           </div>
 
@@ -496,7 +532,7 @@ export function ManualReconciliationPanel({
             </label>
             <button
               type='button'
-              disabled={isClearing || !selectedLineIds.size}
+              disabled={isClearing || !selectedLineIds.size || !isBalanced}
               onClick={handleClearSelected}
               className='rounded-md bg-slate-950 px-4 py-2 text-sm font-medium text-white disabled:opacity-50'
             >

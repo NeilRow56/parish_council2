@@ -31,7 +31,6 @@ import {
 type SearchParams = {
   bankNominalCodeId?: string
   statementDate?: string
-  statementBalance?: string
 }
 
 function getStatementDate({
@@ -297,7 +296,7 @@ export default async function ManualReconciliationPage({
       </div>
 
       <ManualReconciliationPanel
-        key={`${selectedAccount.id}:${statementDate}:${params?.statementBalance ?? ''}`}
+        key={`${selectedAccount.id}:${statementDate}`}
         accounts={bankAccounts.map(account => ({
           id: account.id,
           label: `${account.code} — ${account.name}`
@@ -307,11 +306,7 @@ export default async function ManualReconciliationPage({
         financialYearId={financialYear.id}
         financialYearLabel={financialYear.label}
         statementDate={statementDate}
-        statementBalance={
-          params?.statementBalance ??
-          statementEvidence?.statementBalance ??
-          ledgerBalance.toFixed(2)
-        }
+        statementBalance={statementEvidence?.statementBalance ?? ''}
         statementEvidence={statementEvidence ?? null}
         ledgerBalance={ledgerBalance}
         lines={lines}

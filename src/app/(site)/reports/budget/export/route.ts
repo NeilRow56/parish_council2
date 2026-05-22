@@ -200,6 +200,9 @@ const styles = StyleSheet.create({
     fontWeight: 700,
     textAlign: 'right'
   },
+  adverseVariance: {
+    color: '#dc2626'
+  },
   muted: {
     color: '#64748b',
     fontSize: 7
@@ -374,7 +377,7 @@ async function getBudgetReport({
       category: code.category,
       actualAmount,
       budget: budgetAmount,
-      variance: actualAmount - budgetAmount,
+      variance: budgetAmount - actualAmount,
       notes: normaliseNote(budget?.notes)
     }
   })
@@ -434,14 +437,24 @@ function budgetRow(row: BudgetRow) {
     ),
     h(Text, { style: [styles.cell, styles.moneyCell] }, formatAmount(row.actualAmount)),
     h(Text, { style: [styles.cell, styles.moneyCell] }, formatWholePounds(row.budget)),
-    h(Text, { style: [styles.cell, styles.moneyCell] }, formatCurrency(row.variance))
+    h(
+      Text,
+      {
+        style: [
+          styles.cell,
+          styles.moneyCell,
+          row.variance < 0 ? styles.adverseVariance : {}
+        ]
+      },
+      formatCurrency(row.variance)
+    )
   )
 }
 
 function budgetSection(title: string, rows: BudgetRow[]) {
   const totalActual = rows.reduce((sum, row) => sum + row.actualAmount, 0)
   const totalBudget = rows.reduce((sum, row) => sum + row.budget, 0)
-  const totalVariance = totalActual - totalBudget
+  const totalVariance = totalBudget - totalActual
 
   return h(
     View,
@@ -503,7 +516,13 @@ function budgetSection(title: string, rows: BudgetRow[]) {
         ),
         h(
           Text,
-          { style: [styles.cell, styles.totalMoneyCell] },
+          {
+            style: [
+              styles.cell,
+              styles.totalMoneyCell,
+              totalVariance < 0 ? styles.adverseVariance : {}
+            ]
+          },
           formatCurrency(totalVariance)
         )
       )
@@ -585,7 +604,7 @@ function budgetPdf(report: BudgetReport) {
           h(
             Text,
             { style: [styles.cell, styles.totalLabelCell] },
-            'Excess income over expenditure'
+            'Surplus/(deficit) against budget'
           ),
           h(
             Text,
@@ -599,8 +618,16 @@ function budgetPdf(report: BudgetReport) {
           ),
           h(
             Text,
-            { style: [styles.cell, styles.totalMoneyCell] },
-            formatCurrency(report.actualSurplus - report.budgetSurplus)
+            {
+              style: [
+                styles.cell,
+                styles.totalMoneyCell,
+                report.budgetSurplus - report.actualSurplus < 0
+                  ? styles.adverseVariance
+                  : {}
+              ]
+            },
+            formatCurrency(report.budgetSurplus - report.actualSurplus)
           )
         )
       ),

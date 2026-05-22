@@ -118,6 +118,8 @@ async function saveBudget(formData: FormData) {
     const nominalCodeId = key.replace('budget:', '')
     const rawValue = String(value ?? '').trim()
     const amount = rawValue === '' ? '0' : rawValue
+    const rawNotes = String(formData.get(`notes:${nominalCodeId}`) ?? '').trim()
+    const notes = rawNotes || null
 
     if (!Number.isFinite(Number(amount))) {
       redirectWithStatus({
@@ -131,7 +133,8 @@ async function saveBudget(formData: FormData) {
         parishCouncilId,
         financialYearId,
         nominalCodeId,
-        amount
+        amount,
+        notes
       })
       .onConflictDoUpdate({
         target: [
@@ -140,7 +143,8 @@ async function saveBudget(formData: FormData) {
           budgets.nominalCodeId
         ],
         set: {
-          amount
+          amount,
+          notes
         }
       })
   }
@@ -292,7 +296,7 @@ export default async function BudgetPage({
         ? (actual?.credit ?? 0) - (actual?.debit ?? 0)
         : (actual?.debit ?? 0) - (actual?.credit ?? 0)
 
-    const variance = actualAmount - budgetAmount
+    const variance = budgetAmount - actualAmount
 
     return {
       ...code,
@@ -411,8 +415,14 @@ export default async function BudgetPage({
                 <td className='px-6.5 py-3 text-right'>
                   {formatWholePounds(totalReceiptsBudget)}
                 </td>
-                <td className='px-4 py-3 text-right'>
-                  {formatCurrency(totalReceiptsActual - totalReceiptsBudget)}
+                <td
+                  className={
+                    totalReceiptsBudget - totalReceiptsActual < 0
+                      ? 'px-4 py-3 text-right text-red-600'
+                      : 'px-4 py-3 text-right'
+                  }
+                >
+                  {formatCurrency(totalReceiptsBudget - totalReceiptsActual)}
                 </td>
               </tr>
 
@@ -426,14 +436,20 @@ export default async function BudgetPage({
                 <td className='px-6.5 py-3 text-right'>
                   {formatWholePounds(totalPaymentsBudget)}
                 </td>
-                <td className='px-4 py-3 text-right'>
-                  {formatCurrency(totalPaymentsActual - totalPaymentsBudget)}
+                <td
+                  className={
+                    totalPaymentsBudget - totalPaymentsActual < 0
+                      ? 'px-4 py-3 text-right text-red-600'
+                      : 'px-4 py-3 text-right'
+                  }
+                >
+                  {formatCurrency(totalPaymentsBudget - totalPaymentsActual)}
                 </td>
               </tr>
 
               <tr className='bg-emerald-100/30 font-semibold'>
                 <td className='px-4 py-3' colSpan={2}>
-                  Excess income over expenditure
+                  Surplus/(deficit) against budget
                 </td>
                 <td className='px-4 py-3 text-right'>
                   {formatCurrency(actualSurplus)}
@@ -441,14 +457,30 @@ export default async function BudgetPage({
                 <td className='px-6.5 py-3 text-right'>
                   {formatWholePounds(budgetSurplus)}
                 </td>
-                <td className='px-4 py-3 text-right'>
-                  {formatCurrency(actualSurplus - budgetSurplus)}
+                <td
+                  className={
+                    budgetSurplus - actualSurplus < 0
+                      ? 'px-4 py-3 text-right text-red-600'
+                      : 'px-4 py-3 text-right'
+                  }
+                >
+                  {formatCurrency(budgetSurplus - actualSurplus)}
                 </td>
               </tr>
             </tbody>
           </table>
         </section>
-        <section className='mt-8 rounded-lg border bg-white shadow-sm'>
+        {!financialYear.isClosed ? (
+          <div className='mt-8 flex justify-end'>
+            <PendingSubmitButton
+              idleLabel='Save budget'
+              pendingLabel='Saving...'
+              className='rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800 disabled:opacity-50'
+            />
+          </div>
+        ) : null}
+
+        <section className='mt-4 rounded-lg border bg-white shadow-sm'>
           <div className='border-b px-4 py-3'>
             <h2 className='text-sm font-semibold tracking-wide text-zinc-700 uppercase'>
               Budget notes
@@ -496,7 +528,7 @@ function BudgetSection({
 }) {
   const totalActual = rows.reduce((sum, row) => sum + row.actualAmount, 0)
   const totalBudget = rows.reduce((sum, row) => sum + row.budget, 0)
-  const totalVariance = totalActual - totalBudget
+  const totalVariance = totalBudget - totalActual
 
   return (
     <section className='overflow-hidden rounded-lg border bg-white shadow-sm'>
@@ -563,9 +595,9 @@ function BudgetSection({
 
                 <td
                   className={
-                    Math.round(row.variance * 100) === 0
-                      ? 'px-4 py-3 text-right'
-                      : 'px-4 py-3 text-right text-red-600'
+                    row.variance < 0
+                      ? 'px-4 py-3 text-right text-red-600'
+                      : 'px-4 py-3 text-right'
                   }
                 >
                   {formatCurrency(row.variance)}
@@ -588,9 +620,9 @@ function BudgetSection({
 
               <td
                 className={
-                  Math.round(totalVariance * 100) === 0
-                    ? 'px-4 py-3 text-right'
-                    : 'px-4 py-3 text-right text-red-600'
+                  totalVariance < 0
+                    ? 'px-4 py-3 text-right text-red-600'
+                    : 'px-4 py-3 text-right'
                 }
               >
                 {formatCurrency(totalVariance)}

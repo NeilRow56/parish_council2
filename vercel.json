@@ -1,4 +1,5 @@
 {
+  "buildCommand": "VERCEL_PREVIEW_COMMENTS_ENABLED=0 bun run build",
   "crons": [
     {
       "path": "/api/cron/refresh-tokens",

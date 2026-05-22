@@ -38,3 +38,9 @@ bun run build
 The accounting engine is intended to preserve posted records. Closed financial
 years are read-only, posted journals are immutable, and corrections should use
 reversal and repost workflows.
+
+## Deployment
+
+`vercel.json` disables Vercel preview comments during the build command. The
+app does not use preview deployments, and the override avoids a Vercel adapter
+path failure while the Next.js config is being prepared.

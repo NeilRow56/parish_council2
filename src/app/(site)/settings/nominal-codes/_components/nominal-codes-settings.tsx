@@ -1,9 +1,14 @@
 'use client'
 
 import { useMemo, useState, useTransition } from 'react'
-import { Plus } from 'lucide-react'
+import { CircleHelp, Plus } from 'lucide-react'
 import { toast } from 'sonner'
 
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger
+} from '@/components/ui/tooltip'
 import { createNominalCodeAction, updateNominalCodeAction } from '../actions'
 
 type NominalCodeType = 'INCOME' | 'EXPENDITURE' | 'BALANCE_SHEET'
@@ -57,10 +62,12 @@ function typeLabel(type: NominalCodeType) {
 
 export function NominalCodesSettings({
   financialYearId,
-  codes
+  codes,
+  categoryOptions
 }: {
   financialYearId: string
   codes: NominalCodeRow[]
+  categoryOptions: string[]
 }) {
   const [filter, setFilter] = useState<Filter>('ALL')
   const [editingId, setEditingId] = useState<string | null>(null)
@@ -114,6 +121,7 @@ export function NominalCodesSettings({
       {showCreate && (
         <CreateNominalCodeForm
           financialYearId={financialYearId}
+          categoryOptions={categoryOptions}
           onDone={() => setShowCreate(false)}
         />
       )}
@@ -139,6 +147,7 @@ export function NominalCodesSettings({
                 {editingId === code.id ? (
                   <EditNominalCodeRow
                     code={code}
+                    categoryOptions={categoryOptions}
                     onDone={() => setEditingId(null)}
                   />
                 ) : (
@@ -180,11 +189,80 @@ export function NominalCodesSettings({
   )
 }
 
+function HelpTooltip({
+  label,
+  children
+}: {
+  label: string
+  children: string
+}) {
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <button
+            type='button'
+            className='inline-flex rounded-full text-zinc-400 outline-none hover:text-zinc-700 focus-visible:ring-2 focus-visible:ring-slate-400'
+            aria-label={label}
+          >
+            <CircleHelp className='h-3.5 w-3.5' />
+          </button>
+        }
+      />
+      <TooltipContent side='top'>{children}</TooltipContent>
+    </Tooltip>
+  )
+}
+
+function FieldLabel({
+  children,
+  tooltip
+}: {
+  children: string
+  tooltip: string
+}) {
+  return (
+    <span className='mb-1 flex items-center gap-1.5 text-xs font-medium text-zinc-600'>
+      {children}
+      <HelpTooltip label={`${children} help`}>{tooltip}</HelpTooltip>
+    </span>
+  )
+}
+
+function CategoryInput({
+  value,
+  onChange,
+  options,
+  className = 'w-full rounded-md border px-3 py-2 text-sm'
+}: {
+  value: string
+  onChange: (value: string) => void
+  options: string[]
+  className?: string
+}) {
+  return (
+    <select
+      value={value}
+      onChange={event => onChange(event.target.value)}
+      className={className}
+    >
+      <option value=''>No category</option>
+      {options.map(option => (
+        <option key={option} value={option}>
+          {option}
+        </option>
+      ))}
+    </select>
+  )
+}
+
 function CreateNominalCodeForm({
   financialYearId,
+  categoryOptions,
   onDone
 }: {
   financialYearId: string
+  categoryOptions: string[]
   onDone: () => void
 }) {
   const [isPending, startTransition] = useTransition()
@@ -260,57 +338,93 @@ function CreateNominalCodeForm({
         </p>
       )}
 
-      <div className='mt-4 grid gap-4 md:grid-cols-[120px_1fr_180px_220px_260px_120px]'>
-        <input
-          value={code}
-          onChange={event => setCode(event.target.value)}
-          placeholder='Code'
-          className='rounded-md border px-3 py-2 text-sm'
-        />
+      <p className='mt-4 text-sm text-zinc-600'>
+        Choose the AGAR box this code should feed into. Only tick Bank/cash for
+        actual bank or cash control accounts.
+      </p>
 
-        <input
-          value={name}
-          onChange={event => setName(event.target.value)}
-          placeholder='Name'
-          className='rounded-md border px-3 py-2 text-sm'
-        />
-
-        <select
-          value={type}
-          onChange={event => setType(event.target.value as NominalCodeType)}
-          className='rounded-md border px-3 py-2 text-sm'
-        >
-          <option value='INCOME'>Income</option>
-          <option value='EXPENDITURE'>Expenditure</option>
-          <option value='BALANCE_SHEET'>Balance sheet</option>
-        </select>
-
-        <input
-          value={category}
-          onChange={event => setCategory(event.target.value)}
-          placeholder='Category'
-          className='rounded-md border px-3 py-2 text-sm'
-        />
-        <select
-          value={agarBox}
-          onChange={event => setAgarBox(event.target.value as AgarBox | '')}
-          className='rounded-md border px-3 py-2 text-sm'
-        >
-          <option value=''>No AGAR box</option>
-          {agarBoxOptions.map(option => (
-            <option key={option.value} value={option.value}>
-              {option.label}
-            </option>
-          ))}
-        </select>
-        <label className='flex items-center gap-2 text-sm'>
+      <div className='mt-3 grid gap-4 md:grid-cols-[120px_1fr_180px_220px_260px_140px]'>
+        <label>
+          <span className='mb-1 block text-xs font-medium text-zinc-600'>
+            Code
+          </span>
           <input
-            type='checkbox'
-            checked={isBank}
-            onChange={event => setIsBank(event.target.checked)}
+            value={code}
+            onChange={event => setCode(event.target.value)}
+            placeholder='Code'
+            className='w-full rounded-md border px-3 py-2 text-sm'
           />
-          Bank/cash
         </label>
+
+        <label>
+          <span className='mb-1 block text-xs font-medium text-zinc-600'>
+            Name
+          </span>
+          <input
+            value={name}
+            onChange={event => setName(event.target.value)}
+            placeholder='Name'
+            className='w-full rounded-md border px-3 py-2 text-sm'
+          />
+        </label>
+
+        <label>
+          <FieldLabel tooltip='Choose Income, Expenditure, or Balance sheet based on the accounting nature of the code.'>
+            Type
+          </FieldLabel>
+          <select
+            value={type}
+            onChange={event => setType(event.target.value as NominalCodeType)}
+            className='w-full rounded-md border px-3 py-2 text-sm'
+          >
+            <option value='INCOME'>Income</option>
+            <option value='EXPENDITURE'>Expenditure</option>
+            <option value='BALANCE_SHEET'>Balance sheet</option>
+          </select>
+        </label>
+
+        <label>
+          <FieldLabel tooltip='Used to group nominal codes in reports and dropdowns. Pick an existing category where possible for consistency.'>
+            Category
+          </FieldLabel>
+          <CategoryInput
+            value={category}
+            onChange={setCategory}
+            options={categoryOptions}
+          />
+        </label>
+
+        <label>
+          <FieldLabel tooltip="Controls where this nominal code appears in the AGAR summary. Leave as 'No AGAR box' only for internal/control accounts that should not feed the return.">
+            AGAR box
+          </FieldLabel>
+          <select
+            value={agarBox}
+            onChange={event => setAgarBox(event.target.value as AgarBox | '')}
+            className='w-full rounded-md border px-3 py-2 text-sm'
+          >
+            <option value=''>No AGAR box</option>
+            {agarBoxOptions.map(option => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <div>
+          <FieldLabel tooltip='Tick only for real bank or cash accounts. These appear in banking and reconciliation workflows and feed AGAR Box 8 where mapped.'>
+            Bank/cash
+          </FieldLabel>
+          <label className='flex h-10 items-center gap-2 rounded-md border px-3 text-sm'>
+            <input
+              type='checkbox'
+              checked={isBank}
+              onChange={event => setIsBank(event.target.checked)}
+            />
+            Bank/cash
+          </label>
+        </div>
       </div>
 
       <div className='mt-4 flex justify-end gap-2'>
@@ -337,9 +451,11 @@ function CreateNominalCodeForm({
 
 function EditNominalCodeRow({
   code,
+  categoryOptions,
   onDone
 }: {
   code: NominalCodeRow
+  categoryOptions: string[]
   onDone: () => void
 }) {
   const [isPending, startTransition] = useTransition()
@@ -394,16 +510,30 @@ function EditNominalCodeRow({
         {error && <p className='mt-2 text-xs text-red-600'>{error}</p>}
       </td>
 
-      <td className='px-4 py-3 align-top'>{typeLabel(code.type)}</td>
+      <td className='px-4 py-3 align-top'>
+        <div className='flex items-center gap-1.5'>
+          {typeLabel(code.type)}
+          <HelpTooltip label='Type help'>
+            Choose Income, Expenditure, or Balance sheet based on the
+            accounting nature of the code.
+          </HelpTooltip>
+        </div>
+      </td>
 
       <td className='px-4 py-3 align-top'>
-        <input
+        <FieldLabel tooltip='Used to group nominal codes in reports and dropdowns. Pick an existing category where possible for consistency.'>
+          Category
+        </FieldLabel>
+        <CategoryInput
           value={category}
-          onChange={event => setCategory(event.target.value)}
-          className='w-full rounded-md border px-3 py-2 text-sm'
+          onChange={setCategory}
+          options={categoryOptions}
         />
       </td>
       <td className='px-4 py-3 align-top'>
+        <FieldLabel tooltip="Controls where this nominal code appears in the AGAR summary. Leave as 'No AGAR box' only for internal/control accounts that should not feed the return.">
+          AGAR box
+        </FieldLabel>
         <select
           value={agarBox}
           onChange={event => setAgarBox(event.target.value as AgarBox | '')}
@@ -417,7 +547,15 @@ function EditNominalCodeRow({
           ))}
         </select>
       </td>
-      <td className='px-4 py-3 align-top'>{code.isBank ? 'Yes' : 'No'}</td>
+      <td className='px-4 py-3 align-top'>
+        <div className='flex items-center gap-1.5'>
+          {code.isBank ? 'Yes' : 'No'}
+          <HelpTooltip label='Bank/cash help'>
+            Tick only for real bank or cash accounts. These appear in banking
+            and reconciliation workflows and feed AGAR Box 8 where mapped.
+          </HelpTooltip>
+        </div>
+      </td>
 
       <td className='px-4 py-3 align-top'>
         <label className='flex items-center gap-2 text-sm'>

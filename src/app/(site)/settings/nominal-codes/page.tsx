@@ -5,7 +5,23 @@ import { and, asc, eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
 import { financialYears, nominalCodes } from '@/db/schema/nominalLedger'
+import { defaultChart } from '@/lib/nominal-codes/default-chart'
 import { NominalCodesSettings } from './_components/nominal-codes-settings'
+
+const suggestedCategories = [
+  'Bank',
+  'Fixed Assets',
+  'Current Assets',
+  'Current Liabilities',
+  'Reserves',
+  'Income',
+  'Admin',
+  'Staff',
+  'Maintenance',
+  'Finance',
+  'VAT',
+  'Other'
+]
 
 export default async function NominalCodesSettingsPage() {
   const session = await auth.api.getSession({
@@ -56,6 +72,18 @@ export default async function NominalCodesSettingsPage() {
     )
     .orderBy(asc(nominalCodes.code))
 
+  const categoryOptions = [
+    ...new Set(
+      [
+        ...suggestedCategories,
+        ...defaultChart.map(code => code.category),
+        ...codes.map(code => code.category)
+      ]
+        .filter((category): category is string => Boolean(category))
+        .sort((a, b) => a.localeCompare(b))
+    )
+  ]
+
   return (
     <main className='mx-auto max-w-7xl px-6 py-8'>
       <div className='mb-8'>
@@ -71,7 +99,11 @@ export default async function NominalCodesSettingsPage() {
         </p>
       </div>
 
-      <NominalCodesSettings financialYearId={financialYear.id} codes={codes} />
+      <NominalCodesSettings
+        financialYearId={financialYear.id}
+        codes={codes}
+        categoryOptions={categoryOptions}
+      />
     </main>
   )
 }

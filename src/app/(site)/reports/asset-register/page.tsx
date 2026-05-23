@@ -2,7 +2,7 @@
 
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { and, asc, desc, eq, gte, isNull, lte, or } from 'drizzle-orm'
+import { and, asc, desc, eq, isNull, lte, or } from 'drizzle-orm'
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
@@ -17,6 +17,8 @@ import {
 } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
 import { getAgarBox9Figure } from '@/lib/reports/agar-box9'
+import { getEffectiveAccountingBasis } from '@/lib/reports/agar'
+import { parishCouncils } from '@/db/schema'
 import { FixedAssetRegisterClient } from './_components/fixed-asset-register-client'
 import { ExportPdfButton } from './_components/export-pdf-button'
 
@@ -33,6 +35,17 @@ function formatCurrency(value: number) {
 
 function roundCurrency(value: number) {
   return Math.round(value * 100) / 100
+}
+
+function isActiveAtYearEnd(
+  asset: { isDisposed: boolean; disposalDate: string | null },
+  yearEndDate: string
+) {
+  return (
+    !asset.isDisposed ||
+    !asset.disposalDate ||
+    asset.disposalDate > yearEndDate
+  )
 }
 
 export default async function AssetRegisterPage({
@@ -106,6 +119,8 @@ export default async function AssetRegisterPage({
       dateAcquired: fixedAssets.dateAcquired,
       purchaseCost: fixedAssets.purchaseCost,
       assetRegisterValue: fixedAssets.assetRegisterValue,
+      isDisposed: fixedAssets.isDisposed,
+      disposalDate: fixedAssets.disposalDate,
       notes: fixedAssets.notes
     })
     .from(fixedAssets)
@@ -115,11 +130,6 @@ export default async function AssetRegisterPage({
         or(
           isNull(fixedAssets.dateAcquired),
           lte(fixedAssets.dateAcquired, financialYear.endDate)
-        ),
-        or(
-          eq(fixedAssets.isDisposed, false),
-          isNull(fixedAssets.disposalDate),
-          gte(fixedAssets.disposalDate, financialYear.startDate)
         )
       )
     )
@@ -129,10 +139,33 @@ export default async function AssetRegisterPage({
       asc(fixedAssets.refNo)
     )
 
-  const assetRegisterTotal = assets.reduce(
-    (sum, asset) => sum + Number(asset.assetRegisterValue ?? 0),
-    0
-  )
+  const [council] = await db
+    .select({ accountingBasis: parishCouncils.accountingBasis })
+    .from(parishCouncils)
+    .where(eq(parishCouncils.id, parishCouncilId))
+    .limit(1)
+  const accountingBasis = getEffectiveAccountingBasis(council?.accountingBasis)
+  const sortedAssets = [...assets].sort((assetA, assetB) => {
+    const assetAActive = isActiveAtYearEnd(assetA, financialYear.endDate)
+    const assetBActive = isActiveAtYearEnd(assetB, financialYear.endDate)
+
+    if (assetAActive !== assetBActive) return assetAActive ? -1 : 1
+
+    return (
+      assetA.category.localeCompare(assetB.category) ||
+      (assetA.insuranceCategory ?? '').localeCompare(
+        assetB.insuranceCategory ?? ''
+      ) ||
+      (assetA.refNo ?? '').localeCompare(assetB.refNo ?? '')
+    )
+  })
+
+  const assetRegisterTotal = assets
+    .filter(asset => isActiveAtYearEnd(asset, financialYear.endDate))
+    .reduce(
+      (sum, asset) => sum + Number(asset.assetRegisterValue ?? 0),
+      0
+    )
   const agarBox9Figure = await getAgarBox9Figure({
     parishCouncilId,
     financialYear
@@ -158,7 +191,7 @@ export default async function AssetRegisterPage({
     ...new Set(
       [
         ...fixedAssetCategoryRows.map(row => row.name),
-        ...assets.map(asset => asset.insuranceCategory ?? asset.category)
+        ...sortedAssets.map(asset => asset.insuranceCategory ?? asset.category)
       ].filter(Boolean)
     )
   ].sort((a, b) => a.localeCompare(b))
@@ -296,7 +329,7 @@ export default async function AssetRegisterPage({
 
       <FixedAssetRegisterClient
         financialYearId={financialYear.id}
-        assets={assets.map(asset => ({
+        assets={sortedAssets.map(asset => ({
           id: asset.id,
           refNo: asset.refNo,
           category: asset.category,
@@ -306,9 +339,14 @@ export default async function AssetRegisterPage({
           dateAcquired: asset.dateAcquired,
           purchaseCost: asset.purchaseCost,
           assetRegisterValue: asset.assetRegisterValue,
+          isDisposed: asset.isDisposed,
+          disposalDate: asset.disposalDate,
           notes: asset.notes
         }))}
         insuranceCategoryOptions={insuranceCategoryOptions}
+        accountingBasis={accountingBasis}
+        financialYearStartDate={financialYear.startDate}
+        financialYearEndDate={financialYear.endDate}
         readOnly={financialYear.isClosed}
       />
     </main>

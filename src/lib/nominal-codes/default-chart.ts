@@ -252,6 +252,13 @@ export const defaultChart: DefaultNominal[] = [
     category: 'Income',
     agarBox: 'BOX_3_OTHER_RECEIPTS'
   },
+  {
+    code: '4090',
+    name: 'Profit on asset disposals',
+    type: 'INCOME',
+    category: 'Disposals',
+    agarBox: 'BOX_3_OTHER_RECEIPTS'
+  },
 
   // ─── Expenditure ───────────────────────────────────────────
   {
@@ -358,5 +365,12 @@ export const defaultChart: DefaultNominal[] = [
     type: 'EXPENDITURE',
     category: 'Finance',
     agarBox: 'BOX_5_LOAN_REPAYMENTS'
+  },
+  {
+    code: '5990',
+    name: 'Loss on asset disposals',
+    type: 'EXPENDITURE',
+    category: 'Disposals',
+    agarBox: 'BOX_6_OTHER_PAYMENTS'
   }
 ]

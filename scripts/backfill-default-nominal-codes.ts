@@ -19,8 +19,34 @@ const BACKFILL_DEFAULT_CODES = [
   '3090',
   '3095',
   '4040',
-  '4050'
+  '4050',
+  '4090',
+  '5990'
 ]
+
+type ExistingNominalCode = {
+  id: string
+  code: string
+  name: string
+  type: string
+  category: string | null
+  agarBox: string | null
+  isBank: boolean
+  isVatRecoverable: boolean
+  isVatPayable: boolean
+  isActive: boolean
+}
+
+type DefaultNominalCode = {
+  code: string
+  name: string
+  type: string
+  category?: string | null
+  agarBox?: string | null
+  isBank?: boolean
+  isVatRecoverable?: boolean
+  isVatPayable?: boolean
+}
 
 function getArg(name: string) {
   const prefix = `--${name}=`
@@ -42,6 +68,68 @@ function usage() {
     'Optional:',
     '  --dry-run  Show what would be inserted without changing data.'
   ].join('\n')
+}
+
+function hasMatchingMetadata(
+  existing: ExistingNominalCode,
+  expected: DefaultNominalCode
+) {
+  return (
+    existing.name === expected.name &&
+    existing.type === expected.type &&
+    existing.category === (expected.category ?? null) &&
+    existing.agarBox === (expected.agarBox ?? null) &&
+    existing.isBank === (expected.isBank ?? false) &&
+    existing.isVatRecoverable === (expected.isVatRecoverable ?? false) &&
+    existing.isVatPayable === (expected.isVatPayable ?? false)
+  )
+}
+
+function describeConflict(
+  existing: ExistingNominalCode,
+  expected: DefaultNominalCode
+) {
+  const differences: string[] = []
+
+  if (existing.name !== expected.name) {
+    differences.push(`name "${existing.name}" expected "${expected.name}"`)
+  }
+
+  if (existing.type !== expected.type) {
+    differences.push(`type ${existing.type} expected ${expected.type}`)
+  }
+
+  if (existing.category !== (expected.category ?? null)) {
+    differences.push(
+      `category ${existing.category ?? 'null'} expected ${expected.category ?? 'null'}`
+    )
+  }
+
+  if (existing.agarBox !== (expected.agarBox ?? null)) {
+    differences.push(
+      `AGAR box ${existing.agarBox ?? 'null'} expected ${expected.agarBox ?? 'null'}`
+    )
+  }
+
+  if (existing.isBank !== (expected.isBank ?? false)) {
+    differences.push(
+      `isBank ${existing.isBank} expected ${expected.isBank ?? false}`
+    )
+  }
+
+  if (existing.isVatRecoverable !== (expected.isVatRecoverable ?? false)) {
+    differences.push(
+      `isVatRecoverable ${existing.isVatRecoverable} expected ${expected.isVatRecoverable ?? false}`
+    )
+  }
+
+  if (existing.isVatPayable !== (expected.isVatPayable ?? false)) {
+    differences.push(
+      `isVatPayable ${existing.isVatPayable} expected ${expected.isVatPayable ?? false}`
+    )
+  }
+
+  return differences.join('; ')
 }
 
 async function run() {
@@ -107,6 +195,8 @@ async function run() {
 
   let insertedCount = 0
   let skippedCount = 0
+  let reactivatedCount = 0
+  let conflictCount = 0
 
   for (const council of councils) {
     const years = await db
@@ -128,7 +218,18 @@ async function run() {
 
     for (const year of years) {
       const existingCodes = await db
-        .select({ code: nominalCodes.code })
+        .select({
+          id: nominalCodes.id,
+          code: nominalCodes.code,
+          name: nominalCodes.name,
+          type: nominalCodes.type,
+          category: nominalCodes.category,
+          agarBox: nominalCodes.agarBox,
+          isBank: nominalCodes.isBank,
+          isVatRecoverable: nominalCodes.isVatRecoverable,
+          isVatPayable: nominalCodes.isVatPayable,
+          isActive: nominalCodes.isActive
+        })
         .from(nominalCodes)
         .where(
           and(
@@ -138,18 +239,47 @@ async function run() {
           )
         )
 
-      const existingCodeSet = new Set(existingCodes.map(row => row.code))
+      const existingByCode = new Map(
+        existingCodes.map(row => [row.code, row] as const)
+      )
       const missingDefaults = defaultsToBackfill.filter(
-        item => !existingCodeSet.has(item.code)
+        item => !existingByCode.has(item.code)
       )
 
       for (const item of defaultsToBackfill) {
-        if (existingCodeSet.has(item.code)) {
-          skippedCount += 1
-          console.log(
-            `- ${council.name} (${council.id}) ${year.label}: skipped ${item.code} ${item.name}`
-          )
+        const existing = existingByCode.get(item.code)
+
+        if (!existing) {
+          continue
         }
+
+        if (!hasMatchingMetadata(existing, item)) {
+          conflictCount += 1
+          console.log(
+            `- ${council.name} (${council.id}) ${year.label}: conflict ${item.code}; left unchanged (${describeConflict(existing, item)})`
+          )
+          continue
+        }
+
+        if (!existing.isActive) {
+          if (!dryRun) {
+            await db
+              .update(nominalCodes)
+              .set({ isActive: true })
+              .where(eq(nominalCodes.id, existing.id))
+          }
+
+          reactivatedCount += 1
+          console.log(
+            `- ${council.name} (${council.id}) ${year.label}: ${dryRun ? 'would reactivate' : 'reactivated'} ${item.code} ${item.name}`
+          )
+          continue
+        }
+
+        skippedCount += 1
+        console.log(
+          `- ${council.name} (${council.id}) ${year.label}: skipped ${item.code} ${item.name}`
+        )
       }
 
       if (missingDefaults.length === 0) {
@@ -194,7 +324,7 @@ async function run() {
   }
 
   console.log(
-    `Done. ${dryRun ? 'Would insert' : 'Inserted'} ${insertedCount} code row(s); skipped ${skippedCount} existing code row(s).`
+    `Done. ${dryRun ? 'Would insert' : 'Inserted'} ${insertedCount} code row(s); ${dryRun ? 'would reactivate' : 'reactivated'} ${reactivatedCount} matching inactive code row(s); skipped ${skippedCount} existing code row(s); found ${conflictCount} conflict(s).`
   )
 }
 

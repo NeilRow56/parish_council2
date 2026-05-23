@@ -6,7 +6,7 @@ import {
   View,
   renderToBuffer
 } from '@react-pdf/renderer'
-import { and, asc, desc, eq, gte, isNull, lte, or } from 'drizzle-orm'
+import { and, asc, desc, eq, isNull, lte, or } from 'drizzle-orm'
 import { headers } from 'next/headers'
 import { createElement } from 'react'
 
@@ -47,6 +47,7 @@ type AssetRegisterReport = {
   councilName: string | null
   financialYear: FinancialYear
   assets: FixedAssetRow[]
+  activeAssetCount: number
   totalPurchaseCost: number
   totalAssetRegisterValue: number
   agarBox9Figure: number
@@ -87,6 +88,14 @@ function escapeFilename(value: string) {
 
 function roundCurrency(value: number) {
   return Math.round(value * 100) / 100
+}
+
+function isActiveAtYearEnd(asset: FixedAssetRow, yearEndDate: string) {
+  return (
+    !asset.isDisposed ||
+    !asset.disposalDate ||
+    asset.disposalDate > yearEndDate
+  )
 }
 
 const styles = StyleSheet.create({
@@ -150,6 +159,10 @@ const styles = StyleSheet.create({
   },
   totalRow: {
     backgroundColor: '#f8fafc'
+  },
+  disposedRow: {
+    backgroundColor: '#f8fafc',
+    color: '#64748b'
   },
   cell: {
     paddingHorizontal: 4,
@@ -330,11 +343,6 @@ async function getAssetRegisterReport({
         or(
           isNull(fixedAssets.dateAcquired),
           lte(fixedAssets.dateAcquired, financialYear.endDate)
-        ),
-        or(
-          eq(fixedAssets.isDisposed, false),
-          isNull(fixedAssets.disposalDate),
-          gte(fixedAssets.disposalDate, financialYear.startDate)
         )
       )
     )
@@ -344,7 +352,24 @@ async function getAssetRegisterReport({
       asc(fixedAssets.refNo)
     )
 
-  const totalAssetRegisterValue = assets.reduce(
+  const sortedAssets = [...assets].sort((assetA, assetB) => {
+    const assetAActive = isActiveAtYearEnd(assetA, financialYear.endDate)
+    const assetBActive = isActiveAtYearEnd(assetB, financialYear.endDate)
+
+    if (assetAActive !== assetBActive) return assetAActive ? -1 : 1
+
+    return (
+      assetA.category.localeCompare(assetB.category) ||
+      (assetA.insuranceCategory ?? '').localeCompare(
+        assetB.insuranceCategory ?? ''
+      ) ||
+      (assetA.refNo ?? '').localeCompare(assetB.refNo ?? '')
+    )
+  })
+  const activeAssets = sortedAssets.filter(asset =>
+    isActiveAtYearEnd(asset, financialYear.endDate)
+  )
+  const totalAssetRegisterValue = activeAssets.reduce(
     (sum, asset) => sum + Number(asset.assetRegisterValue ?? 0),
     0
   )
@@ -356,8 +381,9 @@ async function getAssetRegisterReport({
   return {
     councilName: council?.name ?? null,
     financialYear,
-    assets,
-    totalPurchaseCost: assets.reduce(
+    assets: sortedAssets,
+    activeAssetCount: activeAssets.length,
+    totalPurchaseCost: activeAssets.reduce(
       (sum, asset) => sum + Number(asset.purchaseCost ?? 0),
       0
     ),
@@ -382,10 +408,16 @@ function assetStatus(asset: FixedAssetRow) {
   return asset.disposalDate ? `Disposed ${formatDate(asset.disposalDate)}` : 'Disposed'
 }
 
-function assetRow(asset: FixedAssetRow) {
+function assetRow(asset: FixedAssetRow, financialYearEndDate: string) {
+  const isActive = isActiveAtYearEnd(asset, financialYearEndDate)
+
   return h(
     View,
-    { key: asset.id, style: styles.row, wrap: false },
+    {
+      key: asset.id,
+      style: [styles.row, isActive ? {} : styles.disposedRow],
+      wrap: false
+    },
     h(Text, { style: [styles.cell, styles.refCell] }, asset.refNo || '-'),
     h(
       Text,
@@ -405,7 +437,11 @@ function assetRow(asset: FixedAssetRow) {
       { style: [styles.cell, styles.moneyCell] },
       formatAmount(asset.assetRegisterValue)
     ),
-    h(Text, { style: [styles.cell, styles.statusCell] }, assetStatus(asset))
+    h(
+      Text,
+      { style: [styles.cell, styles.statusCell] },
+      isActive ? 'Active' : assetStatus(asset)
+    )
   )
 }
 
@@ -439,10 +475,13 @@ function assetRegisterPdf(report: AssetRegisterReport) {
       h(
         View,
         { style: styles.summary },
-        summaryCard('Assets listed', String(report.assets.length)),
-        summaryCard('Purchase cost total', formatCurrency(report.totalPurchaseCost)),
+        summaryCard('Active assets', String(report.activeAssetCount)),
         summaryCard(
-          'Asset register value',
+          'Active purchase cost total',
+          formatCurrency(report.totalPurchaseCost)
+        ),
+        summaryCard(
+          'Active asset register value',
           formatCurrency(report.totalAssetRegisterValue)
         )
       ),
@@ -556,7 +595,9 @@ function assetRegisterPdf(report: AssetRegisterReport) {
           )
         ),
         report.assets.length > 0
-          ? report.assets.map(assetRow)
+          ? report.assets.map(asset =>
+              assetRow(asset, report.financialYear.endDate)
+            )
           : h(
               View,
               { style: styles.row },
@@ -590,7 +631,7 @@ function assetRegisterPdf(report: AssetRegisterReport) {
       h(
         Text,
         { style: styles.note },
-        'Assets are included if acquired on or before the financial year end date, and excluded only if disposed before the financial year start date.'
+        'Totals include active assets only. Disposed assets remain listed for audit history.'
       ),
       h(Text, {
         style: styles.pageNumber,

@@ -161,8 +161,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#f8fafc'
   },
   disposedRow: {
-    backgroundColor: '#f8fafc',
-    color: '#64748b'
+    backgroundColor: '#fff1f2',
+    color: '#3f3f46'
   },
   cell: {
     paddingHorizontal: 4,

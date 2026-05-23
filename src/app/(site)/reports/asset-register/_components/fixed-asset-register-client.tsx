@@ -63,7 +63,11 @@ function uniqueSorted(values: string[]) {
 }
 
 function isActiveAtYearEnd(asset: FixedAssetRow, yearEndDate: string) {
-  return !asset.isDisposed || !asset.disposalDate || asset.disposalDate > yearEndDate
+  return (
+    !asset.isDisposed ||
+    !asset.disposalDate ||
+    asset.disposalDate > yearEndDate
+  )
 }
 
 function formatDisplayDate(value: string | null) {
@@ -543,90 +547,92 @@ export function FixedAssetRegisterClient({
                   )
 
                   return (
-                  <tr
-                    key={asset.id}
-                    className={`border-t ${
-                      isActive ? '' : 'bg-zinc-50 text-zinc-500'
-                    }`}
-                  >
-                    <td className='px-4 py-3 align-top'>
-                      {asset.refNo || '—'}
-                    </td>
+                    <tr
+                      key={asset.id}
+                      className={`border-t ${
+                        isActive
+                          ? ''
+                          : 'bg-rose-50/60 text-zinc-700 [&_td]:border-rose-100'
+                      }`}
+                    >
+                      <td className='px-4 py-3 align-top'>
+                        {asset.refNo || '—'}
+                      </td>
 
-                    <td className='px-4 py-3 align-top'>
-                      {asset.insuranceCategory || asset.category}
-                    </td>
+                      <td className='px-4 py-3 align-top'>
+                        {asset.insuranceCategory || asset.category}
+                      </td>
 
-                    <td className='px-4 py-3 align-top'>
-                      <div className='wrap-break-words max-w-xs font-medium'>
-                        {asset.description}
-                      </div>
-                      {asset.notes ? (
-                        <div className='wrap-break-words mt-1 max-w-xs text-xs text-zinc-500'>
-                          {asset.notes}
+                      <td className='px-4 py-3 align-top'>
+                        <div className='wrap-break-words max-w-xs font-medium'>
+                          {asset.description}
                         </div>
-                      ) : null}
-                    </td>
-
-                    <td className='px-4 py-3 align-top'>
-                      <div className='wrap-break-words max-w-sm'>
-                        {asset.location || '—'}
-                      </div>
-                    </td>
-
-                    <td className='px-4 py-3 align-top'>
-                      {asset.dateAcquired || 'Not known'}
-                    </td>
-
-                    <td className='px-4 py-3 text-right align-top'>
-                      {formatMoney(asset.purchaseCost)}
-                    </td>
-
-                    <td className='px-4 py-3 text-right align-top'>
-                      {formatMoney(asset.assetRegisterValue)}
-                    </td>
-
-                    <td className='px-4 py-3 align-top'>
-                      {isActive ? (
-                        <span className='inline-flex h-5 items-center rounded-4xl border border-emerald-200 px-2 text-xs font-medium text-emerald-950'>
-                          Active
-                        </span>
-                      ) : (
-                        <div>
-                          <span className='inline-flex h-5 items-center rounded-4xl bg-zinc-200 px-2 text-xs font-medium text-zinc-700'>
-                            Disposed
-                          </span>
-                          <div className='mt-1 text-xs text-zinc-500'>
-                            {formatDisplayDate(asset.disposalDate)}
+                        {asset.notes ? (
+                          <div className='wrap-break-words mt-1 max-w-xs text-xs text-zinc-500'>
+                            {asset.notes}
                           </div>
-                        </div>
-                      )}
-                    </td>
-
-                    {!readOnly ? (
-                      <td className='px-4 py-3 text-right align-top'>
-                        {isActive ? (
-                          <>
-                            <button
-                              type='button'
-                              onClick={() => openEditAssetForm(asset)}
-                              className='text-sm font-medium text-blue-700 hover:underline'
-                            >
-                              Edit
-                            </button>
-
-                            <button
-                              type='button'
-                              onClick={() => openDisposePanel(asset)}
-                              className='ml-4 text-sm font-medium text-red-700 hover:underline'
-                            >
-                              Dispose
-                            </button>
-                          </>
                         ) : null}
                       </td>
-                    ) : null}
-                  </tr>
+
+                      <td className='px-4 py-3 align-top'>
+                        <div className='wrap-break-words max-w-sm'>
+                          {asset.location || '—'}
+                        </div>
+                      </td>
+
+                      <td className='px-4 py-3 align-top'>
+                        {asset.dateAcquired || 'Not known'}
+                      </td>
+
+                      <td className='px-4 py-3 text-right align-top'>
+                        {formatMoney(asset.purchaseCost)}
+                      </td>
+
+                      <td className='px-4 py-3 text-right align-top'>
+                        {formatMoney(asset.assetRegisterValue)}
+                      </td>
+
+                      <td className='px-4 py-3 align-top'>
+                        {isActive ? (
+                          <span className='inline-flex h-5 items-center rounded-4xl border border-emerald-200 px-2 text-xs font-medium text-emerald-950'>
+                            Active
+                          </span>
+                        ) : (
+                          <div>
+                            <span className='inline-flex h-5 items-center rounded-4xl border border-rose-200 bg-rose-100 px-2 text-xs font-medium text-rose-800'>
+                              Disposed
+                            </span>
+                            <div className='mt-1 text-xs text-zinc-600'>
+                              {formatDisplayDate(asset.disposalDate)}
+                            </div>
+                          </div>
+                        )}
+                      </td>
+
+                      {!readOnly ? (
+                        <td className='px-4 py-3 text-right align-top'>
+                          {isActive ? (
+                            <>
+                              <button
+                                type='button'
+                                onClick={() => openEditAssetForm(asset)}
+                                className='text-sm font-medium text-blue-700 hover:underline'
+                              >
+                                Edit
+                              </button>
+
+                              <button
+                                type='button'
+                                onClick={() => openDisposePanel(asset)}
+                                className='ml-4 text-sm font-medium text-red-700 hover:underline'
+                              >
+                                Dispose
+                              </button>
+                            </>
+                          ) : null}
+                        </td>
+                      ) : null}
+                    </tr>
                   )
                 })}
               </tbody>

@@ -715,6 +715,7 @@ async function run() {
         dateAcquired: '1921-11-11',
         purchaseCost: '1.00',
         assetRegisterValue: '1.00',
+        assetOrigin: 'opening_balance',
         notes: 'Community asset held at proxy value.',
         isDisposed: false
       },
@@ -731,6 +732,7 @@ async function run() {
         dateAcquired: '2018-08-20',
         purchaseCost: '48200.00',
         assetRegisterValue: '48200.00',
+        assetOrigin: 'opening_balance',
         isDisposed: false
       },
       {
@@ -746,6 +748,7 @@ async function run() {
         dateAcquired: '2026-03-18',
         purchaseCost: '1800.00',
         assetRegisterValue: '1800.00',
+        assetOrigin: 'live',
         isDisposed: false
       },
       {
@@ -761,6 +764,7 @@ async function run() {
         dateAcquired: '2024-09-01',
         purchaseCost: '950.00',
         assetRegisterValue: '950.00',
+        assetOrigin: 'opening_balance',
         isDisposed: false
       }
     ])

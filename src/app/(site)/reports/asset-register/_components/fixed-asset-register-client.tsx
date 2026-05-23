@@ -22,6 +22,7 @@ type FixedAssetRow = {
   dateAcquired: string | null
   purchaseCost: string | null
   assetRegisterValue: string
+  assetOrigin: 'opening_balance' | 'live'
   isDisposed: boolean
   disposalDate: string | null
   notes: string | null
@@ -78,6 +79,10 @@ function formatDisplayDate(value: string | null) {
     month: 'short',
     year: 'numeric'
   }).format(new Date(value))
+}
+
+function assetOriginLabel(origin: FixedAssetRow['assetOrigin']) {
+  return origin === 'opening_balance' ? 'System o/b' : 'Current system'
 }
 
 export function FixedAssetRegisterClient({
@@ -137,6 +142,9 @@ export function FixedAssetRegisterClient({
   const disposalAssetValue = Number(disposingAsset?.assetRegisterValue ?? 0)
   const disposalProceedsAmount = Number(disposalProceeds || 0)
   const disposalProfitOrLoss = disposalProceedsAmount - disposalAssetValue
+  const disposalUsesMemoReversal =
+    disposingAsset?.assetOrigin === 'opening_balance' ||
+    accountingBasis === 'RECEIPTS_AND_PAYMENTS'
   const accountingBasisLabel =
     accountingBasis === 'RECEIPTS_AND_PAYMENTS'
       ? 'Receipts & Payments basis'
@@ -350,6 +358,23 @@ export function FixedAssetRegisterClient({
             </div>
 
             <div>
+              <label className='text-sm font-medium'>Asset origin</label>
+              <select
+                name='assetOrigin'
+                defaultValue={editingAsset?.assetOrigin ?? 'live'}
+                className='mt-1 w-full rounded-md border px-3 py-2 text-sm'
+              >
+                <option value='opening_balance'>System o/b</option>
+                <option value='live'>Current system</option>
+              </select>
+              <p className='mt-1 text-xs text-zinc-500'>
+                System o/b assets were brought in when the council first
+                started using the software. Current system assets were added
+                after go-live.
+              </p>
+            </div>
+
+            <div>
               <label className='text-sm font-medium'>
                 Asset register value
               </label>
@@ -399,6 +424,18 @@ export function FixedAssetRegisterClient({
               <p className='mt-1 text-sm text-zinc-600'>
                 {accountingBasisLabel}
               </p>
+              <p className='mt-1 text-sm text-zinc-600'>
+                Origin:{' '}
+                <span className='font-medium text-zinc-900'>
+                  {assetOriginLabel(disposingAsset.assetOrigin)}
+                </span>
+              </p>
+              <p className='mt-1 text-sm text-zinc-600'>
+                Treatment:{' '}
+                {disposalUsesMemoReversal
+                  ? 'memo/reserve reversal against the fixed asset balance'
+                  : 'live disposal gain/loss accounting'}
+              </p>
             </div>
 
             <button
@@ -436,7 +473,8 @@ export function FixedAssetRegisterClient({
             </div>
           </div>
 
-          {accountingBasis === 'INCOME_AND_EXPENDITURE' ? (
+          {accountingBasis === 'INCOME_AND_EXPENDITURE' &&
+          disposingAsset.assetOrigin === 'live' ? (
             <dl className='mt-4 grid gap-4 rounded-md border bg-zinc-50 p-4 text-sm md:grid-cols-3'>
               <div>
                 <dt className='text-zinc-500'>Asset value removed</dt>
@@ -471,6 +509,10 @@ export function FixedAssetRegisterClient({
                 {formatCurrency(disposalAssetValue)}
               </span>
               .
+              {disposingAsset.assetOrigin === 'opening_balance' &&
+              Number(disposalProceeds || 0) > 0
+                ? ' Disposal proceeds are not netted against this value and should be recorded separately according to the council accounting basis.'
+                : ''}
             </p>
           )}
 
@@ -510,6 +552,7 @@ export function FixedAssetRegisterClient({
                 <col className='w-32' />
                 <col className='w-40' />
                 <col className='w-36' />
+                <col className='w-40' />
                 <col className='w-32' />
                 {!readOnly ? <col className='w-24' /> : null}
               </colgroup>
@@ -530,6 +573,7 @@ export function FixedAssetRegisterClient({
                   <th className='px-4 py-3 text-right font-medium'>
                     Register value
                   </th>
+                  <th className='px-4 py-3 font-medium'>Origin</th>
                   <th className='px-4 py-3 font-medium'>Status</th>
                   {!readOnly ? (
                     <th className='px-4 py-3 text-right font-medium'>
@@ -592,6 +636,10 @@ export function FixedAssetRegisterClient({
                         {formatMoney(asset.assetRegisterValue)}
                       </td>
 
+                      <td className='px-4 py-3 align-top text-xs text-zinc-600'>
+                        {assetOriginLabel(asset.assetOrigin)}
+                      </td>
+
                       <td className='px-4 py-3 align-top'>
                         {isActive ? (
                           <span className='inline-flex h-5 items-center rounded-4xl border border-emerald-200 px-2 text-xs font-medium text-emerald-950'>
@@ -649,6 +697,7 @@ export function FixedAssetRegisterClient({
                   <td className='px-4 py-3 text-right'>
                     {formatTotalMoney(totalRegisterValue)}
                   </td>
+                  <td className='px-4 py-3' />
                   <td className='px-4 py-3' />
                   {!readOnly ? <td className='px-4 py-3' /> : null}
                 </tr>

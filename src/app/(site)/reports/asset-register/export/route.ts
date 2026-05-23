@@ -39,6 +39,7 @@ type FixedAssetRow = {
   dateAcquired: string | null
   purchaseCost: string | null
   assetRegisterValue: string
+  assetOrigin: 'opening_balance' | 'live'
   isDisposed: boolean
   disposalDate: string | null
 }
@@ -191,6 +192,9 @@ const styles = StyleSheet.create({
     width: 68,
     textAlign: 'right'
   },
+  originCell: {
+    width: 62
+  },
   statusCell: {
     width: 58
   },
@@ -333,6 +337,7 @@ async function getAssetRegisterReport({
       dateAcquired: fixedAssets.dateAcquired,
       purchaseCost: fixedAssets.purchaseCost,
       assetRegisterValue: fixedAssets.assetRegisterValue,
+      assetOrigin: fixedAssets.assetOrigin,
       isDisposed: fixedAssets.isDisposed,
       disposalDate: fixedAssets.disposalDate
     })
@@ -436,6 +441,11 @@ function assetRow(asset: FixedAssetRow, financialYearEndDate: string) {
       Text,
       { style: [styles.cell, styles.moneyCell] },
       formatAmount(asset.assetRegisterValue)
+    ),
+    h(
+      Text,
+      { style: [styles.cell, styles.originCell] },
+      asset.assetOrigin === 'opening_balance' ? 'System o/b' : 'Current'
     ),
     h(
       Text,
@@ -590,6 +600,11 @@ function assetRegisterPdf(report: AssetRegisterReport) {
           ),
           h(
             Text,
+            { style: [styles.cell, styles.headerCell, styles.originCell] },
+            'Origin'
+          ),
+          h(
+            Text,
             { style: [styles.cell, styles.headerCell, styles.statusCell] },
             'Status'
           )
@@ -625,6 +640,7 @@ function assetRegisterPdf(report: AssetRegisterReport) {
             { style: [styles.cell, styles.totalMoneyCell] },
             formatAmount(report.totalAssetRegisterValue)
           ),
+          h(Text, { style: [styles.cell, styles.originCell] }, ''),
           h(Text, { style: [styles.cell, styles.statusCell] }, '')
         )
       ),

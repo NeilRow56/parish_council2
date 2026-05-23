@@ -1,7 +1,7 @@
 // src/app/(app)/settings/suppliers/_components/add-supplier-form.tsx
 'use client'
 
-import { useActionState, useEffect } from 'react'
+import { useActionState, useState } from 'react'
 import { toast } from 'sonner'
 
 import { createSupplierAction, type SupplierActionState } from '../actions'
@@ -24,31 +24,48 @@ export function AddSupplierForm({
   reserveOptions,
   projectOptions
 }: Props) {
+  const [isOpen, setIsOpen] = useState(false)
   const [state, formAction, isPending] = useActionState(
-    createSupplierAction,
+    async (prevState: SupplierActionState, formData: FormData) => {
+      const nextState = await createSupplierAction(prevState, formData)
+
+      if (nextState.success) {
+        toast.success(nextState.success)
+        setIsOpen(false)
+      }
+
+      if (nextState.error) {
+        setIsOpen(true)
+      }
+
+      return nextState
+    },
     initialState
   )
 
-  // ✅ NEW: Use toast for successful system feedback.
-  // Validation errors stay inline because they are tied to the form.
-  useEffect(() => {
-    if (state.success) {
-      toast.success(state.success)
-    }
-  }, [state.success])
+  if (!isOpen) {
+    return (
+      <div>
+        <button
+          type='button'
+          onClick={() => setIsOpen(true)}
+          className='bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm font-medium'
+        >
+          Add supplier
+        </button>
+      </div>
+    )
+  }
 
   return (
     <form action={formAction} className='rounded-lg border p-4'>
       <h2 className='font-medium'>Add supplier</h2>
 
-      {/* ✅ Keep validation errors inline so the user knows where to fix input */}
       {state.error && (
         <p className='mt-4 rounded-md bg-red-50 px-3 py-2 text-sm text-red-700'>
           {state.error}
         </p>
       )}
-
-      {/* ✅ Removed inline success message; success now appears as a toast */}
 
       <div className='mt-4 grid gap-3 md:grid-cols-2'>
         <input
@@ -108,13 +125,23 @@ export function AddSupplierForm({
           ))}
         </select>
 
-        <button
-          type='submit'
-          disabled={isPending}
-          className='bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50'
-        >
-          {isPending ? 'Adding...' : 'Add supplier'}
-        </button>
+        <div className='flex gap-2'>
+          <button
+            type='submit'
+            disabled={isPending}
+            className='bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50'
+          >
+            {isPending ? 'Adding...' : 'Add supplier'}
+          </button>
+
+          <button
+            type='button'
+            onClick={() => setIsOpen(false)}
+            className='rounded-md border px-4 py-2 text-sm font-medium'
+          >
+            Cancel
+          </button>
+        </div>
       </div>
     </form>
   )

@@ -119,6 +119,7 @@ export default async function AssetRegisterPage({
       dateAcquired: fixedAssets.dateAcquired,
       purchaseCost: fixedAssets.purchaseCost,
       assetRegisterValue: fixedAssets.assetRegisterValue,
+      assetOrigin: fixedAssets.assetOrigin,
       isDisposed: fixedAssets.isDisposed,
       disposalDate: fixedAssets.disposalDate,
       notes: fixedAssets.notes
@@ -339,6 +340,7 @@ export default async function AssetRegisterPage({
           dateAcquired: asset.dateAcquired,
           purchaseCost: asset.purchaseCost,
           assetRegisterValue: asset.assetRegisterValue,
+          assetOrigin: asset.assetOrigin,
           isDisposed: asset.isDisposed,
           disposalDate: asset.disposalDate,
           notes: asset.notes

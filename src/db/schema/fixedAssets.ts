@@ -48,6 +48,11 @@ export const fixedAssets = pgTable(
       scale: 2
     }).notNull(),
 
+    assetOrigin: text('asset_origin')
+      .$type<'opening_balance' | 'live'>()
+      .default('opening_balance')
+      .notNull(),
+
     notes: text('notes'),
 
     isDisposed: boolean('is_disposed').default(false).notNull(),

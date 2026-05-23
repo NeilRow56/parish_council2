@@ -87,7 +87,15 @@ export default async function SuppliersSettingsPage() {
 
             <tbody>
               {supplierRows.map(supplier => (
-                <tr key={supplier.id} className='block border-t'>
+                <tr
+                  key={[
+                    supplier.id,
+                    supplier.defaultNominalCodeId ?? '',
+                    supplier.defaultReserveId ?? '',
+                    supplier.defaultProjectId ?? ''
+                  ].join(':')}
+                  className='block border-t'
+                >
                   <td className='block p-0'>
                     <SupplierRowForm
                       supplier={supplier}

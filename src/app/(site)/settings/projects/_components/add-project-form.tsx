@@ -2,7 +2,7 @@
 
 'use client'
 
-import { useActionState, useEffect, useMemo } from 'react'
+import { useActionState, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 
 import { createProjectAction, type ProjectActionState } from '../actions'
@@ -20,8 +20,23 @@ type Props = {
 const initialState: ProjectActionState = {}
 
 export function AddProjectForm({ reserveOptions }: Props) {
+  const [isOpen, setIsOpen] = useState(false)
   const [state, formAction, isPending] = useActionState(
-    createProjectAction,
+    async (prevState: ProjectActionState, formData: FormData) => {
+      const nextState = await createProjectAction(prevState, formData)
+
+      if (nextState.success) {
+        toast.success(nextState.success)
+        setIsOpen(false)
+      }
+
+      if (nextState.error) {
+        toast.error(nextState.error)
+        setIsOpen(true)
+      }
+
+      return nextState
+    },
     initialState
   )
 
@@ -33,15 +48,19 @@ export function AddProjectForm({ reserveOptions }: Props) {
     )
   }, [reserveOptions])
 
-  useEffect(() => {
-    if (state.success) {
-      toast.success(state.success)
-    }
-
-    if (state.error) {
-      toast.error(state.error)
-    }
-  }, [state.success, state.error])
+  if (!isOpen) {
+    return (
+      <div>
+        <button
+          type='button'
+          onClick={() => setIsOpen(true)}
+          className='bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm font-medium'
+        >
+          Add project
+        </button>
+      </div>
+    )
+  }
 
   return (
     <form action={formAction} className='rounded-lg border p-4'>
@@ -94,13 +113,23 @@ export function AddProjectForm({ reserveOptions }: Props) {
           </select>
         </div>
 
-        <button
-          type='submit'
-          disabled={isPending || reserveOptions.length === 0}
-          className='bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50'
-        >
-          {isPending ? 'Adding...' : 'Add project'}
-        </button>
+        <div className='flex items-end gap-2'>
+          <button
+            type='submit'
+            disabled={isPending || reserveOptions.length === 0}
+            className='bg-primary text-primary-foreground rounded-md px-4 py-2 text-sm font-medium disabled:opacity-50'
+          >
+            {isPending ? 'Adding...' : 'Add project'}
+          </button>
+
+          <button
+            type='button'
+            onClick={() => setIsOpen(false)}
+            className='rounded-md border px-4 py-2 text-sm font-medium'
+          >
+            Cancel
+          </button>
+        </div>
 
         <input
           name='description'

@@ -26,6 +26,8 @@ type DisposalInput = {
   proceeds: string
 }
 
+type AssetOrigin = 'opening_balance' | 'live'
+
 type DisposalNominalSpec = {
   code: string
   name: string
@@ -46,6 +48,10 @@ function nullableDecimal(value: FormDataEntryValue | null) {
 
 function requiredText(value: FormDataEntryValue | null) {
   return String(value ?? '').trim()
+}
+
+function assetOriginFromForm(value: FormDataEntryValue | null): AssetOrigin {
+  return value === 'opening_balance' ? 'opening_balance' : 'live'
 }
 
 function amountToPence(value: string | number | null | undefined) {
@@ -162,6 +168,7 @@ export async function createFixedAsset(
     await db.insert(fixedAssets).values({
       parishCouncilId,
       financialYearId,
+      assetOrigin: assetOriginFromForm(formData.get('assetOrigin')),
       refNo: nullableText(formData.get('refNo')),
       category,
       insuranceCategory: nullableText(formData.get('insuranceCategory')),
@@ -216,6 +223,7 @@ export async function updateFixedAsset(
       .update(fixedAssets)
       .set({
         refNo: nullableText(formData.get('refNo')),
+        assetOrigin: assetOriginFromForm(formData.get('assetOrigin')),
         category,
         insuranceCategory: nullableText(formData.get('insuranceCategory')),
         description,
@@ -287,6 +295,7 @@ export async function disposeFixedAsset(
         description: fixedAssets.description,
         assetRegisterValue: fixedAssets.assetRegisterValue,
         purchaseCost: fixedAssets.purchaseCost,
+        assetOrigin: fixedAssets.assetOrigin,
         isDisposed: fixedAssets.isDisposed
       })
       .from(fixedAssets)
@@ -344,9 +353,12 @@ export async function disposeFixedAsset(
 
     const accountingBasis = getEffectiveAccountingBasis(council?.accountingBasis)
     const assetValuePence = amountToPence(asset.assetRegisterValue)
+    const assetOrigin = asset.assetOrigin
     const description = `Fixed asset disposal (${
       accountingBasis === 'INCOME_AND_EXPENDITURE' ? 'I&E' : 'R&P'
-    } basis): ${assetLabel(asset)}`
+    } basis, ${
+      assetOrigin === 'opening_balance' ? 'opening balance asset' : 'live-acquired asset'
+    }): ${assetLabel(asset)}`
 
     if (assetValuePence <= 0) {
       return {
@@ -413,7 +425,10 @@ export async function disposeFixedAsset(
     let memoCode: { id: string } | null = null
     let proceedsClearingCode: { id: string } | null = null
 
-    if (accountingBasis === 'RECEIPTS_AND_PAYMENTS') {
+    if (
+      accountingBasis === 'RECEIPTS_AND_PAYMENTS' ||
+      assetOrigin === 'opening_balance'
+    ) {
       const [code] = await db
         .select({ id: nominalCodes.id })
         .from(nominalCodes)
@@ -437,7 +452,11 @@ export async function disposeFixedAsset(
       }
     }
 
-    if (accountingBasis === 'INCOME_AND_EXPENDITURE' && proceedsPence > 0) {
+    if (
+      accountingBasis === 'INCOME_AND_EXPENDITURE' &&
+      assetOrigin === 'live' &&
+      proceedsPence > 0
+    ) {
       const [code] = await db
         .select({ id: nominalCodes.id })
         .from(nominalCodes)
@@ -462,7 +481,11 @@ export async function disposeFixedAsset(
       }
     }
 
-    if (accountingBasis === 'INCOME_AND_EXPENDITURE' && profitOrLossPence > 0) {
+    if (
+      accountingBasis === 'INCOME_AND_EXPENDITURE' &&
+      assetOrigin === 'live' &&
+      profitOrLossPence > 0
+    ) {
       try {
         profitOrLossCode = await ensureDisposalNominalCode({
           parishCouncilId,
@@ -483,7 +506,11 @@ export async function disposeFixedAsset(
       }
     }
 
-    if (accountingBasis === 'INCOME_AND_EXPENDITURE' && profitOrLossPence < 0) {
+    if (
+      accountingBasis === 'INCOME_AND_EXPENDITURE' &&
+      assetOrigin === 'live' &&
+      profitOrLossPence < 0
+    ) {
       try {
         profitOrLossCode = await ensureDisposalNominalCode({
           parishCouncilId,
@@ -520,7 +547,10 @@ export async function disposeFixedAsset(
 
       const lines: (typeof journalLines.$inferInsert)[] = []
 
-      if (accountingBasis === 'RECEIPTS_AND_PAYMENTS') {
+      if (
+        accountingBasis === 'RECEIPTS_AND_PAYMENTS' ||
+        assetOrigin === 'opening_balance'
+      ) {
         if (!memoCode) {
           throw new Error('Fixed Asset Opening Reserve (3090) nominal code is missing.')
         }
@@ -533,7 +563,10 @@ export async function disposeFixedAsset(
             reserveId: defaultReserve.id,
             debit: formatPence(assetValuePence),
             credit: '0.00',
-            description: 'Fixed asset disposal memo reserve'
+            description:
+              assetOrigin === 'opening_balance'
+                ? 'Opening balance fixed asset memo reserve reversal'
+                : 'Fixed asset disposal memo reserve'
           },
           {
             parishCouncilId,
@@ -542,7 +575,10 @@ export async function disposeFixedAsset(
             reserveId: defaultReserve.id,
             debit: '0.00',
             credit: formatPence(assetValuePence),
-            description: 'Fixed asset value removed from register'
+            description:
+              assetOrigin === 'opening_balance'
+                ? 'Opening balance fixed asset value removed from register'
+                : 'Fixed asset value removed from register'
           }
         )
       } else {

@@ -1,7 +1,7 @@
 // src/app/(app)/settings/suppliers/_components/supplier-row-form.tsx
 'use client'
 
-import { useActionState, useEffect } from 'react'
+import { useActionState, useEffect, useState } from 'react'
 import { toast } from 'sonner'
 
 import {
@@ -27,6 +27,12 @@ type Props = {
 
 const initialState: SupplierActionState = {}
 
+function savedOptionValue(value: string | null, options: Option[]) {
+  if (!value) return ''
+
+  return options.some(option => option.id === value) ? value : ''
+}
+
 export function SupplierRowForm({
   supplier,
   nominalOptions,
@@ -36,6 +42,15 @@ export function SupplierRowForm({
   const [state, formAction, isPending] = useActionState(
     updateSupplierAction,
     initialState
+  )
+  const [defaultNominalCodeId, setDefaultNominalCodeId] = useState(() =>
+    savedOptionValue(supplier.defaultNominalCodeId, nominalOptions)
+  )
+  const [defaultReserveId, setDefaultReserveId] = useState(() =>
+    savedOptionValue(supplier.defaultReserveId, reserveOptions)
+  )
+  const [defaultProjectId, setDefaultProjectId] = useState(() =>
+    savedOptionValue(supplier.defaultProjectId, projectOptions)
   )
 
   useEffect(() => {
@@ -109,7 +124,8 @@ export function SupplierRowForm({
         <div className='grid grid-cols-3 gap-3'>
           <select
             name='defaultNominalCodeId'
-            defaultValue={supplier.defaultNominalCodeId ?? ''}
+            value={defaultNominalCodeId}
+            onChange={event => setDefaultNominalCodeId(event.target.value)}
             className='rounded-md border px-3 py-2 text-sm'
           >
             <option value=''>Default nominal code</option>
@@ -122,7 +138,8 @@ export function SupplierRowForm({
 
           <select
             name='defaultReserveId'
-            defaultValue={supplier.defaultReserveId ?? ''}
+            value={defaultReserveId}
+            onChange={event => setDefaultReserveId(event.target.value)}
             className='rounded-md border px-3 py-2 text-sm'
           >
             <option value=''>Default reserve</option>
@@ -135,7 +152,8 @@ export function SupplierRowForm({
 
           <select
             name='defaultProjectId'
-            defaultValue={supplier.defaultProjectId ?? ''}
+            value={defaultProjectId}
+            onChange={event => setDefaultProjectId(event.target.value)}
             className='rounded-md border px-3 py-2 text-sm'
           >
             <option value=''>Default project</option>

@@ -3,6 +3,7 @@
 'use client'
 
 import { useState, useTransition } from 'react'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
 import {
@@ -22,13 +23,6 @@ type FixedAssetRow = {
   purchaseCost: string | null
   assetRegisterValue: string
   notes: string | null
-  nominalCodeId: string | null
-}
-
-type NominalCodeOption = {
-  id: string
-  code: string
-  name: string
 }
 
 type ActionResult = { success: true } | { success: false; error: string }
@@ -44,38 +38,88 @@ function formatMoney(value: string | null) {
   })
 }
 
+function formatTotalMoney(value: number) {
+  return value.toLocaleString('en-GB', {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2
+  })
+}
+
+function uniqueSorted(values: string[]) {
+  return [...new Set(values.filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b)
+  )
+}
+
 export function FixedAssetRegisterClient({
   financialYearId,
   assets,
-  nominalCodes,
+  insuranceCategoryOptions,
   readOnly
 }: {
   financialYearId: string
   assets: FixedAssetRow[]
-  nominalCodes: NominalCodeOption[]
+  insuranceCategoryOptions: string[]
   readOnly: boolean
 }) {
+  const router = useRouter()
   const [editingAsset, setEditingAsset] = useState<FixedAssetRow | null>(null)
   const [showForm, setShowForm] = useState(false)
+  const [insuranceCategory, setInsuranceCategory] = useState('')
   const [isPending, startTransition] = useTransition()
+
+  const totalPurchaseCost = assets.reduce(
+    (sum, asset) => sum + Number(asset.purchaseCost ?? 0),
+    0
+  )
+  const totalRegisterValue = assets.reduce(
+    (sum, asset) => sum + Number(asset.assetRegisterValue ?? 0),
+    0
+  )
+  const insuranceCategorySelectOptions = uniqueSorted([
+    ...insuranceCategoryOptions,
+    ...assets
+      .map(asset => asset.insuranceCategory ?? asset.category)
+      .filter((value): value is string => Boolean(value)),
+    editingAsset?.insuranceCategory ?? editingAsset?.category ?? ''
+  ])
+
+  function openNewAssetForm() {
+    setEditingAsset(null)
+    setInsuranceCategory('')
+    setShowForm(true)
+  }
+
+  function openEditAssetForm(asset: FixedAssetRow) {
+    setEditingAsset(asset)
+    setInsuranceCategory(asset.insuranceCategory ?? asset.category)
+    setShowForm(true)
+  }
 
   function closeForm() {
     setEditingAsset(null)
     setShowForm(false)
+    setInsuranceCategory('')
   }
 
   function onSubmit(formData: FormData) {
-    const category = String(formData.get('category') ?? '').trim()
+    const insuranceCategory = String(
+      formData.get('insuranceCategory') ?? ''
+    ).trim()
     const description = String(formData.get('description') ?? '').trim()
     const purchaseCost = String(formData.get('purchaseCost') ?? '').trim()
     const assetRegisterValue = String(
       formData.get('assetRegisterValue') ?? ''
     ).trim()
 
-    if (!category || !description || !assetRegisterValue) {
-      toast.error('Category, description and asset value are required.')
+    if (!insuranceCategory || !description || !assetRegisterValue) {
+      toast.error(
+        'Insurance category, description and asset value are required.'
+      )
       return
     }
+
+    formData.set('category', insuranceCategory)
 
     if (!Number.isFinite(Number(assetRegisterValue))) {
       toast.error('Asset register value must be a valid number.')
@@ -95,6 +139,7 @@ export function FixedAssetRegisterClient({
       if (result.success) {
         toast.success(editingAsset ? 'Asset updated' : 'Asset added')
         closeForm()
+        router.refresh()
       } else {
         toast.error(result.error)
       }
@@ -109,6 +154,7 @@ export function FixedAssetRegisterClient({
 
       if (result.success) {
         toast.success('Asset disposed')
+        router.refresh()
       } else {
         toast.error(result.error)
       }
@@ -121,10 +167,7 @@ export function FixedAssetRegisterClient({
         <div className='flex justify-end'>
           <button
             type='button'
-            onClick={() => {
-              setEditingAsset(null)
-              setShowForm(true)
-            }}
+            onClick={openNewAssetForm}
             className='rounded-md bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-800'
           >
             Add asset
@@ -159,40 +202,22 @@ export function FixedAssetRegisterClient({
             </div>
 
             <div>
-              <label className='text-sm font-medium'>Category</label>
-              <input
-                name='category'
-                required
-                defaultValue={editingAsset?.category ?? ''}
-                className='mt-1 w-full rounded-md border px-3 py-2 text-sm'
-                placeholder='Street Furniture'
-              />
-            </div>
-
-            <div>
               <label className='text-sm font-medium'>Insurance category</label>
-              <input
-                name='insuranceCategory'
-                defaultValue={editingAsset?.insuranceCategory ?? ''}
-                className='mt-1 w-full rounded-md border px-3 py-2 text-sm'
-                placeholder='General Contents'
-              />
-            </div>
-
-            <div>
-              <label className='text-sm font-medium'>Nominal code</label>
               <select
-                name='nominalCodeId'
-                defaultValue={editingAsset?.nominalCodeId ?? ''}
+                name='insuranceCategory'
+                required
+                value={insuranceCategory}
+                onChange={event => setInsuranceCategory(event.target.value)}
                 className='mt-1 w-full rounded-md border px-3 py-2 text-sm'
               >
-                <option value=''>No nominal code</option>
-                {nominalCodes.map(code => (
-                  <option key={code.id} value={code.id}>
-                    {code.code} — {code.name}
+                <option value=''>Select insurance category</option>
+                {insuranceCategorySelectOptions.map(option => (
+                  <option key={option} value={option}>
+                    {option}
                   </option>
                 ))}
               </select>
+              <input type='hidden' name='category' value={insuranceCategory} />
             </div>
 
             <div className='md:col-span-2'>
@@ -288,8 +313,7 @@ export function FixedAssetRegisterClient({
             <table className='min-w-375 table-fixed border-collapse text-sm'>
               <colgroup>
                 <col className='w-20' />
-                <col className='w-40' />
-                <col className='w-44' />
+                <col className='w-56' />
                 <col className='w-80' />
                 <col className='w-72' />
                 <col className='w-32' />
@@ -301,7 +325,6 @@ export function FixedAssetRegisterClient({
               <thead className='bg-emerald-50/30 text-left text-zinc-600'>
                 <tr>
                   <th className='px-4 py-3 font-medium'>Ref</th>
-                  <th className='px-4 py-3 font-medium'>Category</th>
                   <th className='px-4 py-3 font-medium'>Insurance category</th>
                   <th className='px-4 py-3 font-medium'>Description</th>
                   <th className='px-4 py-3 font-medium'>Location</th>
@@ -330,10 +353,8 @@ export function FixedAssetRegisterClient({
                       {asset.refNo || '—'}
                     </td>
 
-                    <td className='px-4 py-3 align-top'>{asset.category}</td>
-
                     <td className='px-4 py-3 align-top'>
-                      {asset.insuranceCategory || '—'}
+                      {asset.insuranceCategory || asset.category}
                     </td>
 
                     <td className='px-4 py-3 align-top'>
@@ -369,10 +390,7 @@ export function FixedAssetRegisterClient({
                       <td className='px-4 py-3 text-right align-top'>
                         <button
                           type='button'
-                          onClick={() => {
-                            setEditingAsset(asset)
-                            setShowForm(true)
-                          }}
+                          onClick={() => openEditAssetForm(asset)}
                           className='text-sm font-medium text-blue-700 hover:underline'
                         >
                           Edit
@@ -390,6 +408,22 @@ export function FixedAssetRegisterClient({
                   </tr>
                 ))}
               </tbody>
+              <tfoot>
+                <tr className='border-t bg-zinc-50 font-semibold'>
+                  <td className='px-4 py-3' />
+                  <td className='px-4 py-3' />
+                  <td className='px-4 py-3'>Totals</td>
+                  <td className='px-4 py-3' />
+                  <td className='px-4 py-3' />
+                  <td className='px-4 py-3 text-right'>
+                    {formatTotalMoney(totalPurchaseCost)}
+                  </td>
+                  <td className='px-4 py-3 text-right'>
+                    {formatTotalMoney(totalRegisterValue)}
+                  </td>
+                  {!readOnly ? <td className='px-4 py-3' /> : null}
+                </tr>
+              </tfoot>
             </table>
           </div>
         )}

@@ -56,7 +56,6 @@ export async function createFixedAsset(
     await db.insert(fixedAssets).values({
       parishCouncilId,
       financialYearId,
-      nominalCodeId: nullableText(formData.get('nominalCodeId')),
       refNo: nullableText(formData.get('refNo')),
       category,
       insuranceCategory: nullableText(formData.get('insuranceCategory')),
@@ -110,7 +109,6 @@ export async function updateFixedAsset(
     await db
       .update(fixedAssets)
       .set({
-        nominalCodeId: nullableText(formData.get('nominalCodeId')),
         refNo: nullableText(formData.get('refNo')),
         category,
         insuranceCategory: nullableText(formData.get('insuranceCategory')),

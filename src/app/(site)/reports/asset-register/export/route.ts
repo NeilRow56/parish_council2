@@ -14,6 +14,7 @@ import { db } from '@/db'
 import { fixedAssets, parishCouncils } from '@/db/schema'
 import { financialYears } from '@/db/schema/nominalLedger'
 import { auth } from '@/lib/auth'
+import { getAgarBox9Figure } from '@/lib/reports/agar-box9'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -48,6 +49,8 @@ type AssetRegisterReport = {
   assets: FixedAssetRow[]
   totalPurchaseCost: number
   totalAssetRegisterValue: number
+  agarBox9Figure: number
+  box9Difference: number
 }
 
 function formatDate(value: string | Date | null) {
@@ -72,8 +75,6 @@ function formatAmount(value: string | number | null) {
 }
 
 function formatCurrency(value: number) {
-  if (value === 0) return '£-'
-
   return new Intl.NumberFormat('en-GB', {
     style: 'currency',
     currency: 'GBP'
@@ -82,6 +83,10 @@ function formatCurrency(value: number) {
 
 function escapeFilename(value: string) {
   return value.replace(/[^a-z0-9-]+/gi, '-').replace(/^-|-$/g, '').toLowerCase()
+}
+
+function roundCurrency(value: number) {
+  return Math.round(value * 100) / 100
 }
 
 const styles = StyleSheet.create({
@@ -157,11 +162,8 @@ const styles = StyleSheet.create({
   refCell: {
     width: 46
   },
-  categoryCell: {
-    width: 82
-  },
   insuranceCell: {
-    width: 78
+    width: 118
   },
   descriptionCell: {
     flex: 1
@@ -196,6 +198,49 @@ const styles = StyleSheet.create({
     marginTop: 10,
     color: '#475569',
     fontSize: 8
+  },
+  guidance: {
+    marginBottom: 10,
+    border: '1px solid #bfdbfe',
+    borderRadius: 4,
+    padding: 8,
+    backgroundColor: '#eff6ff',
+    color: '#172554',
+    fontSize: 8
+  },
+  check: {
+    marginBottom: 14,
+    border: '1px solid #dbe3ee',
+    borderRadius: 4,
+    padding: 8
+  },
+  checkHeader: {
+    marginBottom: 3,
+    fontSize: 10,
+    fontWeight: 700
+  },
+  checkHelp: {
+    marginBottom: 8,
+    color: '#475569',
+    fontSize: 8
+  },
+  checkRow: {
+    flexDirection: 'row',
+    gap: 8
+  },
+  checkItem: {
+    flex: 1
+  },
+  checkStatus: {
+    marginTop: 8,
+    fontSize: 8,
+    fontWeight: 700
+  },
+  attention: {
+    color: '#b91c1c'
+  },
+  positive: {
+    color: '#166534'
   },
   pageNumber: {
     position: 'absolute',
@@ -299,6 +344,15 @@ async function getAssetRegisterReport({
       asc(fixedAssets.refNo)
     )
 
+  const totalAssetRegisterValue = assets.reduce(
+    (sum, asset) => sum + Number(asset.assetRegisterValue ?? 0),
+    0
+  )
+  const agarBox9Figure = await getAgarBox9Figure({
+    parishCouncilId,
+    financialYear
+  })
+
   return {
     councilName: council?.name ?? null,
     financialYear,
@@ -307,10 +361,9 @@ async function getAssetRegisterReport({
       (sum, asset) => sum + Number(asset.purchaseCost ?? 0),
       0
     ),
-    totalAssetRegisterValue: assets.reduce(
-      (sum, asset) => sum + Number(asset.assetRegisterValue ?? 0),
-      0
-    )
+    totalAssetRegisterValue,
+    agarBox9Figure,
+    box9Difference: roundCurrency(totalAssetRegisterValue - agarBox9Figure)
   }
 }
 
@@ -334,11 +387,10 @@ function assetRow(asset: FixedAssetRow) {
     View,
     { key: asset.id, style: styles.row, wrap: false },
     h(Text, { style: [styles.cell, styles.refCell] }, asset.refNo || '-'),
-    h(Text, { style: [styles.cell, styles.categoryCell] }, asset.category),
     h(
       Text,
       { style: [styles.cell, styles.insuranceCell] },
-      asset.insuranceCategory || '-'
+      asset.insuranceCategory || asset.category
     ),
     h(
       View,
@@ -395,6 +447,72 @@ function assetRegisterPdf(report: AssetRegisterReport) {
         )
       ),
       h(
+        Text,
+        { style: styles.guidance },
+        'AGAR Box 9 is calculated from brought-forward balances and current-year movements. The detailed fixed asset register should be reviewed separately and agreed back to that figure.'
+      ),
+      h(
+        View,
+        { style: styles.check },
+        h(Text, { style: styles.checkHeader }, 'AGAR Box 9 check'),
+        h(
+          Text,
+          { style: styles.checkHelp },
+          'Compare the manually maintained asset register with the fixed asset figure reported for AGAR Box 9.'
+        ),
+        h(
+          View,
+          { style: styles.checkRow },
+          h(
+            View,
+            { style: styles.checkItem },
+            h(Text, { style: styles.summaryLabel }, 'Fixed asset register total'),
+            h(
+              Text,
+              { style: styles.summaryValue },
+              formatCurrency(report.totalAssetRegisterValue)
+            )
+          ),
+          h(
+            View,
+            { style: styles.checkItem },
+            h(Text, { style: styles.summaryLabel }, 'AGAR Box 9 figure'),
+            h(Text, { style: styles.summaryValue }, formatCurrency(report.agarBox9Figure))
+          ),
+          h(
+            View,
+            { style: styles.checkItem },
+            h(Text, { style: styles.summaryLabel }, 'Difference'),
+            h(
+              Text,
+              {
+                style: [
+                  styles.summaryValue,
+                  Math.abs(report.box9Difference) < 0.005
+                    ? styles.positive
+                    : styles.attention
+                ]
+              },
+              formatCurrency(report.box9Difference)
+            )
+          )
+        ),
+        h(
+          Text,
+          {
+            style: [
+              styles.checkStatus,
+              Math.abs(report.box9Difference) < 0.005
+                ? styles.positive
+                : styles.attention
+            ]
+          },
+          Math.abs(report.box9Difference) < 0.005
+            ? 'Register agrees to AGAR Box 9'
+            : 'Difference to investigate'
+        )
+      ),
+      h(
         View,
         { style: styles.table },
         h(
@@ -403,13 +521,8 @@ function assetRegisterPdf(report: AssetRegisterReport) {
           h(Text, { style: [styles.cell, styles.headerCell, styles.refCell] }, 'Ref'),
           h(
             Text,
-            { style: [styles.cell, styles.headerCell, styles.categoryCell] },
-            'Category'
-          ),
-          h(
-            Text,
             { style: [styles.cell, styles.headerCell, styles.insuranceCell] },
-            'Insurance'
+            'Insurance category'
           ),
           h(
             Text,
@@ -457,7 +570,6 @@ function assetRegisterPdf(report: AssetRegisterReport) {
           View,
           { style: [styles.row, styles.totalRow], wrap: false },
           h(Text, { style: [styles.cell, styles.refCell] }, ''),
-          h(Text, { style: [styles.cell, styles.categoryCell] }, ''),
           h(Text, { style: [styles.cell, styles.insuranceCell] }, ''),
           h(Text, { style: [styles.cell, styles.descriptionCell, { fontWeight: 700 }] }, 'Totals'),
           h(Text, { style: [styles.cell, styles.locationCell] }, ''),

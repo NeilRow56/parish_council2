@@ -15,11 +15,24 @@ import {
   CardHeader,
   CardTitle
 } from '@/components/ui/card'
+import { Badge } from '@/components/ui/badge'
+import { getAgarBox9Figure } from '@/lib/reports/agar-box9'
 import { FixedAssetRegisterClient } from './_components/fixed-asset-register-client'
 import { ExportPdfButton } from './_components/export-pdf-button'
 
 type SearchParams = {
   financialYearId?: string
+}
+
+function formatCurrency(value: number) {
+  return new Intl.NumberFormat('en-GB', {
+    style: 'currency',
+    currency: 'GBP'
+  }).format(value)
+}
+
+function roundCurrency(value: number) {
+  return Math.round(value * 100) / 100
 }
 
 export default async function AssetRegisterPage({
@@ -93,7 +106,6 @@ export default async function AssetRegisterPage({
       dateAcquired: fixedAssets.dateAcquired,
       purchaseCost: fixedAssets.purchaseCost,
       assetRegisterValue: fixedAssets.assetRegisterValue,
-      nominalCodeId: fixedAssets.nominalCodeId,
       notes: fixedAssets.notes
     })
     .from(fixedAssets)
@@ -117,10 +129,19 @@ export default async function AssetRegisterPage({
       asc(fixedAssets.refNo)
     )
 
-  const nominalCodeOptions = await db
+  const assetRegisterTotal = assets.reduce(
+    (sum, asset) => sum + Number(asset.assetRegisterValue ?? 0),
+    0
+  )
+  const agarBox9Figure = await getAgarBox9Figure({
+    parishCouncilId,
+    financialYear
+  })
+  const box9Difference = roundCurrency(assetRegisterTotal - agarBox9Figure)
+  const box9Agrees = Math.abs(box9Difference) < 0.005
+
+  const fixedAssetCategoryRows = await db
     .select({
-      id: nominalCodes.id,
-      code: nominalCodes.code,
       name: nominalCodes.name
     })
     .from(nominalCodes)
@@ -132,6 +153,15 @@ export default async function AssetRegisterPage({
       )
     )
     .orderBy(nominalCodes.code)
+
+  const insuranceCategoryOptions = [
+    ...new Set(
+      [
+        ...fixedAssetCategoryRows.map(row => row.name),
+        ...assets.map(asset => asset.insuranceCategory ?? asset.category)
+      ].filter(Boolean)
+    )
+  ].sort((a, b) => a.localeCompare(b))
 
   const exportHref = `/reports/asset-register/export?financialYearId=${financialYear.id}`
 
@@ -212,9 +242,55 @@ export default async function AssetRegisterPage({
           </div>
 
           <p className='mt-4 rounded-md border border-blue-200 bg-white/70 px-3 py-2 text-sm text-blue-950'>
-            The AGAR fixed asset figure, Box 9, already uses the correct
-            carried-forward basis from the fixed asset register.
+            AGAR Box 9 is calculated from brought-forward balances and
+            current-year movements. The detailed fixed asset register should be
+            reviewed separately and agreed back to that figure.
           </p>
+        </CardContent>
+      </Card>
+
+      <Card className='mb-6'>
+        <CardHeader className='flex flex-row items-start justify-between gap-4'>
+          <div>
+            <CardTitle className='text-base'>AGAR Box 9 check</CardTitle>
+            <CardDescription>
+              Compare the manually maintained asset register with the fixed
+              asset figure reported for AGAR Box 9.
+            </CardDescription>
+          </div>
+          <Badge variant={box9Agrees ? 'outline' : 'destructive'}>
+            {box9Agrees
+              ? 'Register agrees to AGAR Box 9'
+              : 'Difference to investigate'}
+          </Badge>
+        </CardHeader>
+        <CardContent>
+          <dl className='grid gap-4 text-sm md:grid-cols-3'>
+            <div>
+              <dt className='text-zinc-500'>Fixed asset register total</dt>
+              <dd className='mt-1 text-lg font-semibold'>
+                {formatCurrency(assetRegisterTotal)}
+              </dd>
+            </div>
+
+            <div>
+              <dt className='text-zinc-500'>AGAR Box 9 figure</dt>
+              <dd className='mt-1 text-lg font-semibold'>
+                {formatCurrency(agarBox9Figure)}
+              </dd>
+            </div>
+
+            <div>
+              <dt className='text-zinc-500'>Difference</dt>
+              <dd
+                className={`mt-1 text-lg font-semibold ${
+                  box9Agrees ? 'text-zinc-900' : 'text-red-700'
+                }`}
+              >
+                {formatCurrency(box9Difference)}
+              </dd>
+            </div>
+          </dl>
         </CardContent>
       </Card>
 
@@ -230,10 +306,9 @@ export default async function AssetRegisterPage({
           dateAcquired: asset.dateAcquired,
           purchaseCost: asset.purchaseCost,
           assetRegisterValue: asset.assetRegisterValue,
-          notes: asset.notes,
-          nominalCodeId: asset.nominalCodeId
+          notes: asset.notes
         }))}
-        nominalCodes={nominalCodeOptions}
+        insuranceCategoryOptions={insuranceCategoryOptions}
         readOnly={financialYear.isClosed}
       />
     </main>

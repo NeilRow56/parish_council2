@@ -13,6 +13,7 @@ type CouncilDetailsPageProps = {
   searchParams?: Promise<{
     saved?: string
     error?: string
+    notice?: string
   }>
 }
 
@@ -22,6 +23,10 @@ export default async function CouncilDetailsPage({
   const params = await searchParams
   const saved = params?.saved === '1'
   const error = params?.error
+  const notice =
+    params?.notice === 'complete-settings'
+      ? 'Please complete your council settings before continuing.'
+      : undefined
 
   const currentUser = await getCurrentUser()
 
@@ -55,6 +60,7 @@ export default async function CouncilDetailsPage({
           isOnboarding={isOnboarding}
           saved={saved}
           error={error}
+          notice={notice}
         />
       </div>
     </main>

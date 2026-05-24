@@ -110,6 +110,10 @@ export default async function DashboardPage() {
     redirect('/auth/register')
   }
 
+  if (!council.name.trim()) {
+    redirect('/onboarding/council-details?notice=complete-settings')
+  }
+
   const [currentYear] = await db
     .select({
       id: financialYears.id,

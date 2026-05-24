@@ -161,6 +161,10 @@ export function CouncilOnboardingForm({
         </div>
       ) : null}
 
+      {!isOnboarding || notice ? (
+        <SubmitButton label={submitLabel} isDirty={isDirty} saved={saved} />
+      ) : null}
+
       <Card>
         <CardHeader>
           <CardTitle className='flex items-center gap-2 text-2xl font-bold'>
@@ -318,10 +322,6 @@ export function CouncilOnboardingForm({
           Set opening balances
         </Link>
       </section>
-
-      {!isOnboarding || notice ? (
-        <SubmitButton label={submitLabel} isDirty={isDirty} saved={saved} />
-      ) : null}
 
       <Card>
         <CardHeader>

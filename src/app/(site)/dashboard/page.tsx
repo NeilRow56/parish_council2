@@ -97,6 +97,7 @@ export default async function DashboardPage() {
   const [council] = await db
     .select({
       name: parishCouncils.name,
+      addressLine1: parishCouncils.addressLine1,
       canRecoverVat: parishCouncils.canRecoverVat,
       vatStatus: parishCouncils.vatStatus,
       vatClaimMethod: parishCouncils.vatClaimMethod,
@@ -110,7 +111,7 @@ export default async function DashboardPage() {
     redirect('/auth/register')
   }
 
-  if (!council.name.trim()) {
+  if (!council.addressLine1?.trim()) {
     redirect('/onboarding/council-details?notice=complete-settings')
   }
 

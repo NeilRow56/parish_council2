@@ -267,7 +267,7 @@ export function CouncilOnboardingForm({
         </Link>
       </section>
 
-      {!isOnboarding ? (
+      {!isOnboarding || notice ? (
         <SubmitButton label={submitLabel} isDirty={isDirty} saved={saved} />
       ) : null}
 
@@ -436,8 +436,9 @@ export function CouncilOnboardingForm({
       )}
 
       {notice && !isDirty && !error && (
-        <div className='rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800'>
-          {notice}
+        <div className='space-y-1 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800'>
+          <p>{notice}</p>
+          <p>Address line 1 is required before using the rest of the app.</p>
         </div>
       )}
 

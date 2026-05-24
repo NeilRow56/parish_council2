@@ -14,8 +14,9 @@ export default async function SiteLayout({
 }: {
   children: React.ReactNode
 }) {
+  const requestHeaders = await headers()
   const session = await auth.api.getSession({
-    headers: await headers()
+    headers: requestHeaders
   })
 
   if (!session?.user?.parishCouncilId) {
@@ -27,6 +28,7 @@ export default async function SiteLayout({
   const [council] = await db
     .select({
       name: parishCouncils.name,
+      addressLine1: parishCouncils.addressLine1,
       canRecoverVat: parishCouncils.canRecoverVat,
       vatStatus: parishCouncils.vatStatus
     })
@@ -36,6 +38,19 @@ export default async function SiteLayout({
 
   if (!council) {
     redirect('/auth/register')
+  }
+
+  const pathname = requestHeaders.get('x-pathname')
+  const isCouncilDetailsRoute = pathname?.startsWith(
+    '/onboarding/council-details'
+  )
+
+  if (
+    pathname &&
+    !isCouncilDetailsRoute &&
+    !council.addressLine1?.trim()
+  ) {
+    redirect('/onboarding/council-details?notice=complete-settings')
   }
 
   return (

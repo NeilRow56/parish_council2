@@ -154,6 +154,13 @@ export function CouncilOnboardingForm({
       }}
       className='space-y-6'
     >
+      {notice && !isDirty && !error ? (
+        <div className='space-y-1 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800'>
+          <p>{notice}</p>
+          <p>Address line 1 is required before using the rest of the app.</p>
+        </div>
+      ) : null}
+
       <Card>
         <CardHeader>
           <CardTitle className='flex items-center gap-2 text-2xl font-bold'>
@@ -477,13 +484,6 @@ export function CouncilOnboardingForm({
       {error && !isDirty && (
         <div className='rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700'>
           {error}
-        </div>
-      )}
-
-      {notice && !isDirty && !error && (
-        <div className='space-y-1 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800'>
-          <p>{notice}</p>
-          <p>Address line 1 is required before using the rest of the app.</p>
         </div>
       )}
 

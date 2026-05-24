@@ -1,12 +1,16 @@
 import Link from 'next/link'
 import { desc, eq } from 'drizzle-orm'
 import { CalendarDays } from 'lucide-react'
-import { headers } from 'next/headers'
+import { cookies, headers } from 'next/headers'
+import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 
 import { db } from '@/db'
 import { financialYears, yearEndRuns } from '@/db/schema/nominalLedger'
 import { auth } from '@/lib/auth'
+import { seedDefaultChart } from '@/lib/nominal-codes/seedDefaultChart'
+import { getSelectedFinancialYearCookieName } from '@/lib/financial-years/selected-year'
+import { getParishFinancialYearFromStartYear } from '@/lib/financial-years/parish-year'
 
 import { Badge } from '@/components/ui/badge'
 
@@ -38,7 +42,60 @@ function formatDate(value: string | Date | null) {
   }).format(new Date(value))
 }
 
-export default async function FinancialYearsPage() {
+async function addFinancialYearAction(formData: FormData) {
+  'use server'
+
+  const session = await auth.api.getSession({
+    headers: await headers()
+  })
+
+  if (!session?.user?.parishCouncilId) {
+    redirect('/auth/login')
+  }
+
+  const rawStartYear = String(formData.get('startYear') ?? '').trim()
+  const startYear = Number(rawStartYear)
+
+  if (!Number.isInteger(startYear) || startYear < 2000 || startYear > 2100) {
+    redirect(
+      '/settings/financial-years?financialYearError=Enter+a+valid+start+year.'
+    )
+  }
+
+  const financialYear = await seedDefaultChart({
+    parishCouncilId: session.user.parishCouncilId,
+    financialYearStartYear: startYear
+  })
+
+  const cookieStore = await cookies()
+  cookieStore.set(
+    getSelectedFinancialYearCookieName(session.user.parishCouncilId),
+    financialYear.id,
+    {
+      httpOnly: true,
+      sameSite: 'lax',
+      path: '/',
+      maxAge: 60 * 60 * 24 * 365
+    }
+  )
+
+  revalidatePath('/', 'layout')
+  revalidatePath('/settings/financial-years')
+  redirect('/settings/financial-years?financialYearCreated=1')
+}
+
+type FinancialYearsPageProps = {
+  searchParams?: Promise<{
+    financialYearCreated?: string
+    financialYearError?: string
+  }>
+}
+
+export default async function FinancialYearsPage({
+  searchParams
+}: FinancialYearsPageProps) {
+  const params = await searchParams
+
   const session = await auth.api.getSession({
     headers: await headers()
   })
@@ -79,6 +136,12 @@ export default async function FinancialYearsPage() {
   const yearEndRunByFromYearId = new Map(
     runs.map(run => [run.fromFinancialYearId, run])
   )
+  const earliestStartYear =
+    years.length > 0
+      ? Math.min(...years.map(year => Number(year.startDate.slice(0, 4))))
+      : new Date().getFullYear()
+  const suggestedStartYear = earliestStartYear - 1
+  const suggestedYear = getParishFinancialYearFromStartYear(suggestedStartYear)
 
   return (
     <div className='mx-auto flex w-full max-w-7xl flex-col gap-6 p-4 sm:p-6'>
@@ -95,6 +158,65 @@ export default async function FinancialYearsPage() {
           and run the year-end routine for open years.
         </p>
       </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Add financial year</CardTitle>
+          <CardDescription>
+            Create an earlier or additional open year and seed the default chart
+            of accounts for that period.
+          </CardDescription>
+        </CardHeader>
+
+        <CardContent className='space-y-4'>
+          {params?.financialYearCreated === '1' ? (
+            <div className='rounded-md border border-green-200 bg-green-50 px-3 py-2 text-sm text-green-700'>
+              Financial year created and selected.
+            </div>
+          ) : null}
+
+          {params?.financialYearError ? (
+            <div className='rounded-md border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700'>
+              {params.financialYearError}
+            </div>
+          ) : null}
+
+          <form
+            action={addFinancialYearAction}
+            className='flex flex-col gap-3 sm:flex-row sm:items-end'
+          >
+            <div className='grid gap-2'>
+              <label
+                htmlFor='startYear'
+                className='text-sm font-medium text-slate-700'
+              >
+                Start year
+              </label>
+              <input
+                id='startYear'
+                name='startYear'
+                type='number'
+                min={2000}
+                max={2100}
+                required
+                defaultValue={suggestedStartYear}
+                className='h-9 w-36 rounded-md border px-3 text-sm shadow-sm'
+              />
+              <p className='text-muted-foreground text-xs'>
+                For example, {suggestedStartYear} creates{' '}
+                {suggestedYear.label}.
+              </p>
+            </div>
+
+            <button
+              type='submit'
+              className={cn(buttonVariants({ size: 'sm' }), 'h-9')}
+            >
+              Add financial year
+            </button>
+          </form>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>

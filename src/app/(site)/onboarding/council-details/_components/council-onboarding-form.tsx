@@ -264,6 +264,11 @@ export function CouncilOnboardingForm({
           Set opening balances
         </Link>
       </section>
+
+      {!isOnboarding ? (
+        <SubmitButton label={submitLabel} isDirty={isDirty} saved={saved} />
+      ) : null}
+
       <Card>
         <CardHeader>
           <CardTitle>Accounting basis</CardTitle>

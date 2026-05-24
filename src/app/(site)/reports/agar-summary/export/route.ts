@@ -11,7 +11,7 @@ import { headers } from 'next/headers'
 import { createElement } from 'react'
 
 import { db } from '@/db'
-import { parishCouncils } from '@/db/schema'
+import { fixedAssets as fixedAssetRows, parishCouncils } from '@/db/schema'
 import {
   calculateBox7Box8Reconciliation,
   calculateIncomeAndExpenditureTotals,
@@ -92,6 +92,12 @@ function getAccountingBasisLabel(accountingBasis: AccountingBasis) {
 
 function escapeFilename(value: string) {
   return value.replace(/[^a-z0-9-]+/gi, '-').replace(/^-|-$/g, '').toLowerCase()
+}
+
+function journalIdFromDisposalNotes(value: string | null) {
+  const match = value?.match(/^Journal\s+(.+)$/)
+
+  return match?.[1] ?? null
 }
 
 const styles = StyleSheet.create({
@@ -514,10 +520,42 @@ async function getAgarReport({
       )
     )
 
+  const disposedCurrentSystemAssets = await db
+    .select({
+      assetOrigin: fixedAssetRows.assetOrigin,
+      dateAcquired: fixedAssetRows.dateAcquired,
+      disposalNotes: fixedAssetRows.disposalNotes
+    })
+    .from(fixedAssetRows)
+    .where(
+      and(
+        eq(fixedAssetRows.parishCouncilId, parishCouncilId),
+        eq(fixedAssetRows.financialYearId, financialYear.id),
+        eq(fixedAssetRows.isDisposed, true),
+        gte(fixedAssetRows.disposalDate, financialYear.startDate),
+        lte(fixedAssetRows.disposalDate, financialYear.endDate)
+      )
+    )
+
+  const liveDisposedAssetJournalEntryIds = new Set(
+    disposedCurrentSystemAssets
+      .filter(
+        asset =>
+          asset.assetOrigin === 'live' ||
+          (asset.dateAcquired &&
+            asset.dateAcquired >= financialYear.startDate &&
+            asset.dateAcquired <= financialYear.endDate)
+      )
+      .map(asset => journalIdFromDisposalNotes(asset.disposalNotes))
+      .filter((journalId): journalId is string => Boolean(journalId))
+  )
+
   const reportTotals =
     accountingBasis === 'RECEIPTS_AND_PAYMENTS'
       ? calculateReceiptsAndPaymentsTotals(baseTotals, agarLineRows)
-      : calculateIncomeAndExpenditureTotals(baseTotals, agarLineRows)
+      : calculateIncomeAndExpenditureTotals(baseTotals, agarLineRows, {
+          liveDisposedAssetJournalEntryIds
+        })
 
   const openingFixedAssets = normalise(openingTotals?.fixedAssets)
   const openingBorrowings = Math.abs(normalise(openingTotals?.borrowings))
@@ -549,7 +587,7 @@ async function getAgarReport({
   const rawBox7Box8Difference =
     balancesCarriedForward - cashAndShortTermInvestments
   const shouldShowBox7Box8Reconciliation =
-    accountingBasis === 'INCOME_AND_EXPENDITURE' ||
+    accountingBasis === 'INCOME_AND_EXPENDITURE' &&
     Math.abs(rawBox7Box8Difference) >= 0.005
 
   const box7Box8Reconciliation: Box7Box8Reconciliation | null =
@@ -658,17 +696,12 @@ async function getAgarReport({
             )
             .reduce((sum, balance) => sum + balance.balance, 0)
 
-          const reconciliation = calculateBox7Box8Reconciliation({
+          return calculateBox7Box8Reconciliation({
             accountingBasis,
             box7Reserves: balancesCarriedForward,
             reportedBox8Cash: agarAdjustedBox8Cash,
             currentBalances
           })
-
-          return accountingBasis === 'RECEIPTS_AND_PAYMENTS' &&
-            reconciliation.agrees
-            ? null
-            : reconciliation
         })()
       : null
 

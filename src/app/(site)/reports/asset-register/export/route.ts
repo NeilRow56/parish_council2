@@ -99,6 +99,28 @@ function isActiveAtYearEnd(asset: FixedAssetRow, yearEndDate: string) {
   )
 }
 
+function effectiveAssetOrigin(
+  asset: {
+    assetOrigin: 'opening_balance' | 'live'
+    dateAcquired: string | null
+  },
+  financialYear: {
+    startDate: string
+    endDate: string
+  }
+) {
+  if (
+    asset.assetOrigin === 'opening_balance' &&
+    asset.dateAcquired &&
+    asset.dateAcquired >= financialYear.startDate &&
+    asset.dateAcquired <= financialYear.endDate
+  ) {
+    return 'live'
+  }
+
+  return asset.assetOrigin
+}
+
 const styles = StyleSheet.create({
   page: {
     padding: 28,
@@ -357,7 +379,12 @@ async function getAssetRegisterReport({
       asc(fixedAssets.refNo)
     )
 
-  const sortedAssets = [...assets].sort((assetA, assetB) => {
+  const assetsWithEffectiveOrigin = assets.map(asset => ({
+    ...asset,
+    assetOrigin: effectiveAssetOrigin(asset, financialYear)
+  }))
+
+  const sortedAssets = [...assetsWithEffectiveOrigin].sort((assetA, assetB) => {
     const assetAActive = isActiveAtYearEnd(assetA, financialYear.endDate)
     const assetBActive = isActiveAtYearEnd(assetB, financialYear.endDate)
 

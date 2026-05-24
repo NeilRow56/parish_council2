@@ -48,6 +48,28 @@ function isActiveAtYearEnd(
   )
 }
 
+function effectiveAssetOrigin(
+  asset: {
+    assetOrigin: 'opening_balance' | 'live'
+    dateAcquired: string | null
+  },
+  financialYear: {
+    startDate: string
+    endDate: string
+  }
+) {
+  if (
+    asset.assetOrigin === 'opening_balance' &&
+    asset.dateAcquired &&
+    asset.dateAcquired >= financialYear.startDate &&
+    asset.dateAcquired <= financialYear.endDate
+  ) {
+    return 'live'
+  }
+
+  return asset.assetOrigin
+}
+
 export default async function AssetRegisterPage({
   searchParams
 }: {
@@ -146,7 +168,12 @@ export default async function AssetRegisterPage({
     .where(eq(parishCouncils.id, parishCouncilId))
     .limit(1)
   const accountingBasis = getEffectiveAccountingBasis(council?.accountingBasis)
-  const sortedAssets = [...assets].sort((assetA, assetB) => {
+  const assetsWithEffectiveOrigin = assets.map(asset => ({
+    ...asset,
+    assetOrigin: effectiveAssetOrigin(asset, financialYear)
+  }))
+
+  const sortedAssets = [...assetsWithEffectiveOrigin].sort((assetA, assetB) => {
     const assetAActive = isActiveAtYearEnd(assetA, financialYear.endDate)
     const assetBActive = isActiveAtYearEnd(assetB, financialYear.endDate)
 
@@ -161,7 +188,7 @@ export default async function AssetRegisterPage({
     )
   })
 
-  const assetRegisterTotal = assets
+  const assetRegisterTotal = assetsWithEffectiveOrigin
     .filter(asset => isActiveAtYearEnd(asset, financialYear.endDate))
     .reduce(
       (sum, asset) => sum + Number(asset.assetRegisterValue ?? 0),

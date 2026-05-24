@@ -54,6 +54,28 @@ function assetOriginFromForm(value: FormDataEntryValue | null): AssetOrigin {
   return value === 'opening_balance' ? 'opening_balance' : 'live'
 }
 
+function effectiveAssetOrigin(
+  asset: {
+    assetOrigin: AssetOrigin
+    dateAcquired: string | null
+  },
+  financialYear: {
+    startDate: string
+    endDate: string
+  }
+): AssetOrigin {
+  if (
+    asset.assetOrigin === 'opening_balance' &&
+    asset.dateAcquired &&
+    asset.dateAcquired >= financialYear.startDate &&
+    asset.dateAcquired <= financialYear.endDate
+  ) {
+    return 'live'
+  }
+
+  return asset.assetOrigin
+}
+
 function amountToPence(value: string | number | null | undefined) {
   const amount = Number(String(value ?? '0').replace(/,/g, '').trim() || 0)
 
@@ -293,6 +315,7 @@ export async function disposeFixedAsset(
         category: fixedAssets.category,
         insuranceCategory: fixedAssets.insuranceCategory,
         description: fixedAssets.description,
+        dateAcquired: fixedAssets.dateAcquired,
         assetRegisterValue: fixedAssets.assetRegisterValue,
         purchaseCost: fixedAssets.purchaseCost,
         assetOrigin: fixedAssets.assetOrigin,
@@ -353,7 +376,7 @@ export async function disposeFixedAsset(
 
     const accountingBasis = getEffectiveAccountingBasis(council?.accountingBasis)
     const assetValuePence = amountToPence(asset.assetRegisterValue)
-    const assetOrigin = asset.assetOrigin
+    const assetOrigin = effectiveAssetOrigin(asset, financialYear)
     const description = `Fixed asset disposal (${
       accountingBasis === 'INCOME_AND_EXPENDITURE' ? 'I&E' : 'R&P'
     } basis, ${

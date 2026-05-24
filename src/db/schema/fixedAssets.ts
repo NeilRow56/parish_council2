@@ -50,7 +50,7 @@ export const fixedAssets = pgTable(
 
     assetOrigin: text('asset_origin')
       .$type<'opening_balance' | 'live'>()
-      .default('opening_balance')
+      .default('live')
       .notNull(),
 
     notes: text('notes'),

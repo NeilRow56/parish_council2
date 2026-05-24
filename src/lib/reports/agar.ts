@@ -72,6 +72,114 @@ function isVatLine(line: AgarLine) {
   return isInputVatLine(line) || isOutputVatLine(line)
 }
 
+function isFixedAssetDisposalLossIndicator(line: AgarLine) {
+  const description = line.description?.toLowerCase() ?? ''
+
+  return (
+    line.agarBox === 'BOX_6_OTHER_PAYMENTS' &&
+    (line.nominalCode === '5990' ||
+      description.includes('loss on fixed asset disposal') ||
+      description.includes('loss on asset disposal'))
+  )
+}
+
+function isFixedAssetDisposalProfitIndicator(line: AgarLine) {
+  const description = line.description?.toLowerCase() ?? ''
+
+  return (
+    line.agarBox === 'BOX_3_OTHER_RECEIPTS' &&
+    (line.nominalCode === '4090' ||
+      description.includes('profit on fixed asset disposal') ||
+      description.includes('profit on asset disposal'))
+  )
+}
+
+function isFixedAssetDisposalProceedsLine(line: AgarLine) {
+  const description = line.description?.toLowerCase() ?? ''
+
+  return description.includes('fixed asset disposal proceeds')
+}
+
+function fixedAssetDisposalLossMovement(
+  linesByJournal: Map<string, AgarLine[]>,
+  options: { skipExcludedAgarJournals?: boolean } = {}
+) {
+  return [...linesByJournal.values()].reduce((sum, journalLinesForEntry) => {
+    if (
+      options.skipExcludedAgarJournals &&
+      journalLinesForEntry.some(
+        line => line.excludeFromAgar || line.source === 'VAT_RETURN'
+      )
+    ) {
+      return sum
+    }
+
+    if (!journalLinesForEntry.some(isFixedAssetDisposalLossIndicator)) {
+      return sum
+    }
+
+    const box6Movement = journalLinesForEntry
+      .filter(line => line.agarBox === 'BOX_6_OTHER_PAYMENTS')
+      .reduce(
+        (lineSum, line) =>
+          lineSum + normalise(line.debit) - normalise(line.credit),
+        0
+      )
+
+    return sum + box6Movement
+  }, 0)
+}
+
+function fixedAssetDisposalProfitMovement(
+  linesByJournal: Map<string, AgarLine[]>
+) {
+  return [...linesByJournal.values()].reduce((sum, journalLinesForEntry) => {
+    if (
+      journalLinesForEntry.some(
+        line => line.excludeFromAgar || line.source === 'VAT_RETURN'
+      )
+    ) {
+      return sum
+    }
+
+    if (!journalLinesForEntry.some(isFixedAssetDisposalProfitIndicator)) {
+      return sum
+    }
+
+    const box3Movement = journalLinesForEntry
+      .filter(line => line.agarBox === 'BOX_3_OTHER_RECEIPTS')
+      .reduce(
+        (lineSum, line) =>
+          lineSum + normalise(line.credit) - normalise(line.debit),
+        0
+      )
+
+    return sum + box3Movement
+  }, 0)
+}
+
+function fixedAssetDisposalProceeds(linesByJournal: Map<string, AgarLine[]>) {
+  return [...linesByJournal.values()].reduce((sum, journalLinesForEntry) => {
+    if (
+      journalLinesForEntry.some(
+        line => line.excludeFromAgar || line.source === 'VAT_RETURN'
+      )
+    ) {
+      return sum
+    }
+
+    const proceeds = journalLinesForEntry
+      .filter(isFixedAssetDisposalProceedsLine)
+      .reduce(
+        (lineSum, line) =>
+          lineSum + Math.max(0, normalise(line.debit) - normalise(line.credit)),
+        0
+      )
+
+    return sum + proceeds
+  }, 0)
+}
+
 function assetBalance(value: number) {
   return Math.max(0, value)
 }
@@ -245,6 +353,18 @@ export function calculateReceiptsAndPaymentsTotals(
     linesByJournal.set(line.journalEntryId, existingLines)
   }
 
+  const fixedAssetDisposalLosses = fixedAssetDisposalLossMovement(
+    linesByJournal,
+    { skipExcludedAgarJournals: true }
+  )
+  const fixedAssetDisposalProfits =
+    fixedAssetDisposalProfitMovement(linesByJournal)
+  const disposalProceeds = fixedAssetDisposalProceeds(linesByJournal)
+
+  totals.otherReceipts -= fixedAssetDisposalProfits
+  totals.otherReceipts += disposalProceeds
+  totals.otherPayments -= fixedAssetDisposalLosses
+
   for (const journalLinesForEntry of linesByJournal.values()) {
     if (
       journalLinesForEntry.some(
@@ -303,10 +423,15 @@ export function calculateReceiptsAndPaymentsTotals(
 
 export function calculateIncomeAndExpenditureTotals(
   baseTotals: AgarTotals,
-  lines: AgarLine[]
+  lines: AgarLine[],
+  options: {
+    liveDisposedAssetJournalEntryIds?: Set<string>
+  } = {}
 ): AgarTotals {
   const totals = { ...baseTotals }
   const linesByJournal = new Map<string, AgarLine[]>()
+  const liveDisposedAssetJournalEntryIds =
+    options.liveDisposedAssetJournalEntryIds ?? new Set<string>()
 
   for (const line of lines) {
     const existingLines = linesByJournal.get(line.journalEntryId) ?? []
@@ -321,7 +446,7 @@ export function calculateIncomeAndExpenditureTotals(
         sum + Math.max(0, normalise(line.debit) - normalise(line.credit)),
       0
     )
-  const disposedFixedAssetCosts = [...linesByJournal.values()].reduce(
+  const liveDisposedFixedAssetCosts = [...linesByJournal.values()].reduce(
     (sum, journalLinesForEntry) => {
       const fixedAssetReduction = journalLinesForEntry
         .filter(line => {
@@ -329,7 +454,9 @@ export function calculateIncomeAndExpenditureTotals(
 
           return (
             line.agarBox === 'BOX_9_FIXED_ASSETS' &&
-            description.includes('fixed asset value removed')
+            description.includes('fixed asset value removed') &&
+            (!description.includes('opening balance') ||
+              liveDisposedAssetJournalEntryIds.has(line.journalEntryId))
           )
         })
         .reduce(
@@ -345,7 +472,10 @@ export function calculateIncomeAndExpenditureTotals(
   )
 
   totals.otherPayments += fixedAssetAdditions
-  totals.otherPayments -= Math.min(disposedFixedAssetCosts, fixedAssetAdditions)
+  totals.otherPayments -= Math.min(
+    liveDisposedFixedAssetCosts,
+    fixedAssetAdditions
+  )
 
   return totals
 }

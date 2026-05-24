@@ -14,6 +14,7 @@ import { db } from '@/db'
 import { parishCouncils } from '@/db/schema'
 import {
   calculateBox7Box8Reconciliation,
+  calculateIncomeAndExpenditureTotals,
   calculateReceiptsAndPaymentsTotals,
   getEffectiveAccountingBasis,
   type AgarTotals,
@@ -95,14 +96,14 @@ function escapeFilename(value: string) {
 
 const styles = StyleSheet.create({
   page: {
-    padding: 28,
+    padding: 24,
     backgroundColor: '#ffffff',
     color: '#111827',
     fontFamily: 'Helvetica',
-    fontSize: 8
+    fontSize: 7.5
   },
   header: {
-    marginBottom: 16
+    marginBottom: 12
   },
   eyebrow: {
     marginBottom: 3,
@@ -111,7 +112,7 @@ const styles = StyleSheet.create({
     textTransform: 'uppercase'
   },
   title: {
-    fontSize: 20,
+    fontSize: 18,
     fontWeight: 700
   },
   subtitle: {
@@ -121,14 +122,15 @@ const styles = StyleSheet.create({
   },
   meta: {
     flexDirection: 'row',
-    gap: 8,
-    marginBottom: 16
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 12
   },
   metaCard: {
-    flex: 1,
+    width: '49%',
     border: '1px solid #dbe3ee',
     borderRadius: 4,
-    padding: 8
+    padding: 6
   },
   metaLabel: {
     marginBottom: 4,
@@ -136,7 +138,7 @@ const styles = StyleSheet.create({
     fontSize: 8
   },
   metaValue: {
-    fontSize: 10,
+    fontSize: 9,
     fontWeight: 700
   },
   table: {
@@ -196,7 +198,7 @@ const styles = StyleSheet.create({
     paddingVertical: 5
   },
   reconciliationAmount: {
-    width: 88,
+    width: 76,
     paddingHorizontal: 6,
     paddingVertical: 5,
     textAlign: 'right'
@@ -204,32 +206,32 @@ const styles = StyleSheet.create({
   row: {
     flexDirection: 'row',
     borderBottom: '1px solid #dbe3ee',
-    minHeight: 24
+    minHeight: 22
   },
   headerRow: {
     backgroundColor: '#111827',
     color: '#ffffff'
   },
   cell: {
-    paddingHorizontal: 6,
-    paddingVertical: 5
+    paddingHorizontal: 4,
+    paddingVertical: 4
   },
   headerCell: {
     fontSize: 8,
     fontWeight: 700
   },
   boxCell: {
-    width: 38
+    width: 28
   },
   descriptionCell: {
-    flex: 1.35
+    flex: 1.25
   },
   amountCell: {
-    width: 88,
+    width: 68,
     textAlign: 'right'
   },
   guidanceCell: {
-    flex: 1.75,
+    flex: 1.65,
     color: '#475569'
   },
   amountText: {
@@ -246,7 +248,7 @@ const styles = StyleSheet.create({
   },
   pageNumber: {
     position: 'absolute',
-    right: 28,
+    right: 24,
     bottom: 18,
     color: '#64748b',
     fontSize: 8
@@ -486,44 +488,36 @@ async function getAgarReport({
     borrowings: normalise(totals?.borrowings)
   }
 
-  const agarLineRows =
-    accountingBasis === 'RECEIPTS_AND_PAYMENTS'
-      ? await db
-          .select({
-            journalEntryId: journalLines.journalEntryId,
-            excludeFromAgar: journalEntries.excludeFromAgar,
-            source: journalEntries.source,
-            nominalCode: nominalCodes.code,
-            agarBox: nominalCodes.agarBox,
-            isBank: nominalCodes.isBank,
-            isVatRecoverable: nominalCodes.isVatRecoverable,
-            isVatPayable: nominalCodes.isVatPayable,
-            debit: journalLines.debit,
-            credit: journalLines.credit
-          })
-          .from(journalLines)
-          .innerJoin(
-            journalEntries,
-            eq(journalLines.journalEntryId, journalEntries.id)
-          )
-          .innerJoin(
-            nominalCodes,
-            eq(journalLines.nominalCodeId, nominalCodes.id)
-          )
-          .where(
-            and(
-              eq(journalEntries.parishCouncilId, parishCouncilId),
-              eq(journalEntries.financialYearId, financialYear.id),
-              gte(journalEntries.date, financialYear.startDate),
-              lte(journalEntries.date, financialYear.endDate)
-            )
-          )
-      : []
+  const agarLineRows = await db
+    .select({
+      journalEntryId: journalLines.journalEntryId,
+      excludeFromAgar: journalEntries.excludeFromAgar,
+      source: journalEntries.source,
+      nominalCode: nominalCodes.code,
+      description: journalLines.description,
+      agarBox: nominalCodes.agarBox,
+      isBank: nominalCodes.isBank,
+      isVatRecoverable: nominalCodes.isVatRecoverable,
+      isVatPayable: nominalCodes.isVatPayable,
+      debit: journalLines.debit,
+      credit: journalLines.credit
+    })
+    .from(journalLines)
+    .innerJoin(journalEntries, eq(journalLines.journalEntryId, journalEntries.id))
+    .innerJoin(nominalCodes, eq(journalLines.nominalCodeId, nominalCodes.id))
+    .where(
+      and(
+        eq(journalEntries.parishCouncilId, parishCouncilId),
+        eq(journalEntries.financialYearId, financialYear.id),
+        gte(journalEntries.date, financialYear.startDate),
+        lte(journalEntries.date, financialYear.endDate)
+      )
+    )
 
   const reportTotals =
     accountingBasis === 'RECEIPTS_AND_PAYMENTS'
       ? calculateReceiptsAndPaymentsTotals(baseTotals, agarLineRows)
-      : baseTotals
+      : calculateIncomeAndExpenditureTotals(baseTotals, agarLineRows)
 
   const openingFixedAssets = normalise(openingTotals?.fixedAssets)
   const openingBorrowings = Math.abs(normalise(openingTotals?.borrowings))
@@ -865,7 +859,7 @@ function agarPdf(report: AgarReport) {
     },
     h(
       Page,
-      { size: 'A4', orientation: 'landscape', style: styles.page },
+      { size: 'A4', orientation: 'portrait', style: styles.page },
       h(
         View,
         { style: styles.header },

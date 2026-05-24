@@ -6,6 +6,7 @@ import { auth } from '@/lib/auth'
 import { parishCouncils } from '@/db/schema'
 import {
   calculateBox7Box8Reconciliation,
+  calculateIncomeAndExpenditureTotals,
   calculateReceiptsAndPaymentsTotals,
   getEffectiveAccountingBasis,
   type AgarTotals,
@@ -300,44 +301,36 @@ export default async function AgarSummaryPage({
     borrowings: normalise(totals?.borrowings)
   }
 
-  const agarLineRows =
-    accountingBasis === 'RECEIPTS_AND_PAYMENTS'
-      ? await db
-          .select({
-            journalEntryId: journalLines.journalEntryId,
-            excludeFromAgar: journalEntries.excludeFromAgar,
-            source: journalEntries.source,
-            nominalCode: nominalCodes.code,
-            agarBox: nominalCodes.agarBox,
-            isBank: nominalCodes.isBank,
-            isVatRecoverable: nominalCodes.isVatRecoverable,
-            isVatPayable: nominalCodes.isVatPayable,
-            debit: journalLines.debit,
-            credit: journalLines.credit
-          })
-          .from(journalLines)
-          .innerJoin(
-            journalEntries,
-            eq(journalLines.journalEntryId, journalEntries.id)
-          )
-          .innerJoin(
-            nominalCodes,
-            eq(journalLines.nominalCodeId, nominalCodes.id)
-          )
-          .where(
-            and(
-              eq(journalEntries.parishCouncilId, parishCouncilId),
-              eq(journalEntries.financialYearId, year.id),
-              gte(journalEntries.date, year.startDate),
-              lte(journalEntries.date, year.endDate)
-            )
-          )
-      : []
+  const agarLineRows = await db
+    .select({
+      journalEntryId: journalLines.journalEntryId,
+      excludeFromAgar: journalEntries.excludeFromAgar,
+      source: journalEntries.source,
+      nominalCode: nominalCodes.code,
+      description: journalLines.description,
+      agarBox: nominalCodes.agarBox,
+      isBank: nominalCodes.isBank,
+      isVatRecoverable: nominalCodes.isVatRecoverable,
+      isVatPayable: nominalCodes.isVatPayable,
+      debit: journalLines.debit,
+      credit: journalLines.credit
+    })
+    .from(journalLines)
+    .innerJoin(journalEntries, eq(journalLines.journalEntryId, journalEntries.id))
+    .innerJoin(nominalCodes, eq(journalLines.nominalCodeId, nominalCodes.id))
+    .where(
+      and(
+        eq(journalEntries.parishCouncilId, parishCouncilId),
+        eq(journalEntries.financialYearId, year.id),
+        gte(journalEntries.date, year.startDate),
+        lte(journalEntries.date, year.endDate)
+      )
+    )
 
   const reportTotals =
     accountingBasis === 'RECEIPTS_AND_PAYMENTS'
       ? calculateReceiptsAndPaymentsTotals(baseTotals, agarLineRows)
-      : baseTotals
+      : calculateIncomeAndExpenditureTotals(baseTotals, agarLineRows)
 
   const openingFixedAssets = normalise(openingTotals?.fixedAssets)
   const openingBorrowings = Math.abs(normalise(openingTotals?.borrowings))

@@ -16,6 +16,7 @@ export type AgarLine = {
   excludeFromAgar: boolean
   source: string
   nominalCode: string
+  description: string | null
   agarBox: string | null
   isBank: boolean
   isVatRecoverable: boolean
@@ -296,6 +297,55 @@ export function calculateReceiptsAndPaymentsTotals(
       }
     }
   }
+
+  return totals
+}
+
+export function calculateIncomeAndExpenditureTotals(
+  baseTotals: AgarTotals,
+  lines: AgarLine[]
+): AgarTotals {
+  const totals = { ...baseTotals }
+  const linesByJournal = new Map<string, AgarLine[]>()
+
+  for (const line of lines) {
+    const existingLines = linesByJournal.get(line.journalEntryId) ?? []
+    existingLines.push(line)
+    linesByJournal.set(line.journalEntryId, existingLines)
+  }
+
+  const fixedAssetAdditions = lines
+    .filter(line => line.agarBox === 'BOX_9_FIXED_ASSETS')
+    .reduce(
+      (sum, line) =>
+        sum + Math.max(0, normalise(line.debit) - normalise(line.credit)),
+      0
+    )
+  const disposedFixedAssetCosts = [...linesByJournal.values()].reduce(
+    (sum, journalLinesForEntry) => {
+      const fixedAssetReduction = journalLinesForEntry
+        .filter(line => {
+          const description = line.description?.toLowerCase() ?? ''
+
+          return (
+            line.agarBox === 'BOX_9_FIXED_ASSETS' &&
+            description.includes('fixed asset value removed')
+          )
+        })
+        .reduce(
+          (lineSum, line) =>
+            lineSum +
+            Math.max(0, normalise(line.credit) - normalise(line.debit)),
+          0
+        )
+
+      return sum + fixedAssetReduction
+    },
+    0
+  )
+
+  totals.otherPayments += fixedAssetAdditions
+  totals.otherPayments -= Math.min(disposedFixedAssetCosts, fixedAssetAdditions)
 
   return totals
 }

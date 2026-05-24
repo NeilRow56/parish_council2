@@ -1,4 +1,4 @@
-import { and, eq, sql } from 'drizzle-orm'
+import { and, asc, eq, lt, sql } from 'drizzle-orm'
 import { AlertTriangle, CheckCircle2, Circle, LockKeyhole } from 'lucide-react'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
@@ -118,6 +118,22 @@ export default async function YearEndPage({ params, searchParams }: PageProps) {
   if (!financialYear) {
     redirect('/settings/financial-years')
   }
+
+  const earlierOpenYears = await db
+    .select({
+      id: financialYears.id,
+      label: financialYears.label,
+      startDate: financialYears.startDate
+    })
+    .from(financialYears)
+    .where(
+      and(
+        eq(financialYears.parishCouncilId, parishCouncilId),
+        eq(financialYears.isClosed, false),
+        lt(financialYears.startDate, financialYear.startDate)
+      )
+    )
+    .orderBy(asc(financialYears.startDate))
 
   const existingYearEndRun = await db.query.yearEndRuns.findFirst({
     where: and(
@@ -460,8 +476,39 @@ export default async function YearEndPage({ params, searchParams }: PageProps) {
             passed={!existingYearEndRun}
             label='No previous year-end run exists for this year'
           />
+          <CheckRow
+            passed={earlierOpenYears.length === 0}
+            label='No earlier financial years are still open'
+          />
         </CardContent>
       </Card>
+
+      {earlierOpenYears.length > 0 ? (
+        <Card className='border-amber-200 bg-amber-50'>
+          <CardHeader className='flex flex-row items-start gap-3 space-y-0'>
+            <AlertTriangle className='mt-0.5 h-5 w-5 text-amber-700' />
+            <div>
+              <CardTitle className='text-base text-amber-900'>
+                Earlier financial years are still open
+              </CardTitle>
+              <CardDescription className='space-y-2 text-amber-800'>
+                <p>
+                  Earlier financial years are still open. You should normally
+                  finalise and close earlier years before closing this year,
+                  otherwise opening balances and brought-forward figures may be
+                  incomplete or inconsistent.
+                </p>
+                <p>
+                  Open earlier years:{' '}
+                  <span className='font-medium'>
+                    {earlierOpenYears.map(year => year.label).join(', ')}
+                  </span>
+                </p>
+              </CardDescription>
+            </div>
+          </CardHeader>
+        </Card>
+      ) : null}
 
       {!canRunYearEnd ? (
         <Card className='border-amber-200 bg-amber-50'>
@@ -557,6 +604,22 @@ export default async function YearEndPage({ params, searchParams }: PageProps) {
               name='financialYearId'
               value={financialYear.id}
             />
+
+            {earlierOpenYears.length > 0 ? (
+              <label className='mb-4 flex items-start gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900'>
+                <input
+                  type='checkbox'
+                  name='confirmEarlierOpenYears'
+                  value='yes'
+                  required
+                  className='mt-1'
+                />
+                <span>
+                  I understand that earlier financial years are still open and
+                  want to close {financialYear.label} anyway.
+                </span>
+              </label>
+            ) : null}
 
             <PendingSubmitButton
               idleLabel='Run year end'

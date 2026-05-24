@@ -1,6 +1,6 @@
 'use server'
 
-import { and, eq, sql } from 'drizzle-orm'
+import { and, asc, eq, lt, sql } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
@@ -74,6 +74,8 @@ export async function runYearEndRollforward(formData: FormData) {
   }
 
   const financialYearId = String(formData.get('financialYearId') || '')
+  const confirmEarlierOpenYears =
+    formData.get('confirmEarlierOpenYears') === 'yes'
 
   if (!financialYearId) {
     redirect('/settings/financial-years?yearEndError=Financial+year+is+required')
@@ -96,6 +98,26 @@ export async function runYearEndRollforward(formData: FormData) {
 
     if (currentYear.isClosed) {
       throw new Error('This financial year is already closed')
+    }
+
+    const earlierOpenYears = await tx
+      .select({ label: financialYears.label })
+      .from(financialYears)
+      .where(
+        and(
+          eq(financialYears.parishCouncilId, parishCouncilId),
+          eq(financialYears.isClosed, false),
+          lt(financialYears.startDate, currentYear.startDate)
+        )
+      )
+      .orderBy(asc(financialYears.startDate))
+
+    if (earlierOpenYears.length > 0 && !confirmEarlierOpenYears) {
+      throw new Error(
+        `Earlier financial years are still open: ${earlierOpenYears
+          .map(year => year.label)
+          .join(', ')}. Confirm that you want to close this year anyway.`
+      )
     }
 
     const existingRun = await tx.query.yearEndRuns.findFirst({

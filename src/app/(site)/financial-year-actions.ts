@@ -1,5 +1,6 @@
 'use server'
 
+import { refresh, revalidatePath } from 'next/cache'
 import { cookies, headers } from 'next/headers'
 import { and, eq } from 'drizzle-orm'
 
@@ -46,6 +47,9 @@ export async function setSelectedFinancialYearAction(financialYearId: string) {
       maxAge: 60 * 60 * 24 * 365
     }
   )
+
+  revalidatePath('/', 'layout')
+  refresh()
 
   return { success: true }
 }

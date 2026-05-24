@@ -1,7 +1,6 @@
 'use client'
 
 import { useState, useTransition } from 'react'
-import { Plus } from 'lucide-react'
 import { toast } from 'sonner'
 
 import { createBorrowing } from '../actions'
@@ -13,8 +12,7 @@ import {
   DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogTitle,
-  DialogTrigger
+  DialogTitle
 } from '@/components/ui/dialog'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -33,16 +31,19 @@ type BorrowingNominalCode = {
   name: string
 }
 
-type AddBorrowingDialogProps = {
+export type AddBorrowingDialogProps = {
   financialYearId: string
   nominalCodes: BorrowingNominalCode[]
+  open: boolean
+  onOpenChange: (open: boolean) => void
 }
 
 export function AddBorrowingDialog({
   financialYearId,
-  nominalCodes
+  nominalCodes,
+  open,
+  onOpenChange
 }: AddBorrowingDialogProps) {
-  const [open, setOpen] = useState(false)
   const [isPending, startTransition] = useTransition()
 
   const defaultNominalCode = nominalCodes[0]
@@ -84,7 +85,7 @@ export function AddBorrowingDialog({
       try {
         await createBorrowing(formData)
         toast.success('Borrowing added')
-        setOpen(false)
+        onOpenChange(false)
       } catch (error) {
         toast.error(
           error instanceof Error ? error.message : 'Could not add borrowing'
@@ -94,12 +95,7 @@ export function AddBorrowingDialog({
   }
 
   return (
-    <Dialog open={open} onOpenChange={setOpen}>
-      <DialogTrigger className='bg-primary text-primary-foreground hover:bg-primary/90 inline-flex h-10 items-center justify-center gap-2 rounded-md px-4 py-2 text-sm font-medium shadow disabled:pointer-events-none disabled:opacity-50'>
-        <Plus className='h-4 w-4' />
-        Add loan
-      </DialogTrigger>
-
+    <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className='sm:max-w-2xl'>
         <DialogHeader>
           <DialogTitle>Add loan</DialogTitle>
@@ -226,7 +222,7 @@ export function AddBorrowingDialog({
             <Button
               type='button'
               variant='outline'
-              onClick={() => setOpen(false)}
+              onClick={() => onOpenChange(false)}
               disabled={isPending}
             >
               Cancel

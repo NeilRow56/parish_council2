@@ -31,7 +31,7 @@ import {
 import { auth } from '@/lib/auth'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { AddBorrowingDialog } from './_components/add-borrowing-dialog'
+import { AddBorrowingDialogLoader } from './_components/add-borrowing-dialog-loader'
 
 function formatCurrency(value: number) {
   return new Intl.NumberFormat('en-GB', {
@@ -239,7 +239,7 @@ export default async function BorrowingsReportPage({
 
         {!financialYear.isClosed ? (
           <div className='shrink-0'>
-            <AddBorrowingDialog
+            <AddBorrowingDialogLoader
               financialYearId={financialYear.id}
               nominalCodes={borrowingNominalCodes}
             />

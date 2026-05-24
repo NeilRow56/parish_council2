@@ -259,7 +259,8 @@ export function BankEntryForm({
   reserves,
   projects,
   defaultReserveId,
-  vatRates
+  vatRates,
+  initialEntryType
 }: {
   financialYearId: string
   financialYear: FinancialYearDateRange
@@ -270,6 +271,7 @@ export function BankEntryForm({
   projects: ProjectOption[]
   defaultReserveId: string
   vatRates: VatRateOption[]
+  initialEntryType: BankEntryType
 }) {
   const router = useRouter()
   const [isPosting, setIsPosting] = useState(false)
@@ -291,7 +293,7 @@ export function BankEntryForm({
   }
 
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0])
-  const [entryType, setEntryType] = useState<BankEntryType>('PAYMENT')
+  const [entryType, setEntryType] = useState<BankEntryType>(initialEntryType)
   const [bankConnectionId, setBankConnectionId] = useState(
     bankAccounts[0]?.connectionId ?? ''
   )
@@ -638,7 +640,11 @@ export function BankEntryForm({
       setPostedJournalEntryIds(result.journalEntryIds)
 
       if (result.journalEntryIds.length === 1) {
-        router.push(`/ledger/journals/${result.journalEntryIds[0]}`)
+        const source =
+          entryType === 'RECEIPT' ? 'bank-receipts' : 'bank-payments'
+        router.push(
+          `/ledger/journals/${result.journalEntryIds[0]}?source=${source}`
+        )
       } else {
         router.push('/ledger')
       }

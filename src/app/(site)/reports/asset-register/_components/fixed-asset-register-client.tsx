@@ -30,7 +30,9 @@ type FixedAssetRow = {
 
 type AccountingBasis = 'RECEIPTS_AND_PAYMENTS' | 'INCOME_AND_EXPENDITURE'
 
-type ActionResult = { success: true } | { success: false; error: string }
+type ActionResult =
+  | { success: true; journalEntryId?: string }
+  | { success: false; error: string }
 
 function formatMoney(value: string | null) {
   const amount = Number(value ?? 0)
@@ -250,6 +252,12 @@ export function FixedAssetRegisterClient({
       if (result.success) {
         toast.success('Asset disposed')
         closeDisposePanel()
+        if (result.journalEntryId) {
+          router.push(
+            `/ledger/journals/${result.journalEntryId}?source=fixed-assets`
+          )
+          return
+        }
         router.refresh()
       } else {
         toast.error(result.error)

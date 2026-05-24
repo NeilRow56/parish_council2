@@ -12,7 +12,23 @@ import { financialYears, nominalCodes } from '@/db/schema/nominalLedger'
 import { BankEntryForm } from './_components/bank-entry-form'
 import { projects, reserves, suppliers, vatRates } from '@/db/schema'
 
-export default async function NewBankEntryPage() {
+type SearchParams = {
+  entryType?: string | string[]
+}
+
+function getInitialEntryType(value: string | string[] | undefined) {
+  const entryType = Array.isArray(value) ? value[0] : value
+
+  return entryType === 'RECEIPT' ? 'RECEIPT' : 'PAYMENT'
+}
+
+export default async function NewBankEntryPage({
+  searchParams
+}: {
+  searchParams?: Promise<SearchParams>
+}) {
+  const params = await searchParams
+
   const session = await auth.api.getSession({
     headers: await headers()
   })
@@ -207,6 +223,7 @@ export default async function NewBankEntryPage() {
         projects={projectOptions}
         defaultReserveId={defaultReserveId}
         vatRates={vatRateOptions}
+        initialEntryType={getInitialEntryType(params?.entryType)}
       />
     </main>
   )

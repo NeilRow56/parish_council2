@@ -191,7 +191,9 @@ export function ManualJournalForm({
 
       toast.success('Manual journal posted.')
       setPostedJournalEntryId(result.journalEntryId)
-      router.push(`/ledger/journals/${result.journalEntryId}`)
+      router.push(
+        `/ledger/journals/${result.journalEntryId}?source=manual-journal`
+      )
     } catch (err) {
       const message =
         err instanceof Error ? err.message : 'Could not post journal.'

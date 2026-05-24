@@ -270,7 +270,7 @@ export function CouncilOnboardingForm({
         </CardHeader>
 
         <CardContent className='space-y-3'>
-          <div className='grid gap-2'>
+          <div className='grid max-w-md gap-2'>
             <Label htmlFor='accountingBasis'>AGAR reporting basis</Label>
             <Select
               name='accountingBasis'
@@ -280,7 +280,7 @@ export function CouncilOnboardingForm({
                 markDirty()
               }}
             >
-              <SelectTrigger id='accountingBasis'>
+              <SelectTrigger id='accountingBasis' className='w-full'>
                 <SelectValue placeholder='Select accounting basis' />
               </SelectTrigger>
               <SelectContent>

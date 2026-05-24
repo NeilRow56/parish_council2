@@ -35,12 +35,63 @@ function formatDate(value: string | Date) {
   }).format(new Date(value))
 }
 
+type ReturnSource =
+  | 'bank-receipts'
+  | 'bank-payments'
+  | 'inbox'
+  | 'manual-journal'
+  | 'fixed-assets'
+
+const returnTargets: Record<ReturnSource, { href: string; label: string }> = {
+  'bank-receipts': {
+    href: '/ledger/bank-entry/new?entryType=RECEIPT',
+    label: 'Back to bank receipts'
+  },
+  'bank-payments': {
+    href: '/ledger/bank-entry/new?entryType=PAYMENT',
+    label: 'Back to bank payments'
+  },
+  inbox: {
+    href: '/transactions/inbox',
+    label: 'Back to inbox'
+  },
+  'manual-journal': {
+    href: '/ledger',
+    label: 'Back to ledger'
+  },
+  'fixed-assets': {
+    href: '/reports/asset-register',
+    label: 'Back to fixed assets'
+  }
+}
+
+function getReturnTarget(source: string | string[] | undefined) {
+  const value = Array.isArray(source) ? source[0] : source
+
+  if (value && value in returnTargets) {
+    return {
+      source: value as ReturnSource,
+      ...returnTargets[value as ReturnSource]
+    }
+  }
+
+  return {
+    source: null,
+    href: '/ledger',
+    label: 'Back to ledger'
+  }
+}
+
 export default async function JournalDetailPage({
-  params
+  params,
+  searchParams
 }: {
   params: Promise<{ id: string }>
+  searchParams?: Promise<{ source?: string | string[] }>
 }) {
   const { id } = await params
+  const { source } = (await searchParams) ?? {}
+  const returnTarget = getReturnTarget(source)
 
   const session = await auth.api.getSession({
     headers: await headers()
@@ -134,10 +185,10 @@ export default async function JournalDetailPage({
         </div>
 
         <Link
-          href='/ledger'
+          href={returnTarget.href}
           className='rounded-md border px-3 py-2 text-sm font-medium hover:bg-emerald-50/40'
         >
-          Back to ledger
+          {returnTarget.label}
         </Link>
       </div>
 
@@ -208,7 +259,10 @@ export default async function JournalDetailPage({
 
         <div className='flex items-center gap-2'>
           {canReverse ? (
-            <ReverseJournalButton journalEntryId={journal.id} />
+            <ReverseJournalButton
+              journalEntryId={journal.id}
+              source={returnTarget.source}
+            />
           ) : (
             <span className='rounded-md border bg-emerald-50/30 px-3 py-2 text-sm text-zinc-600'>
               {journal.financialYearClosed

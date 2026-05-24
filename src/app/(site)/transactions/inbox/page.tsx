@@ -8,6 +8,7 @@ import {
   useState,
   useTransition
 } from 'react'
+import { useRouter } from 'next/navigation'
 import { toast } from 'sonner'
 
 interface NominalCode {
@@ -177,6 +178,7 @@ function NominalPicker({
 }
 
 export default function TransactionInbox() {
+  const router = useRouter()
   const [transactions, setTransactions] = useState<StagedTransaction[]>([])
   const [pagination, setPagination] = useState<Pagination | null>(null)
   const [summary, setSummary] = useState<Summary[]>([])
@@ -453,6 +455,10 @@ export default function TransactionInbox() {
 
     toast.success(`${data?.posted ?? 0} transaction(s) posted.`)
     setBulkNominalCodeId('')
+    if (data?.journalEntryIds?.length === 1) {
+      router.push(`/ledger/journals/${data.journalEntryIds[0]}?source=inbox`)
+      return
+    }
     await fetchTransactions()
   }
 
@@ -556,6 +562,10 @@ export default function TransactionInbox() {
       })
 
       toast.success(`${data.posted} transaction(s) posted.`)
+      if (data?.journalEntryIds?.length === 1) {
+        router.push(`/ledger/journals/${data.journalEntryIds[0]}?source=inbox`)
+        return
+      }
       await fetchTransactions()
     })
   }

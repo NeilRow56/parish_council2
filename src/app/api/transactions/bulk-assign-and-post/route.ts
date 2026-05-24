@@ -96,10 +96,13 @@ export async function POST(request: NextRequest) {
     )
 
   let posted = 0
+  const journalEntryIds: string[] = []
   const errors: Array<{ transactionId: string; error: string }> = []
 
   for (const tx of transactions) {
     try {
+      let journalEntryId: string | null = null
+
       await db.transaction(async trx => {
         const [connection] = await trx
           .select({
@@ -177,6 +180,7 @@ export async function POST(request: NextRequest) {
             postedById: userId
           })
           .returning()
+        journalEntryId = entry.id
 
         if (amount < 0) {
           await trx.insert(journalLines).values([
@@ -239,6 +243,9 @@ export async function POST(request: NextRequest) {
       })
 
       posted++
+      if (journalEntryId) {
+        journalEntryIds.push(journalEntryId)
+      }
     } catch (err) {
       errors.push({
         transactionId: tx.id,
@@ -249,6 +256,7 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     posted,
+    journalEntryIds,
     errors
   })
 }

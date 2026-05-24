@@ -19,7 +19,9 @@ import {
 import { getFinancialYearDateWarning } from '@/lib/financial-years/date-range'
 import { getEffectiveAccountingBasis } from '@/lib/reports/agar'
 
-type ActionResult = { success: true } | { success: false; error: string }
+type ActionResult =
+  | { success: true; journalEntryId?: string }
+  | { success: false; error: string }
 
 type DisposalInput = {
   disposalDate: string
@@ -554,6 +556,8 @@ export async function disposeFixedAsset(
       }
     }
 
+    let journalEntryId: string | null = null
+
     await db.transaction(async trx => {
       const [entry] = await trx
         .insert(journalEntries)
@@ -567,6 +571,7 @@ export async function disposeFixedAsset(
           postedById: userId
         })
         .returning({ id: journalEntries.id })
+      journalEntryId = entry.id
 
       const lines: (typeof journalLines.$inferInsert)[] = []
 
@@ -680,7 +685,7 @@ export async function disposeFixedAsset(
     revalidatePath('/reports/agar-summary')
     revalidatePath('/ledger')
 
-    return { success: true }
+    return { success: true, journalEntryId: journalEntryId ?? undefined }
   } catch (error) {
     console.error(error)
 

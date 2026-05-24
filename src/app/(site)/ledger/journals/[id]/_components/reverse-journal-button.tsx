@@ -7,9 +7,11 @@ import { toast } from 'sonner'
 import { reverseJournalAction } from '../actions'
 
 export function ReverseJournalButton({
-  journalEntryId
+  journalEntryId,
+  source
 }: {
   journalEntryId: string
+  source: string | null
 }) {
   const router = useRouter()
   const [isPending, startTransition] = useTransition()
@@ -28,7 +30,8 @@ export function ReverseJournalButton({
       try {
         const result = await reverseJournalAction(journalEntryId)
         toast.success('Journal reversed.')
-        router.push(`/ledger/journals/${result.journalEntryId}`)
+        const sourceQuery = source ? `?source=${source}` : '?source=manual-journal'
+        router.push(`/ledger/journals/${result.journalEntryId}${sourceQuery}`)
         router.refresh()
       } catch (err) {
         const message =

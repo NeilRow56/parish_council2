@@ -70,6 +70,7 @@ export async function POST(request: NextRequest) {
     )
 
   let posted = 0
+  const journalEntryIds: string[] = []
   const errors: Array<{ transactionId: string; error: string }> = []
 
   for (const tx of codedTransactions) {
@@ -84,6 +85,8 @@ export async function POST(request: NextRequest) {
     }
 
     try {
+      let journalEntryId: string | null = null
+
       await db.transaction(async trx => {
         const [connection] = await trx
           .select({
@@ -185,6 +188,7 @@ export async function POST(request: NextRequest) {
             postedById: userId
           })
           .returning()
+        journalEntryId = entry.id
 
         if (isReceipt) {
           // Receipt: Dr Bank, Cr nominal
@@ -248,6 +252,9 @@ export async function POST(request: NextRequest) {
       })
 
       posted++
+      if (journalEntryId) {
+        journalEntryIds.push(journalEntryId)
+      }
     } catch (err) {
       errors.push({
         transactionId: tx.id,
@@ -258,6 +265,7 @@ export async function POST(request: NextRequest) {
 
   return NextResponse.json({
     posted,
+    journalEntryIds,
     errors
   })
 }

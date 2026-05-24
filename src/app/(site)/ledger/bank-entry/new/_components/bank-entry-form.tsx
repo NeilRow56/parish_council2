@@ -197,6 +197,15 @@ function shouldUseVat(entryType: BankEntryType, line: BankEntryLine) {
   )
 }
 
+function getInvoiceReferencePlaceholder(
+  entryType: BankEntryType,
+  line: BankEntryLine
+) {
+  return entryType === 'PAYMENT' && line.vatTreatment === 'RECOVERABLE'
+    ? 'Required for VAT126 claims'
+    : 'Invoice/reference no.'
+}
+
 function getLineVatAmount(
   entryType: BankEntryType,
   line: BankEntryLine,
@@ -1126,7 +1135,7 @@ export function BankEntryForm({
                                         event.target.value
                                     })
                                   }
-                                  placeholder='Snapshot'
+                                  placeholder='Supplier VAT no.'
                                   className='w-full rounded-md border bg-white px-3 py-2'
                                 />
                               </div>
@@ -1143,7 +1152,10 @@ export function BankEntryForm({
                                       invoiceReference: event.target.value
                                     })
                                   }
-                                  placeholder='Optional'
+                                  placeholder={getInvoiceReferencePlaceholder(
+                                    entryType,
+                                    line
+                                  )}
                                   className='w-full rounded-md border bg-white px-3 py-2'
                                 />
                               </div>

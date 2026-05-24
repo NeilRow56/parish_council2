@@ -202,7 +202,7 @@ function getInvoiceReferencePlaceholder(
   line: BankEntryLine
 ) {
   return entryType === 'PAYMENT' && line.vatTreatment === 'RECOVERABLE'
-    ? 'Required for VAT126 claims'
+    ? 'Required for VAT reclaim'
     : 'Invoice/reference no.'
 }
 
@@ -1117,7 +1117,7 @@ export function BankEntryForm({
                                       goodsSupplied: event.target.value
                                     })
                                   }
-                                  placeholder='For VAT126'
+                                  placeholder='Required for VAT reclaim'
                                   className='w-full rounded-md border bg-white px-3 py-2'
                                 />
                               </div>

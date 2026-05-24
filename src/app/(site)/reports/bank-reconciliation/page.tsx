@@ -21,7 +21,6 @@ import { user } from '@/db/schema/authSchema'
 
 import {
   bankReconciliations,
-  financialYears,
   journalEntries,
   journalLines,
   nominalCodes,
@@ -34,6 +33,7 @@ import {
   bankTransactions
 } from '@/db/schema'
 import { ExportPdfButton } from './_components/export-pdf-button'
+import { getSelectedFinancialYear } from '@/lib/financial-years/selected-year'
 
 function formatAmount(value: number) {
   if (value === 0) return '—'
@@ -107,40 +107,10 @@ export default async function BankReconciliationPage({
     redirect('/auth/register')
   }
 
-  const [financialYear] = params?.financialYearId
-    ? await db
-        .select({
-          id: financialYears.id,
-          label: financialYears.label,
-          startDate: financialYears.startDate,
-          endDate: financialYears.endDate,
-          isClosed: financialYears.isClosed
-        })
-        .from(financialYears)
-        .where(
-          and(
-            eq(financialYears.id, params.financialYearId),
-            eq(financialYears.parishCouncilId, parishCouncilId)
-          )
-        )
-        .limit(1)
-    : await db
-        .select({
-          id: financialYears.id,
-          label: financialYears.label,
-          startDate: financialYears.startDate,
-          endDate: financialYears.endDate,
-          isClosed: financialYears.isClosed
-        })
-        .from(financialYears)
-        .where(
-          and(
-            eq(financialYears.parishCouncilId, parishCouncilId),
-            eq(financialYears.isClosed, false)
-          )
-        )
-        .orderBy(desc(financialYears.startDate))
-        .limit(1)
+  const { financialYear } = await getSelectedFinancialYear(
+    parishCouncilId,
+    params?.financialYearId
+  )
 
   if (!financialYear) {
     redirect('/')

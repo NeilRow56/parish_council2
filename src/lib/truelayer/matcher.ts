@@ -232,6 +232,8 @@ async function resolveNominalCode(
 async function getCurrentFinancialYearId(
   parishCouncilId: string
 ): Promise<string | null> {
+  // TODO(financial-year-selector): use an explicit import/selected year when
+  // matching rules are no longer scoped by today's financial year.
   const today = new Date().toISOString().split('T')[0]
 
   const [year] = await db

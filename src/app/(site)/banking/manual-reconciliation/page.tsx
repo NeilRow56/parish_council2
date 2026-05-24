@@ -3,7 +3,6 @@ import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import {
   and,
-  desc,
   eq,
   isNotNull,
   isNull,
@@ -17,12 +16,12 @@ import { user } from '@/db/schema/authSchema'
 import { bankOpeningBalances, bankTransactions } from '@/db/schema'
 import {
   bankReconciliations,
-  financialYears,
   journalEntries,
   journalLines,
   nominalCodes,
   nominalOpeningBalances
 } from '@/db/schema/nominalLedger'
+import { getSelectedFinancialYear } from '@/lib/financial-years/selected-year'
 import {
   ManualReconciliationPanel,
   type ManualBankLine
@@ -68,22 +67,7 @@ export default async function ManualReconciliationPage({
 
   const parishCouncilId = session.user.parishCouncilId
 
-  const [financialYear] = await db
-    .select({
-      id: financialYears.id,
-      label: financialYears.label,
-      startDate: financialYears.startDate,
-      endDate: financialYears.endDate
-    })
-    .from(financialYears)
-    .where(
-      and(
-        eq(financialYears.parishCouncilId, parishCouncilId),
-        eq(financialYears.isClosed, false)
-      )
-    )
-    .orderBy(desc(financialYears.startDate))
-    .limit(1)
+  const { financialYear } = await getSelectedFinancialYear(parishCouncilId)
 
   if (!financialYear) {
     return (
@@ -97,6 +81,29 @@ export default async function ManualReconciliationPage({
             Manage financial years
           </Link>
           .
+        </div>
+      </main>
+    )
+  }
+
+  if (financialYear.isClosed) {
+    return (
+      <main className='mx-auto max-w-5xl px-6 py-8'>
+        <div className='rounded-lg border border-amber-200 bg-amber-50 p-8 text-sm text-amber-900'>
+          <p className='font-medium'>
+            Financial year {financialYear.label} is closed.
+          </p>
+          <p className='mt-1'>
+            Manual reconciliation cannot be edited for a closed financial year.
+            View the bank reconciliation report instead, or select an open year
+            from the header.
+          </p>
+          <Link
+            href={`/reports/bank-reconciliation?financialYearId=${financialYear.id}`}
+            className='mt-3 inline-flex font-medium text-emerald-800 hover:underline'
+          >
+            View bank reconciliation report
+          </Link>
         </div>
       </main>
     )

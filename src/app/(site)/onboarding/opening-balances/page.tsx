@@ -8,6 +8,7 @@ import { eq, and } from 'drizzle-orm'
 
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
+import { getSelectedFinancialYear } from '@/lib/financial-years/selected-year'
 
 import {
   financialYears,
@@ -277,19 +278,21 @@ export default async function OpeningBalancesPage({
 
   const parishCouncilId = session.user.parishCouncilId
 
-  const [financialYear] = await db
-    .select()
-    .from(financialYears)
-    .where(
-      and(
-        eq(financialYears.parishCouncilId, parishCouncilId),
-        eq(financialYears.isClosed, false)
-      )
-    )
-    .limit(1)
+  const { financialYear } = await getSelectedFinancialYear(parishCouncilId)
 
   if (!financialYear) {
     redirect('/onboarding/council-details')
+  }
+
+  if (financialYear.isClosed) {
+    return (
+      <main className='mx-auto max-w-5xl px-6 py-8'>
+        <div className='rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900'>
+          Financial year {financialYear.label} is closed. Opening balances are
+          read-only for closed years.
+        </div>
+      </main>
+    )
   }
 
   const codes = await db

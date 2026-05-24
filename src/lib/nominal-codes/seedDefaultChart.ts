@@ -3,27 +3,22 @@ import { and, eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { financialYears, nominalCodes } from '@/db/schema/nominalLedger'
 import { defaultChart } from '@/lib/nominal-codes/default-chart'
-
-function getCurrentParishFinancialYear(today = new Date()) {
-  const year = today.getFullYear()
-  const month = today.getMonth() // Jan = 0, Apr = 3
-
-  const startYear = month >= 3 ? year : year - 1
-  const endYear = startYear + 1
-
-  return {
-    label: `${startYear}/${String(endYear).slice(-2)}`,
-    startDate: `${startYear}-04-01`,
-    endDate: `${endYear}-03-31`
-  }
-}
+import {
+  getParishFinancialYearForDate,
+  getParishFinancialYearFromStartYear
+} from '@/lib/financial-years/parish-year'
 
 export async function seedDefaultChart({
-  parishCouncilId
+  parishCouncilId,
+  financialYearStartYear
 }: {
   parishCouncilId: string
+  financialYearStartYear?: number
 }) {
-  const fy = getCurrentParishFinancialYear()
+  const fy =
+    financialYearStartYear === undefined
+      ? getParishFinancialYearForDate()
+      : getParishFinancialYearFromStartYear(financialYearStartYear)
 
   let [year] = await db
     .select()

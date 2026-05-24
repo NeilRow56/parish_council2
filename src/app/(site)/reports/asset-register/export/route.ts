@@ -6,15 +6,15 @@ import {
   View,
   renderToBuffer
 } from '@react-pdf/renderer'
-import { and, asc, desc, eq, isNull, lte, or } from 'drizzle-orm'
+import { and, asc, eq, isNull, lte, or } from 'drizzle-orm'
 import { headers } from 'next/headers'
 import { createElement } from 'react'
 
 import { db } from '@/db'
 import { fixedAssets, parishCouncils } from '@/db/schema'
-import { financialYears } from '@/db/schema/nominalLedger'
 import { auth } from '@/lib/auth'
 import { getAgarBox9Figure } from '@/lib/reports/agar-box9'
+import { getSelectedFinancialYear } from '@/lib/financial-years/selected-year'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -297,40 +297,10 @@ async function getFinancialYear({
   parishCouncilId: string
   financialYearId?: string
 }) {
-  const [financialYear] = financialYearId
-    ? await db
-        .select({
-          id: financialYears.id,
-          label: financialYears.label,
-          startDate: financialYears.startDate,
-          endDate: financialYears.endDate,
-          isClosed: financialYears.isClosed
-        })
-        .from(financialYears)
-        .where(
-          and(
-            eq(financialYears.parishCouncilId, parishCouncilId),
-            eq(financialYears.id, financialYearId)
-          )
-        )
-        .limit(1)
-    : await db
-        .select({
-          id: financialYears.id,
-          label: financialYears.label,
-          startDate: financialYears.startDate,
-          endDate: financialYears.endDate,
-          isClosed: financialYears.isClosed
-        })
-        .from(financialYears)
-        .where(
-          and(
-            eq(financialYears.parishCouncilId, parishCouncilId),
-            eq(financialYears.isClosed, false)
-          )
-        )
-        .orderBy(desc(financialYears.startDate))
-        .limit(1)
+  const { financialYear } = await getSelectedFinancialYear(
+    parishCouncilId,
+    financialYearId
+  )
 
   return financialYear ?? null
 }

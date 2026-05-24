@@ -2,12 +2,13 @@
 
 import Link from 'next/link'
 import { headers } from 'next/headers'
-import { and, asc, desc, eq } from 'drizzle-orm'
+import { and, asc, eq } from 'drizzle-orm'
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
 import { bankConnections } from '@/db/schema/bankConnection'
-import { financialYears, nominalCodes } from '@/db/schema/nominalLedger'
+import { nominalCodes } from '@/db/schema/nominalLedger'
+import { getSelectedFinancialYear } from '@/lib/financial-years/selected-year'
 import { SyncBankButton } from './_components/sync-button'
 
 export default async function BankConnectionsPage() {
@@ -21,19 +22,8 @@ export default async function BankConnectionsPage() {
 
   const parishCouncilId = session.user.parishCouncilId
 
-  const [currentYear] = await db
-    .select({
-      id: financialYears.id
-    })
-    .from(financialYears)
-    .where(
-      and(
-        eq(financialYears.parishCouncilId, parishCouncilId),
-        eq(financialYears.isClosed, false)
-      )
-    )
-    .orderBy(desc(financialYears.startDate))
-    .limit(1)
+  const { financialYear: currentYear } =
+    await getSelectedFinancialYear(parishCouncilId)
 
   const connections = await db
     .select({
@@ -94,7 +84,14 @@ export default async function BankConnectionsPage() {
           </Link>
         </div>
 
-        {bankNominalCodes.length === 0 && (
+        {currentYear?.isClosed ? (
+          <div className='rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900'>
+            Financial year {currentYear.label} is closed. Bank ledger links are
+            read-only for closed years.
+          </div>
+        ) : null}
+
+        {!currentYear?.isClosed && bankNominalCodes.length === 0 && (
           <div className='rounded-lg border border-red-200 bg-red-50 p-4 text-sm text-red-800'>
             <p className='font-medium'>No active bank nominal codes found</p>
             <p className='mt-1'>
@@ -149,7 +146,7 @@ export default async function BankConnectionsPage() {
                         : 'Not linked'}
                     </p>
 
-                    {!hasLedgerCode && (
+                    {!hasLedgerCode && !currentYear?.isClosed && (
                       <p className='mt-1 text-sm text-amber-700'>
                         Select and save a bank ledger code before syncing this
                         account.
@@ -157,40 +154,47 @@ export default async function BankConnectionsPage() {
                     )}
                   </div>
 
-                  <form
-                    action='/api/bank-connections/ledger-link-code'
-                    method='post'
-                    className='flex flex-wrap gap-2'
-                  >
-                    <input
-                      type='hidden'
-                      name='connectionId'
-                      value={connection.id}
-                    />
-
-                    <select
-                      name='nominalCodeId'
-                      defaultValue={connection.nominalCodeId ?? ''}
-                      required
-                      className='rounded border px-3 py-2 text-sm'
+                  {currentYear?.isClosed ? (
+                    <p className='text-sm text-slate-600'>
+                      Ledger code links cannot be changed while the selected
+                      financial year is closed.
+                    </p>
+                  ) : (
+                    <form
+                      action='/api/bank-connections/ledger-link-code'
+                      method='post'
+                      className='flex flex-wrap gap-2'
                     >
-                      <option value=''>Select bank ledger code...</option>
+                      <input
+                        type='hidden'
+                        name='connectionId'
+                        value={connection.id}
+                      />
 
-                      {bankNominalCodes.map(code => (
-                        <option key={code.id} value={code.id}>
-                          {code.code} — {code.name}
-                        </option>
-                      ))}
-                    </select>
+                      <select
+                        name='nominalCodeId'
+                        defaultValue={connection.nominalCodeId ?? ''}
+                        required
+                        className='rounded border px-3 py-2 text-sm'
+                      >
+                        <option value=''>Select bank ledger code...</option>
 
-                    <button
-                      type='submit'
-                      disabled={bankNominalCodes.length === 0}
-                      className='rounded border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50'
-                    >
-                      Save ledger code
-                    </button>
-                  </form>
+                        {bankNominalCodes.map(code => (
+                          <option key={code.id} value={code.id}>
+                            {code.code} — {code.name}
+                          </option>
+                        ))}
+                      </select>
+
+                      <button
+                        type='submit'
+                        disabled={bankNominalCodes.length === 0}
+                        className='rounded border px-3 py-2 text-sm disabled:cursor-not-allowed disabled:opacity-50'
+                      >
+                        Save ledger code
+                      </button>
+                    </form>
+                  )}
 
                   {hasLedgerCode ? (
                     <SyncBankButton connectionId={connection.id} />

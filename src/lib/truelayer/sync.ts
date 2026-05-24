@@ -226,6 +226,8 @@ function maxDate(a: Date, b: Date) {
 async function getCurrentFinancialYear(
   parishCouncilId: string
 ): Promise<{ id: string; startDate: string; endDate: string } | null> {
+  // TODO(financial-year-selector): make first-sync date bounds follow the
+  // selected/import year once bank-feed year selection is explicit.
   const today = new Date().toISOString().split('T')[0]
 
   const [year] = await db

@@ -3,7 +3,7 @@
 import { revalidatePath } from 'next/cache'
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
-import { and, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
@@ -16,6 +16,7 @@ import {
   journalLines,
   nominalCodes
 } from '@/db/schema/nominalLedger'
+import { getSelectedFinancialYear } from '@/lib/financial-years/selected-year'
 import { ExportPdfButton } from './_components/export-pdf-button'
 
 type BudgetRow = {
@@ -174,40 +175,10 @@ export default async function BudgetPage({
     redirect('/auth/register')
   }
 
-  const [financialYear] = params?.financialYearId
-    ? await db
-        .select({
-          id: financialYears.id,
-          label: financialYears.label,
-          startDate: financialYears.startDate,
-          endDate: financialYears.endDate,
-          isClosed: financialYears.isClosed
-        })
-        .from(financialYears)
-        .where(
-          and(
-            eq(financialYears.parishCouncilId, parishCouncilId),
-            eq(financialYears.id, params.financialYearId)
-          )
-        )
-        .limit(1)
-    : await db
-        .select({
-          id: financialYears.id,
-          label: financialYears.label,
-          startDate: financialYears.startDate,
-          endDate: financialYears.endDate,
-          isClosed: financialYears.isClosed
-        })
-        .from(financialYears)
-        .where(
-          and(
-            eq(financialYears.parishCouncilId, parishCouncilId),
-            eq(financialYears.isClosed, false)
-          )
-        )
-        .orderBy(desc(financialYears.startDate))
-        .limit(1)
+  const { financialYear } = await getSelectedFinancialYear(
+    parishCouncilId,
+    params?.financialYearId
+  )
 
   if (!financialYear) {
     redirect('/')

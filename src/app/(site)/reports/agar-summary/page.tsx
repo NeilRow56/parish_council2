@@ -1,5 +1,5 @@
 import { headers } from 'next/headers'
-import { and, desc, eq, gte, lte, sql } from 'drizzle-orm'
+import { and, eq, gte, lte, sql } from 'drizzle-orm'
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
@@ -15,12 +15,12 @@ import {
   type Box7Box8Reconciliation
 } from '@/lib/reports/agar'
 import {
-  financialYears,
   journalEntries,
   journalLines,
   nominalCodes,
   nominalOpeningBalances
 } from '@/db/schema/nominalLedger'
+import { getSelectedFinancialYear } from '@/lib/financial-years/selected-year'
 import { ExportPdfButton } from './_components/export-pdf-button'
 
 function formatWholePounds(value: number) {
@@ -99,35 +99,17 @@ export default async function AgarSummaryPage({
     .where(eq(parishCouncils.id, parishCouncilId))
     .limit(1)
 
-  const [year] = params?.financialYearId
-    ? await db
-        .select()
-        .from(financialYears)
-        .where(
-          and(
-            eq(financialYears.parishCouncilId, parishCouncilId),
-            eq(financialYears.id, params.financialYearId)
-          )
-        )
-        .limit(1)
-    : await db
-        .select()
-        .from(financialYears)
-        .where(
-          and(
-            eq(financialYears.parishCouncilId, parishCouncilId),
-            eq(financialYears.isClosed, false)
-          )
-        )
-        .orderBy(desc(financialYears.startDate))
-        .limit(1)
+  const { financialYear: year } = await getSelectedFinancialYear(
+    parishCouncilId,
+    params?.financialYearId
+  )
 
   if (!year) {
     return (
       <main className='p-6'>
         <h1 className='text-2xl font-semibold'>AGAR summary</h1>
         <p className='mt-2 text-sm text-slate-600'>
-          No open financial year found.
+          No financial year found.
         </p>
       </main>
     )

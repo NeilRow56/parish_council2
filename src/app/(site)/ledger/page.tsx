@@ -5,11 +5,11 @@ import { and, desc, eq, ilike, or } from 'drizzle-orm'
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
 import {
-  financialYears,
   journalEntries,
   journalLines,
   nominalCodes
 } from '@/db/schema/nominalLedger'
+import { getSelectedFinancialYear } from '@/lib/financial-years/selected-year'
 
 type LedgerPageProps = {
   searchParams?: Promise<{
@@ -61,23 +61,15 @@ export default async function LedgerPage({ searchParams }: LedgerPageProps) {
 
   const parishCouncilId = session.user.parishCouncilId
 
-  const [currentYear] = await db
-    .select()
-    .from(financialYears)
-    .where(
-      and(
-        eq(financialYears.parishCouncilId, parishCouncilId),
-        eq(financialYears.isClosed, false)
-      )
-    )
-    .limit(1)
+  const { financialYear: currentYear } =
+    await getSelectedFinancialYear(parishCouncilId)
 
   if (!currentYear) {
     return (
       <main className='p-6'>
         <h1 className='text-2xl font-semibold'>Ledger</h1>
         <p className='mt-4 text-sm text-slate-600'>
-          No open financial year found.
+          No financial year found.
         </p>
       </main>
     )
@@ -140,6 +132,13 @@ export default async function LedgerPage({ searchParams }: LedgerPageProps) {
           </p>
         </div>
 
+        {currentYear.isClosed ? (
+          <div className='rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900'>
+            Financial year {currentYear.label} is closed. Ledger entries are
+            read-only; select an open year from the header to post new entries.
+          </div>
+        ) : null}
+
         <div className='grid gap-4 sm:grid-cols-3'>
           <div className='rounded-lg border bg-white p-4'>
             <p className='text-sm text-slate-600'>
@@ -190,12 +189,14 @@ export default async function LedgerPage({ searchParams }: LedgerPageProps) {
             )}
           </form>
 
-          <Link
-            href='/ledger/journals/new'
-            className='rounded-md bg-zinc-950 px-3 py-2 text-sm font-medium whitespace-nowrap text-white'
-          >
-            New manual journal
-          </Link>
+          {currentYear.isClosed ? null : (
+            <Link
+              href='/ledger/journals/new'
+              className='rounded-md bg-zinc-950 px-3 py-2 text-sm font-medium whitespace-nowrap text-white'
+            >
+              New manual journal
+            </Link>
+          )}
         </div>
 
         {query && (

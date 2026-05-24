@@ -2,12 +2,13 @@
 
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
-import { and, asc, desc, eq, isNotNull } from 'drizzle-orm'
+import { and, asc, eq, isNotNull } from 'drizzle-orm'
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
 import { bankConnections } from '@/db/schema/bankConnection'
-import { financialYears, nominalCodes } from '@/db/schema/nominalLedger'
+import { nominalCodes } from '@/db/schema/nominalLedger'
+import { getSelectedFinancialYear } from '@/lib/financial-years/selected-year'
 
 import { BankEntryForm } from './_components/bank-entry-form'
 import { projects, reserves, suppliers, vatRates } from '@/db/schema'
@@ -39,25 +40,27 @@ export default async function NewBankEntryPage({
 
   const parishCouncilId = session.user.parishCouncilId
 
-  const [financialYear] = await db
-    .select({
-      id: financialYears.id,
-      label: financialYears.label,
-      startDate: financialYears.startDate,
-      endDate: financialYears.endDate
-    })
-    .from(financialYears)
-    .where(
-      and(
-        eq(financialYears.parishCouncilId, parishCouncilId),
-        eq(financialYears.isClosed, false)
-      )
-    )
-    .orderBy(desc(financialYears.startDate))
-    .limit(1)
+  const { financialYear } = await getSelectedFinancialYear(parishCouncilId)
 
   if (!financialYear) {
     redirect('/ledger')
+  }
+
+  if (financialYear.isClosed) {
+    return (
+      <main className='mx-auto max-w-420 px-6 py-8'>
+        <div className='rounded-lg border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900'>
+          <p className='font-medium'>
+            Financial year {financialYear.label} is closed.
+          </p>
+          <p className='mt-1'>
+            Cash and bank entries cannot be posted to a closed financial year.
+            Select an open year from the header before entering new
+            transactions.
+          </p>
+        </div>
+      </main>
+    )
   }
 
   const [

@@ -33,6 +33,8 @@ export async function POST(request: NextRequest) {
   }
 
   const selectedIds = body.transactionIds
+  // TODO(financial-year-selector): reconcile this legacy posting endpoint with
+  // transaction-date year selection before exposing explicit year switching.
   const today = new Date().toISOString().split('T')[0]
 
   const [financialYear] = await db

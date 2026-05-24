@@ -2,12 +2,13 @@
 
 import { NextRequest, NextResponse } from 'next/server'
 import { headers } from 'next/headers'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
 import { bankConnections } from '@/db/schema/bankConnection'
-import { financialYears, nominalCodes } from '@/db/schema/nominalLedger'
+import { nominalCodes } from '@/db/schema/nominalLedger'
+import { getSelectedFinancialYear } from '@/lib/financial-years/selected-year'
 
 export async function POST(request: NextRequest) {
   const session = await auth.api.getSession({
@@ -31,23 +32,19 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  const [currentYear] = await db
-    .select({
-      id: financialYears.id
-    })
-    .from(financialYears)
-    .where(
-      and(
-        eq(financialYears.parishCouncilId, parishCouncilId),
-        eq(financialYears.isClosed, false)
-      )
-    )
-    .orderBy(desc(financialYears.startDate))
-    .limit(1)
+  const { financialYear: currentYear } =
+    await getSelectedFinancialYear(parishCouncilId)
 
   if (!currentYear) {
     return NextResponse.json(
-      { error: 'No open financial year found' },
+      { error: 'No financial year found' },
+      { status: 400 }
+    )
+  }
+
+  if (currentYear.isClosed) {
+    return NextResponse.json(
+      { error: 'Bank ledger links cannot be changed for a closed year' },
       { status: 400 }
     )
   }

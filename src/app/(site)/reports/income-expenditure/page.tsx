@@ -3,17 +3,17 @@
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
-import { and, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
 import {
-  financialYears,
   journalEntries,
   journalLines,
   nominalCodes,
   parishCouncils
 } from '@/db/schema'
+import { getSelectedFinancialYear } from '@/lib/financial-years/selected-year'
 import { ExportPdfButton } from './_components/export-pdf-button'
 
 function formatAmount(value: number) {
@@ -93,34 +93,10 @@ export default async function IncomeExpenditurePage({
     redirect('/auth/register')
   }
 
-  const [financialYear] = params?.financialYearId
-    ? await db
-        .select({
-          id: financialYears.id,
-          label: financialYears.label
-        })
-        .from(financialYears)
-        .where(
-          and(
-            eq(financialYears.parishCouncilId, parishCouncilId),
-            eq(financialYears.id, params.financialYearId)
-          )
-        )
-        .limit(1)
-    : await db
-        .select({
-          id: financialYears.id,
-          label: financialYears.label
-        })
-        .from(financialYears)
-        .where(
-          and(
-            eq(financialYears.parishCouncilId, parishCouncilId),
-            eq(financialYears.isClosed, false)
-          )
-        )
-        .orderBy(desc(financialYears.startDate))
-        .limit(1)
+  const { financialYear } = await getSelectedFinancialYear(
+    parishCouncilId,
+    params?.financialYearId
+  )
 
   if (!financialYear) {
     redirect('/')

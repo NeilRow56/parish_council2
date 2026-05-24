@@ -1,13 +1,13 @@
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, eq, sql } from 'drizzle-orm'
 
 import { db } from '@/db'
 import {
-  financialYears,
   journalEntries,
   journalLines,
   nominalCodes,
   nominalOpeningBalances
 } from '@/db/schema'
+import { getSelectedFinancialYear } from '@/lib/financial-years/selected-year'
 
 export type TrialBalanceFinancialYear = {
   id: string
@@ -41,38 +41,10 @@ export async function getTrialBalanceFinancialYear({
   parishCouncilId: string
   financialYearId?: string
 }) {
-  const [financialYear] = financialYearId
-    ? await db
-        .select({
-          id: financialYears.id,
-          label: financialYears.label,
-          startDate: financialYears.startDate,
-          endDate: financialYears.endDate
-        })
-        .from(financialYears)
-        .where(
-          and(
-            eq(financialYears.parishCouncilId, parishCouncilId),
-            eq(financialYears.id, financialYearId)
-          )
-        )
-        .limit(1)
-    : await db
-        .select({
-          id: financialYears.id,
-          label: financialYears.label,
-          startDate: financialYears.startDate,
-          endDate: financialYears.endDate
-        })
-        .from(financialYears)
-        .where(
-          and(
-            eq(financialYears.parishCouncilId, parishCouncilId),
-            eq(financialYears.isClosed, false)
-          )
-        )
-        .orderBy(desc(financialYears.startDate))
-        .limit(1)
+  const { financialYear } = await getSelectedFinancialYear(
+    parishCouncilId,
+    financialYearId
+  )
 
   return financialYear ?? null
 }

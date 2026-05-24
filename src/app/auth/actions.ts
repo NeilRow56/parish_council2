@@ -5,6 +5,7 @@
 import { redirect } from 'next/navigation'
 import { eq } from 'drizzle-orm'
 import { createId } from '@paralleldrive/cuid2'
+import { cookies } from 'next/headers'
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
@@ -14,6 +15,9 @@ import { councilOnboardingSchema } from '@/lib/validation/council-onboarding'
 import { ensureDefaultReserve } from '@/lib/reserves/ensure-default-reserves'
 import { seedVatRatesForCouncil } from '@/server/seeds/seedVatRates'
 import { revalidatePath } from 'next/cache'
+import { seedDefaultChart } from '@/lib/nominal-codes/seedDefaultChart'
+import { getInitialFinancialYearOptions } from '@/lib/financial-years/parish-year'
+import { getSelectedFinancialYearCookieName } from '@/lib/financial-years/selected-year'
 
 type VatStatus = 'NOT_REGISTERED' | 'REGISTERED'
 
@@ -134,7 +138,10 @@ export async function completeCouncilOnboardingAction(formData: FormData) {
     vatRegistrationNumber: formData.get('vatRegistrationNumber'),
     vatClaimFrequency: formData.get('vatClaimFrequency') ?? 'ANNUAL',
     accountingBasis:
-      formData.get('accountingBasis') ?? 'RECEIPTS_AND_PAYMENTS'
+      formData.get('accountingBasis') ?? 'RECEIPTS_AND_PAYMENTS',
+    initialFinancialYearStartYear: formData.get(
+      'initialFinancialYearStartYear'
+    )
   })
 
   if (!parsed.success) {
@@ -183,6 +190,40 @@ export async function completeCouncilOnboardingAction(formData: FormData) {
   await ensureDefaultReserve(currentUser.parishCouncilId)
 
   if (isFirstSetup) {
+    const initialFinancialYearOptions = getInitialFinancialYearOptions()
+    const allowedStartYears = new Set(
+      initialFinancialYearOptions.map(option => option.startYear)
+    )
+    const requestedStartYear = Number(data.initialFinancialYearStartYear)
+    const initialFinancialYearStartYear = allowedStartYears.has(
+      requestedStartYear
+    )
+      ? requestedStartYear
+      : initialFinancialYearOptions[1]?.startYear
+
+    if (!initialFinancialYearStartYear) {
+      redirect(
+        '/onboarding/council-details?error=Initial+financial+year+is+invalid.'
+      )
+    }
+
+    const initialFinancialYear = await seedDefaultChart({
+      parishCouncilId: user.parishCouncilId,
+      financialYearStartYear: initialFinancialYearStartYear
+    })
+
+    const cookieStore = await cookies()
+    cookieStore.set(
+      getSelectedFinancialYearCookieName(user.parishCouncilId),
+      initialFinancialYear.id,
+      {
+        httpOnly: true,
+        sameSite: 'lax',
+        path: '/',
+        maxAge: 60 * 60 * 24 * 365
+      }
+    )
+
     await seedVatRatesForCouncil(user.parishCouncilId)
   }
 

@@ -6,7 +6,7 @@ import {
   View,
   renderToBuffer
 } from '@react-pdf/renderer'
-import { and, desc, eq, gte, lte, ne, sql } from 'drizzle-orm'
+import { and, eq, gte, lte, ne, sql } from 'drizzle-orm'
 import { headers } from 'next/headers'
 import { createElement } from 'react'
 
@@ -19,6 +19,7 @@ import {
   parishCouncils
 } from '@/db/schema'
 import { auth } from '@/lib/auth'
+import { getSelectedFinancialYear } from '@/lib/financial-years/selected-year'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -244,58 +245,38 @@ async function getFinancialYear({
   periodStart?: Date
   periodEnd?: Date
 }) {
-  const [financialYear] = financialYearId
-    ? await db
-        .select({
-          id: financialYears.id,
-          label: financialYears.label,
-          startDate: financialYears.startDate,
-          endDate: financialYears.endDate,
-          isClosed: financialYears.isClosed
-        })
-        .from(financialYears)
-        .where(
-          and(
-            eq(financialYears.parishCouncilId, parishCouncilId),
-            eq(financialYears.id, financialYearId)
-          )
+  if (financialYearId) {
+    const { financialYear } = await getSelectedFinancialYear(
+      parishCouncilId,
+      financialYearId
+    )
+
+    return financialYear ?? null
+  }
+
+  if (periodStart && periodEnd) {
+    const [financialYear] = await db
+      .select({
+        id: financialYears.id,
+        label: financialYears.label,
+        startDate: financialYears.startDate,
+        endDate: financialYears.endDate,
+        isClosed: financialYears.isClosed
+      })
+      .from(financialYears)
+      .where(
+        and(
+          eq(financialYears.parishCouncilId, parishCouncilId),
+          lte(financialYears.startDate, dateToInputDate(periodStart)),
+          gte(financialYears.endDate, dateToInputDate(periodEnd))
         )
-        .limit(1)
-    : periodStart && periodEnd
-    ? await db
-        .select({
-          id: financialYears.id,
-          label: financialYears.label,
-          startDate: financialYears.startDate,
-          endDate: financialYears.endDate,
-          isClosed: financialYears.isClosed
-        })
-        .from(financialYears)
-        .where(
-          and(
-            eq(financialYears.parishCouncilId, parishCouncilId),
-            lte(financialYears.startDate, dateToInputDate(periodStart)),
-            gte(financialYears.endDate, dateToInputDate(periodEnd))
-          )
-        )
-        .limit(1)
-    : await db
-        .select({
-          id: financialYears.id,
-          label: financialYears.label,
-          startDate: financialYears.startDate,
-          endDate: financialYears.endDate,
-          isClosed: financialYears.isClosed
-        })
-        .from(financialYears)
-        .where(
-          and(
-            eq(financialYears.parishCouncilId, parishCouncilId),
-            eq(financialYears.isClosed, false)
-          )
-        )
-        .orderBy(desc(financialYears.startDate))
-        .limit(1)
+      )
+      .limit(1)
+
+    return financialYear ?? null
+  }
+
+  const { financialYear } = await getSelectedFinancialYear(parishCouncilId)
 
   return financialYear ?? null
 }

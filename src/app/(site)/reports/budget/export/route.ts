@@ -6,7 +6,7 @@ import {
   View,
   renderToBuffer
 } from '@react-pdf/renderer'
-import { and, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { headers } from 'next/headers'
 import { createElement } from 'react'
 
@@ -14,12 +14,12 @@ import { db } from '@/db'
 import { parishCouncils } from '@/db/schema'
 import {
   budgets,
-  financialYears,
   journalEntries,
   journalLines,
   nominalCodes
 } from '@/db/schema/nominalLedger'
 import { auth } from '@/lib/auth'
+import { getSelectedFinancialYear } from '@/lib/financial-years/selected-year'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -238,40 +238,10 @@ async function getFinancialYear({
   parishCouncilId: string
   financialYearId?: string
 }) {
-  const [financialYear] = financialYearId
-    ? await db
-        .select({
-          id: financialYears.id,
-          label: financialYears.label,
-          startDate: financialYears.startDate,
-          endDate: financialYears.endDate,
-          isClosed: financialYears.isClosed
-        })
-        .from(financialYears)
-        .where(
-          and(
-            eq(financialYears.parishCouncilId, parishCouncilId),
-            eq(financialYears.id, financialYearId)
-          )
-        )
-        .limit(1)
-    : await db
-        .select({
-          id: financialYears.id,
-          label: financialYears.label,
-          startDate: financialYears.startDate,
-          endDate: financialYears.endDate,
-          isClosed: financialYears.isClosed
-        })
-        .from(financialYears)
-        .where(
-          and(
-            eq(financialYears.parishCouncilId, parishCouncilId),
-            eq(financialYears.isClosed, false)
-          )
-        )
-        .orderBy(desc(financialYears.startDate))
-        .limit(1)
+  const { financialYear } = await getSelectedFinancialYear(
+    parishCouncilId,
+    financialYearId
+  )
 
   return financialYear ?? null
 }

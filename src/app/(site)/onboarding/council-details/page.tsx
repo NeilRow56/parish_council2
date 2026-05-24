@@ -8,6 +8,7 @@ import { getCurrentUser } from '@/lib/get-current-user'
 import { completeCouncilOnboardingAction } from '@/app/auth/actions'
 import { CouncilOnboardingForm } from './_components/council-onboarding-form'
 import { redirect } from 'next/navigation'
+import { getInitialFinancialYearOptions } from '@/lib/financial-years/parish-year'
 
 type CouncilDetailsPageProps = {
   searchParams?: Promise<{
@@ -61,6 +62,7 @@ export default async function CouncilDetailsPage({
           saved={saved}
           error={error}
           notice={notice}
+          initialFinancialYearOptions={getInitialFinancialYearOptions()}
         />
       </div>
     </main>

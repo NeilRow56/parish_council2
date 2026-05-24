@@ -1,10 +1,11 @@
 import { redirect } from 'next/navigation'
 import { headers } from 'next/headers'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 
 import { auth } from '@/lib/auth'
 import { db } from '@/db'
-import { financialYears, nominalCodes } from '@/db/schema/nominalLedger'
+import { nominalCodes } from '@/db/schema/nominalLedger'
+import { getSelectedFinancialYear } from '@/lib/financial-years/selected-year'
 import { ManualJournalForm } from './_components/manual-journal-form'
 
 export default async function NewManualJournalPage() {
@@ -22,20 +23,26 @@ export default async function NewManualJournalPage() {
     redirect('/auth/register')
   }
 
-  const [financialYear] = await db
-    .select()
-    .from(financialYears)
-    .where(
-      and(
-        eq(financialYears.parishCouncilId, parishCouncilId),
-        eq(financialYears.isClosed, false)
-      )
-    )
-    .orderBy(desc(financialYears.startDate))
-    .limit(1)
+  const { financialYear } = await getSelectedFinancialYear(parishCouncilId)
 
   if (!financialYear) {
     redirect('/ledger')
+  }
+
+  if (financialYear.isClosed) {
+    return (
+      <main className='mx-auto max-w-5xl px-6 py-8'>
+        <div className='rounded-lg border border-amber-200 bg-amber-50 p-6 text-sm text-amber-900'>
+          <p className='font-medium'>
+            Financial year {financialYear.label} is closed.
+          </p>
+          <p className='mt-1'>
+            Manual journals cannot be posted to a closed financial year. Select
+            an open year from the header before creating a journal.
+          </p>
+        </div>
+      </main>
+    )
   }
 
   const codes = await db

@@ -2,12 +2,12 @@
 
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
-import { and, asc, desc, eq, isNull, lte, or } from 'drizzle-orm'
+import { and, asc, eq, isNull, lte, or } from 'drizzle-orm'
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
 import { fixedAssets } from '@/db/schema'
-import { financialYears, nominalCodes } from '@/db/schema/nominalLedger'
+import { nominalCodes } from '@/db/schema/nominalLedger'
 import {
   Card,
   CardContent,
@@ -19,6 +19,7 @@ import { Badge } from '@/components/ui/badge'
 import { getAgarBox9Figure } from '@/lib/reports/agar-box9'
 import { getEffectiveAccountingBasis } from '@/lib/reports/agar'
 import { parishCouncils } from '@/db/schema'
+import { getSelectedFinancialYear } from '@/lib/financial-years/selected-year'
 import { FixedAssetRegisterClient } from './_components/fixed-asset-register-client'
 import { ExportPdfButton } from './_components/export-pdf-button'
 
@@ -91,40 +92,10 @@ export default async function AssetRegisterPage({
     redirect('/auth/register')
   }
 
-  const [financialYear] = params?.financialYearId
-    ? await db
-        .select({
-          id: financialYears.id,
-          label: financialYears.label,
-          startDate: financialYears.startDate,
-          endDate: financialYears.endDate,
-          isClosed: financialYears.isClosed
-        })
-        .from(financialYears)
-        .where(
-          and(
-            eq(financialYears.parishCouncilId, parishCouncilId),
-            eq(financialYears.id, params.financialYearId)
-          )
-        )
-        .limit(1)
-    : await db
-        .select({
-          id: financialYears.id,
-          label: financialYears.label,
-          startDate: financialYears.startDate,
-          endDate: financialYears.endDate,
-          isClosed: financialYears.isClosed
-        })
-        .from(financialYears)
-        .where(
-          and(
-            eq(financialYears.parishCouncilId, parishCouncilId),
-            eq(financialYears.isClosed, false)
-          )
-        )
-        .orderBy(desc(financialYears.startDate))
-        .limit(1)
+  const { financialYear } = await getSelectedFinancialYear(
+    parishCouncilId,
+    params?.financialYearId
+  )
 
   if (!financialYear) {
     redirect('/')

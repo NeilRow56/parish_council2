@@ -1,9 +1,8 @@
-import { and, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, eq, inArray, sql } from 'drizzle-orm'
 import { AlertTriangle, Landmark } from 'lucide-react'
 
 import { db } from '@/db'
 import {
-  financialYears,
   journalEntries,
   journalLines,
   nominalCodes,
@@ -29,6 +28,7 @@ import {
 } from '@/components/ui/table'
 
 import { auth } from '@/lib/auth'
+import { getSelectedFinancialYear } from '@/lib/financial-years/selected-year'
 import { headers } from 'next/headers'
 import { redirect } from 'next/navigation'
 import { AddBorrowingDialogLoader } from './_components/add-borrowing-dialog-loader'
@@ -71,20 +71,10 @@ export default async function BorrowingsReportPage({
     redirect('/auth/register')
   }
 
-  const financialYear = params?.financialYearId
-    ? await db.query.financialYears.findFirst({
-        where: and(
-          eq(financialYears.parishCouncilId, parishCouncilId),
-          eq(financialYears.id, params.financialYearId)
-        )
-      })
-    : await db.query.financialYears.findFirst({
-        where: and(
-          eq(financialYears.parishCouncilId, parishCouncilId),
-          eq(financialYears.isClosed, false)
-        ),
-        orderBy: desc(financialYears.startDate)
-      })
+  const { financialYear } = await getSelectedFinancialYear(
+    parishCouncilId,
+    params?.financialYearId
+  )
 
   if (!financialYear) {
     redirect('/onboarding/council-details')

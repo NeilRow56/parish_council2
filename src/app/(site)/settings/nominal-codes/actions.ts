@@ -7,7 +7,7 @@ import { z } from 'zod'
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
-import { nominalCodes } from '@/db/schema/nominalLedger'
+import { financialYears, nominalCodes } from '@/db/schema/nominalLedger'
 
 const nominalCodeTypeSchema = z.enum(['INCOME', 'EXPENDITURE', 'BALANCE_SHEET'])
 
@@ -69,6 +69,30 @@ async function getSessionContext() {
   }
 }
 
+async function assertOpenFinancialYear({
+  parishCouncilId,
+  financialYearId
+}: {
+  parishCouncilId: string
+  financialYearId: string
+}) {
+  const [financialYear] = await db
+    .select({ id: financialYears.id })
+    .from(financialYears)
+    .where(
+      and(
+        eq(financialYears.id, financialYearId),
+        eq(financialYears.parishCouncilId, parishCouncilId),
+        eq(financialYears.isClosed, false)
+      )
+    )
+    .limit(1)
+
+  if (!financialYear) {
+    throw new Error('Nominal codes cannot be changed for a closed year.')
+  }
+}
+
 export async function createNominalCodeAction(input: unknown) {
   const { parishCouncilId } = await getSessionContext()
   const parsed = createNominalCodeSchema.parse(input)
@@ -77,8 +101,16 @@ export async function createNominalCodeAction(input: unknown) {
     throw new Error('Bank/cash nominal codes must be balance sheet codes.')
   }
 
+  await assertOpenFinancialYear({
+    parishCouncilId,
+    financialYearId: parsed.financialYearId
+  })
+
   const [existingCode] = await db
-    .select({ id: nominalCodes.id })
+    .select({
+      id: nominalCodes.id,
+      financialYearId: nominalCodes.financialYearId
+    })
     .from(nominalCodes)
     .where(
       and(
@@ -113,7 +145,10 @@ export async function updateNominalCodeAction(input: unknown) {
   const parsed = updateNominalCodeSchema.parse(input)
 
   const [existingCode] = await db
-    .select({ id: nominalCodes.id })
+    .select({
+      id: nominalCodes.id,
+      financialYearId: nominalCodes.financialYearId
+    })
     .from(nominalCodes)
     .where(
       and(
@@ -126,6 +161,11 @@ export async function updateNominalCodeAction(input: unknown) {
   if (!existingCode) {
     throw new Error('Nominal code not found.')
   }
+
+  await assertOpenFinancialYear({
+    parishCouncilId,
+    financialYearId: existingCode.financialYearId
+  })
 
   await db
     .update(nominalCodes)

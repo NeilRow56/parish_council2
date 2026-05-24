@@ -17,6 +17,7 @@ import {
   suppliers,
   vatReturns
 } from '@/db/schema'
+import { getSelectedFinancialYear } from '@/lib/financial-years/selected-year'
 
 type VatTotals = {
   inputVat: number
@@ -435,28 +436,10 @@ export async function getCurrentFinancialYearForVatReturns() {
 export async function getFinancialYearForVatReports(financialYearId?: string) {
   const { parishCouncilId } = await requireParishCouncil()
 
-  const [year] = financialYearId
-    ? await db
-        .select()
-        .from(financialYears)
-        .where(
-          and(
-            eq(financialYears.parishCouncilId, parishCouncilId),
-            eq(financialYears.id, financialYearId)
-          )
-        )
-        .limit(1)
-    : await db
-        .select()
-        .from(financialYears)
-        .where(
-          and(
-            eq(financialYears.parishCouncilId, parishCouncilId),
-            eq(financialYears.isClosed, false)
-          )
-        )
-        .orderBy(desc(financialYears.startDate))
-        .limit(1)
+  const { financialYear: year } = await getSelectedFinancialYear(
+    parishCouncilId,
+    financialYearId
+  )
 
   return year ?? null
 }

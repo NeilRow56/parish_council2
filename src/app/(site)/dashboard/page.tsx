@@ -7,10 +7,10 @@ import { db } from '@/db'
 import { auth } from '@/lib/auth'
 import { bankConnections, bankTransactions, parishCouncils } from '@/db/schema'
 import {
-  financialYears,
   journalEntries,
   nominalCodes
 } from '@/db/schema/nominalLedger'
+import { getSelectedFinancialYear } from '@/lib/financial-years/selected-year'
 
 export const dynamic = 'force-dynamic'
 
@@ -110,22 +110,8 @@ export default async function DashboardPage() {
     redirect('/auth/register')
   }
 
-  const [currentYear] = await db
-    .select({
-      id: financialYears.id,
-      label: financialYears.label,
-      startDate: financialYears.startDate,
-      endDate: financialYears.endDate
-    })
-    .from(financialYears)
-    .where(
-      and(
-        eq(financialYears.parishCouncilId, parishCouncilId),
-        eq(financialYears.isClosed, false)
-      )
-    )
-    .orderBy(desc(financialYears.startDate))
-    .limit(1)
+  const { financialYear: currentYear } =
+    await getSelectedFinancialYear(parishCouncilId)
 
   const [
     stagedSummary,
@@ -333,7 +319,7 @@ export default async function DashboardPage() {
                 ? `${mappedAgarRelevantCodes} of ${agarRelevantCodes} AGAR-relevant nominal code${
                     agarRelevantCodes === 1 ? '' : 's'
                   } mapped.`
-                : 'No open financial year found for AGAR reporting.'
+                : 'No financial year found for AGAR reporting.'
             }
             href='/reports/agar-summary'
             linkLabel='Open AGAR summary'

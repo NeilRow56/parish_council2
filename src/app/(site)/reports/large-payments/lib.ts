@@ -1,14 +1,14 @@
 // src/app/(site)/reports/large-payments/lib.ts
 
-import { and, asc, desc, eq, gte, lte } from 'drizzle-orm'
+import { and, asc, eq, gte, lte } from 'drizzle-orm'
 
 import { db } from '@/db'
 import {
-  financialYears,
   journalEntries,
   journalLines,
   nominalCodes
 } from '@/db/schema/nominalLedger'
+import { getSelectedFinancialYear } from '@/lib/financial-years/selected-year'
 
 export type LargePaymentRow = {
   date: string
@@ -155,28 +155,10 @@ export async function getCurrentFinancialYearForLargePaymentsReport({
   parishCouncilId: string
   financialYearId?: string
 }) {
-  const [currentYear] = financialYearId
-    ? await db
-        .select()
-        .from(financialYears)
-        .where(
-          and(
-            eq(financialYears.id, financialYearId),
-            eq(financialYears.parishCouncilId, parishCouncilId)
-          )
-        )
-        .limit(1)
-    : await db
-        .select()
-        .from(financialYears)
-        .where(
-          and(
-            eq(financialYears.parishCouncilId, parishCouncilId),
-            eq(financialYears.isClosed, false)
-          )
-        )
-        .orderBy(desc(financialYears.startDate))
-        .limit(1)
+  const { financialYear: currentYear } = await getSelectedFinancialYear(
+    parishCouncilId,
+    financialYearId
+  )
 
   return currentYear ?? null
 }

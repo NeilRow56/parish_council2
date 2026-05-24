@@ -5,12 +5,12 @@ import { and, asc, eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
 import {
-  financialYears,
   journalEntries,
   journalLines,
   nominalCodes,
   nominalOpeningBalances
 } from '@/db/schema/nominalLedger'
+import { getSelectedFinancialYear } from '@/lib/financial-years/selected-year'
 
 function formatAmount(value: string | number | null) {
   const amount = Number(value ?? 0)
@@ -63,19 +63,11 @@ export default async function NominalLedgerPage({
 
   const parishCouncilId = session.user.parishCouncilId
 
-  const [currentYear] = await db
-    .select()
-    .from(financialYears)
-    .where(
-      and(
-        eq(financialYears.parishCouncilId, parishCouncilId),
-        eq(financialYears.isClosed, false)
-      )
-    )
-    .limit(1)
+  const { financialYear: currentYear } =
+    await getSelectedFinancialYear(parishCouncilId)
 
   if (!currentYear) {
-    return <main className='p-6'>No open financial year found.</main>
+    return <main className='p-6'>No financial year found.</main>
   }
 
   const [nominalCode] = await db

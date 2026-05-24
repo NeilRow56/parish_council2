@@ -6,7 +6,7 @@ import {
   View,
   renderToBuffer
 } from '@react-pdf/renderer'
-import { and, desc, eq, gte, lte, sql } from 'drizzle-orm'
+import { and, eq, gte, lte, sql } from 'drizzle-orm'
 import { headers } from 'next/headers'
 import { createElement } from 'react'
 
@@ -23,12 +23,12 @@ import {
   type Box7Box8Reconciliation
 } from '@/lib/reports/agar'
 import {
-  financialYears,
   journalEntries,
   journalLines,
   nominalCodes,
   nominalOpeningBalances
 } from '@/db/schema/nominalLedger'
+import { getSelectedFinancialYear } from '@/lib/financial-years/selected-year'
 import { auth } from '@/lib/auth'
 
 export const runtime = 'nodejs'
@@ -268,38 +268,10 @@ async function getFinancialYear({
   parishCouncilId: string
   financialYearId?: string
 }) {
-  const [year] = financialYearId
-    ? await db
-        .select({
-          id: financialYears.id,
-          label: financialYears.label,
-          startDate: financialYears.startDate,
-          endDate: financialYears.endDate
-        })
-        .from(financialYears)
-        .where(
-          and(
-            eq(financialYears.parishCouncilId, parishCouncilId),
-            eq(financialYears.id, financialYearId)
-          )
-        )
-        .limit(1)
-    : await db
-        .select({
-          id: financialYears.id,
-          label: financialYears.label,
-          startDate: financialYears.startDate,
-          endDate: financialYears.endDate
-        })
-        .from(financialYears)
-        .where(
-          and(
-            eq(financialYears.parishCouncilId, parishCouncilId),
-            eq(financialYears.isClosed, false)
-          )
-        )
-        .orderBy(desc(financialYears.startDate))
-        .limit(1)
+  const { financialYear: year } = await getSelectedFinancialYear(
+    parishCouncilId,
+    financialYearId
+  )
 
   return year ?? null
 }

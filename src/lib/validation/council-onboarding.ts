@@ -48,7 +48,9 @@ export const councilOnboardingSchema = z
 
     accountingBasis: z
       .enum(['RECEIPTS_AND_PAYMENTS', 'INCOME_AND_EXPENDITURE'])
-      .default('RECEIPTS_AND_PAYMENTS')
+      .default('RECEIPTS_AND_PAYMENTS'),
+
+    initialFinancialYearStartYear: optionalTrimmedString
   })
   .superRefine((data, ctx) => {
     if (

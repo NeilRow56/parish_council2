@@ -41,9 +41,15 @@ type CouncilFormInitialValues = {
   accountingBasis?: string | null
 }
 
+type InitialFinancialYearOption = {
+  label: string
+  startYear: number
+}
+
 type Props = {
   action: (formData: FormData) => void | Promise<void>
   initialValues: CouncilFormInitialValues
+  initialFinancialYearOptions: InitialFinancialYearOption[]
   submitLabel?: string
   isOnboarding?: boolean
   saved?: boolean
@@ -82,6 +88,7 @@ function SubmitButton({
 export function CouncilOnboardingForm({
   action,
   initialValues,
+  initialFinancialYearOptions,
   submitLabel = 'Save changes',
   isOnboarding = false,
   saved = false,
@@ -115,6 +122,10 @@ export function CouncilOnboardingForm({
         ? 'INCOME_AND_EXPENDITURE'
         : 'INCOME_AND_EXPENDITURE'
   )
+
+  const defaultInitialFinancialYearStartYear =
+    initialFinancialYearOptions[1]?.startYear ??
+    initialFinancialYearOptions[0]?.startYear
 
   useEffect(() => {
     function handleBeforeUnload(event: BeforeUnloadEvent) {
@@ -250,6 +261,40 @@ export function CouncilOnboardingForm({
               />
             </div>
           </div>
+
+          {isOnboarding && defaultInitialFinancialYearStartYear ? (
+            <div className='grid max-w-md gap-2'>
+              <Label htmlFor='initialFinancialYearStartYear'>
+                Initial financial year
+              </Label>
+              <Select
+                name='initialFinancialYearStartYear'
+                defaultValue={String(defaultInitialFinancialYearStartYear)}
+                onValueChange={markDirty}
+              >
+                <SelectTrigger
+                  id='initialFinancialYearStartYear'
+                  className='w-full'
+                >
+                  <SelectValue placeholder='Select initial financial year' />
+                </SelectTrigger>
+                <SelectContent>
+                  {initialFinancialYearOptions.map(option => (
+                    <SelectItem
+                      key={option.startYear}
+                      value={String(option.startYear)}
+                    >
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className='text-muted-foreground text-sm'>
+                Choose the first financial year you want to enter transactions
+                and opening balances for.
+              </p>
+            </div>
+          ) : null}
         </CardContent>
       </Card>
       <section className='rounded-lg border bg-white p-5'>

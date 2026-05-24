@@ -182,7 +182,7 @@ export async function completeCouncilOnboardingAction(formData: FormData) {
 
   await ensureDefaultReserve(currentUser.parishCouncilId)
 
-  if (!parishCouncils.onboardingCompletedAt) {
+  if (isFirstSetup) {
     await seedVatRatesForCouncil(user.parishCouncilId)
   }
 

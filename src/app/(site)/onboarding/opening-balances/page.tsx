@@ -26,6 +26,13 @@ import {
 
 import { Button } from '@/components/ui/button'
 import { SaveOpeningBalancesButton } from '../council-details/_components/save-opening-balance-button'
+import {
+  isBorrowingCode,
+  isFixedAssetCode,
+  isMemoReserveCode,
+  isNormalReserveCode,
+  openingBalanceCentsTotal
+} from '@/lib/opening-balances/validation'
 
 function parsePositiveMoney(value: FormDataEntryValue | null) {
   const cleaned = String(value ?? '').replace(/,/g, '').trim()
@@ -47,22 +54,6 @@ function parsePositiveMoney(value: FormDataEntryValue | null) {
 
 function formatMoney(amount: number) {
   return amount.toFixed(2)
-}
-
-function isFixedAssetCode(code: { category: string | null }) {
-  return code.category === 'Fixed Assets'
-}
-
-function isBorrowingCode(code: { agarBox: string | null }) {
-  return code.agarBox === 'BOX_10_BORROWINGS'
-}
-
-function isMemoReserveCode(code: { code: string }) {
-  return code.code === '3090' || code.code === '3095'
-}
-
-function isNormalReserveCode(code: { category: string | null; code: string }) {
-  return code.category === 'Reserves' && !isMemoReserveCode(code)
 }
 
 async function getRollforwardLockForYear({
@@ -228,10 +219,7 @@ async function saveOpeningBalances(formData: FormData) {
     signedBalances.set(borrowingMemoReserve.id, borrowingOpeningTotal)
   }
 
-  const total = Array.from(signedBalances.values()).reduce(
-    (sum, amount) => sum + Math.round(amount * 100),
-    0
-  )
+  const total = openingBalanceCentsTotal(signedBalances.values())
 
   if (total !== 0) {
     redirectWithStatus({

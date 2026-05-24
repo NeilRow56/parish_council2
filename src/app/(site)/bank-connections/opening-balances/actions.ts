@@ -7,8 +7,12 @@ import { and, eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
 import { bankConnections } from '@/db/schema/bankConnection'
-import { bankOpeningBalances } from '@/db/schema/bankOpeningBalances'
-import { financialYears } from '@/db/schema/nominalLedger'
+import {
+  financialYears,
+  nominalCodes,
+  nominalOpeningBalances
+} from '@/db/schema/nominalLedger'
+import { openingBalancesBalance } from '@/lib/opening-balances/validation'
 
 function parseMoney(value: string) {
   const cleaned = value.replace(/,/g, '').trim()
@@ -37,7 +41,10 @@ export async function saveBankOpeningBalanceAction(input: {
   const parishCouncilId = session.user.parishCouncilId
 
   const [financialYear] = await db
-    .select({ id: financialYears.id })
+    .select({
+      id: financialYears.id,
+      isClosed: financialYears.isClosed
+    })
     .from(financialYears)
     .where(
       and(
@@ -49,6 +56,10 @@ export async function saveBankOpeningBalanceAction(input: {
 
   if (!financialYear) {
     throw new Error('Financial year not found.')
+  }
+
+  if (financialYear.isClosed) {
+    throw new Error('Opening balances cannot be changed for a closed year.')
   }
 
   const [connection] = await db
@@ -74,29 +85,72 @@ export async function saveBankOpeningBalanceAction(input: {
   }
 
   const openingBalance = parseMoney(input.openingBalance)
+  const proposedOpeningBalance = Number(openingBalance)
+
+  const [codes, existingOpeningBalances] = await Promise.all([
+    db
+      .select({ id: nominalCodes.id })
+      .from(nominalCodes)
+      .where(
+        and(
+          eq(nominalCodes.parishCouncilId, parishCouncilId),
+          eq(nominalCodes.financialYearId, input.financialYearId)
+        )
+      ),
+    db
+      .select({
+        nominalCodeId: nominalOpeningBalances.nominalCodeId,
+        amount: nominalOpeningBalances.amount
+      })
+      .from(nominalOpeningBalances)
+      .where(
+        and(
+          eq(nominalOpeningBalances.parishCouncilId, parishCouncilId),
+          eq(nominalOpeningBalances.financialYearId, input.financialYearId)
+        )
+      )
+  ])
+
+  const codeIds = new Set(codes.map(code => code.id))
+
+  if (!codeIds.has(connection.nominalCodeId)) {
+    throw new Error('Bank connection is not linked to this financial year.')
+  }
+
+  const proposedBalances = new Map(
+    existingOpeningBalances
+      .filter(row => codeIds.has(row.nominalCodeId))
+      .map(row => [row.nominalCodeId, Number(row.amount)])
+  )
+
+  proposedBalances.set(connection.nominalCodeId, proposedOpeningBalance)
+
+  if (!openingBalancesBalance(proposedBalances.values())) {
+    throw new Error(
+      'Opening balances would not balance. Update reserves, borrowings, or memo-reserve balances in Settings → Opening balances first.'
+    )
+  }
 
   await db
-    .insert(bankOpeningBalances)
+    .insert(nominalOpeningBalances)
     .values({
       parishCouncilId,
       financialYearId: input.financialYearId,
-      connectionId: input.connectionId,
       nominalCodeId: connection.nominalCodeId,
-      openingBalance,
-      updatedAt: new Date()
+      amount: openingBalance
     })
     .onConflictDoUpdate({
       target: [
-        bankOpeningBalances.connectionId,
-        bankOpeningBalances.financialYearId
+        nominalOpeningBalances.financialYearId,
+        nominalOpeningBalances.nominalCodeId
       ],
       set: {
-        nominalCodeId: connection.nominalCodeId,
-        openingBalance,
-        updatedAt: new Date()
+        parishCouncilId,
+        amount: openingBalance
       }
     })
 
   revalidatePath('/bank-connections/opening-balances')
+  revalidatePath('/onboarding/opening-balances')
   revalidatePath('/reports/bank-reconciliation')
 }

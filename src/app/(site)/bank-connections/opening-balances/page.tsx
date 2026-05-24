@@ -6,8 +6,11 @@ import { and, asc, eq, isNotNull } from 'drizzle-orm'
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
 import { bankConnections } from '@/db/schema/bankConnection'
-import { bankOpeningBalances } from '@/db/schema/bankOpeningBalances'
-import { financialYears, nominalCodes } from '@/db/schema/nominalLedger'
+import {
+  financialYears,
+  nominalCodes,
+  nominalOpeningBalances
+} from '@/db/schema/nominalLedger'
 import { OpeningBalancesForm } from './_components/opening-balances-form'
 
 export default async function OpeningBalancesPage() {
@@ -48,15 +51,16 @@ export default async function OpeningBalancesPage() {
       nominalCodeId: bankConnections.nominalCodeId,
       nominalCode: nominalCodes.code,
       nominalName: nominalCodes.name,
-      openingBalance: bankOpeningBalances.openingBalance
+      openingBalance: nominalOpeningBalances.amount
     })
     .from(bankConnections)
     .innerJoin(nominalCodes, eq(bankConnections.nominalCodeId, nominalCodes.id))
     .leftJoin(
-      bankOpeningBalances,
+      nominalOpeningBalances,
       and(
-        eq(bankOpeningBalances.connectionId, bankConnections.id),
-        eq(bankOpeningBalances.financialYearId, financialYear.id)
+        eq(nominalOpeningBalances.nominalCodeId, bankConnections.nominalCodeId),
+        eq(nominalOpeningBalances.financialYearId, financialYear.id),
+        eq(nominalOpeningBalances.parishCouncilId, parishCouncilId)
       )
     )
     .where(
@@ -76,6 +80,9 @@ export default async function OpeningBalancesPage() {
           </h1>
           <p className='mt-1 text-sm text-zinc-600'>
             Enter opening balances for linked bank accounts.
+          </p>
+          <p className='mt-1 text-sm text-zinc-600'>
+            These balances are shared with Settings → Opening balances.
           </p>
           <p className='mt-1 text-xs text-zinc-500'>
             Enter negative values for overdrafts.

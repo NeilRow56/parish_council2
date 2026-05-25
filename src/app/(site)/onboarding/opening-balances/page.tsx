@@ -32,7 +32,9 @@ import {
   isFixedAssetCode,
   isMemoReserveCode,
   isNormalReserveCode,
-  openingBalanceCentsTotal
+  openingBalanceCentsTotal,
+  openingBalanceSignForCode,
+  toStoredOpeningBalanceAmount
 } from '@/lib/opening-balances/validation'
 
 function parsePositiveMoney(value: FormDataEntryValue | null) {
@@ -141,6 +143,7 @@ async function saveOpeningBalances(formData: FormData) {
       id: nominalCodes.id,
       code: nominalCodes.code,
       category: nominalCodes.category,
+      name: nominalCodes.name,
       agarBox: nominalCodes.agarBox
     })
     .from(nominalCodes)
@@ -172,24 +175,26 @@ async function saveOpeningBalances(formData: FormData) {
 
       const amount = parsePositiveMoney(value)
 
+      const signedAmount = toStoredOpeningBalanceAmount(code, amount)
+
       if (isFixedAssetCode(code)) {
-        signedBalances.set(nominalCodeId, amount)
+        signedBalances.set(nominalCodeId, signedAmount)
         fixedAssetOpeningTotal += amount
         continue
       }
 
       if (isBorrowingCode(code)) {
-        signedBalances.set(nominalCodeId, -amount)
+        signedBalances.set(nominalCodeId, signedAmount)
         borrowingOpeningTotal += amount
         continue
       }
 
       if (isNormalReserveCode(code)) {
-        signedBalances.set(nominalCodeId, -amount)
+        signedBalances.set(nominalCodeId, signedAmount)
         continue
       }
 
-      signedBalances.set(nominalCodeId, amount)
+      signedBalances.set(nominalCodeId, signedAmount)
     }
   } catch (error) {
     redirectWithStatus({
@@ -302,7 +307,8 @@ export default async function OpeningBalancesPage({
       name: nominalCodes.name,
       category: nominalCodes.category,
       type: nominalCodes.type,
-      agarBox: nominalCodes.agarBox
+      agarBox: nominalCodes.agarBox,
+      isBank: nominalCodes.isBank
     })
     .from(nominalCodes)
     .where(
@@ -332,10 +338,20 @@ export default async function OpeningBalancesPage({
   })
 
   const groupedCodes = {
-    banks: codes.filter(c => c.category === 'Bank'),
+    banks: codes.filter(c => c.category === 'Bank' || c.isBank),
     reserves: codes.filter(c => isNormalReserveCode(c)),
     fixedAssets: codes.filter(c => c.category === 'Fixed Assets'),
-    borrowings: codes.filter(c => c.agarBox === 'BOX_10_BORROWINGS')
+    borrowings: codes.filter(c => c.agarBox === 'BOX_10_BORROWINGS'),
+    otherBalanceSheet: codes.filter(
+      c =>
+        c.type === 'BALANCE_SHEET' &&
+        c.category !== 'Bank' &&
+        !c.isBank &&
+        !isNormalReserveCode(c) &&
+        !isMemoReserveCode(c) &&
+        !isFixedAssetCode(c) &&
+        !isBorrowingCode(c)
+    )
   }
 
   return (
@@ -411,6 +427,16 @@ export default async function OpeningBalancesPage({
           />
         ) : null}
 
+        {groupedCodes.otherBalanceSheet.length > 0 ? (
+          <OpeningBalanceCard
+            title='Other balance sheet balances'
+            description='Optional: enter VAT control, debtors, creditors, accruals, prepayments, or receipts in advance where needed.'
+            codes={groupedCodes.otherBalanceSheet}
+            balancesMap={balancesMap}
+            isLocked={isLockedByRollforward}
+          />
+        ) : null}
+
         <div className='flex justify-end'>
           <SaveOpeningBalancesButton disabled={isLockedByRollforward} />
         </div>
@@ -435,7 +461,7 @@ function formatOpeningBalanceInput(
 
   if (amount === 0) return ''
 
-  if (isNormalReserveCode(code) || isBorrowingCode(code)) {
+  if (openingBalanceSignForCode(code) === -1) {
     return String(Math.abs(amount))
   }
 

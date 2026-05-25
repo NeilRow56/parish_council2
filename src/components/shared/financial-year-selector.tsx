@@ -1,6 +1,6 @@
 'use client'
 
-import { useRouter } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import { useTransition } from 'react'
 
 import { setSelectedFinancialYearAction } from '@/app/(site)/financial-year-actions'
@@ -18,10 +18,17 @@ export function FinancialYearSelector({
   years: FinancialYearOption[]
   selectedFinancialYearId: string | null
 }) {
+  const pathname = usePathname()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const [isPending, startTransition] = useTransition()
+  const urlFinancialYearId = searchParams.get('financialYearId')
+  const currentFinancialYearId =
+    urlFinancialYearId && years.some(year => year.id === urlFinancialYearId)
+      ? urlFinancialYearId
+      : selectedFinancialYearId
 
-  if (years.length === 0 || !selectedFinancialYearId) {
+  if (years.length === 0 || !currentFinancialYearId) {
     return null
   }
 
@@ -29,7 +36,7 @@ export function FinancialYearSelector({
     <label className='flex items-center gap-2 text-sm text-slate-600'>
       <span className='font-medium text-slate-700'>Financial year:</span>
       <select
-        value={selectedFinancialYearId}
+        value={currentFinancialYearId}
         disabled={isPending}
         onChange={event => {
           const financialYearId = event.target.value
@@ -38,7 +45,19 @@ export function FinancialYearSelector({
             const result = await setSelectedFinancialYearAction(financialYearId)
 
             if (result.success) {
-              router.refresh()
+              if (searchParams.has('financialYearId')) {
+                const nextSearchParams = new URLSearchParams(
+                  searchParams.toString()
+                )
+                nextSearchParams.set('financialYearId', financialYearId)
+
+                const query = nextSearchParams.toString()
+                router.replace(`${pathname}${query ? `?${query}` : ''}`, {
+                  scroll: false
+                })
+              } else {
+                router.refresh()
+              }
             }
           })
         }}

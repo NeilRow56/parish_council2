@@ -5,11 +5,13 @@ import { and, desc, eq, inArray, sql } from 'drizzle-orm'
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
-import { bankConnections, bankTransactions, parishCouncils } from '@/db/schema'
 import {
-  journalEntries,
-  nominalCodes
-} from '@/db/schema/nominalLedger'
+  bankConnections,
+  bankTransactions,
+  parishCouncils,
+  vatRates
+} from '@/db/schema'
+import { journalEntries, nominalCodes } from '@/db/schema/nominalLedger'
 import { getSelectedFinancialYear } from '@/lib/financial-years/selected-year'
 
 export const dynamic = 'force-dynamic'
@@ -117,7 +119,9 @@ export default async function DashboardPage() {
     stagedSummary,
     [bankingSummary],
     [agarMappingSummary],
-    recentPostings
+    recentPostings,
+    [setupNominalSummary],
+    [vatRateSummary]
   ] = await Promise.all([
     db
       .select({
@@ -182,7 +186,34 @@ export default async function DashboardPage() {
           : eq(journalEntries.parishCouncilId, parishCouncilId)
       )
       .orderBy(desc(journalEntries.createdAt))
-      .limit(5)
+      .limit(5),
+
+    currentYear
+      ? db
+          .select({
+            nominalCodes: sql<number>`count(*)::int`,
+            activeBankCodes: sql<number>`count(*) filter (where ${nominalCodes.isActive} = true and ${nominalCodes.isBank} = true)::int`
+          })
+          .from(nominalCodes)
+          .where(
+            and(
+              eq(nominalCodes.parishCouncilId, parishCouncilId),
+              eq(nominalCodes.financialYearId, currentYear.id)
+            )
+          )
+      : Promise.resolve([
+          {
+            nominalCodes: 0,
+            activeBankCodes: 0
+          }
+        ]),
+
+    db
+      .select({
+        activeVatRates: sql<number>`count(*) filter (where ${vatRates.isActive} = true)::int`
+      })
+      .from(vatRates)
+      .where(eq(vatRates.parishCouncilId, parishCouncilId))
   ])
 
   const pendingCount =
@@ -209,14 +240,37 @@ export default async function DashboardPage() {
     agarRelevantCodes - mappedAgarRelevantCodes
   const agarReady =
     currentYear && agarRelevantCodes > 0 && unmappedAgarRelevantCodes === 0
-
-  const nextActions = [
+  const setupWarnings = [
     !currentYear
       ? {
-          label: 'Create or open a financial year',
+          label: 'No financial year is selected.',
           href: '/settings/financial-years'
         }
       : null,
+    currentYear && Number(setupNominalSummary?.nominalCodes ?? 0) === 0
+      ? {
+          label: 'No nominal chart exists for the selected financial year.',
+          href: '/settings/nominal-codes'
+        }
+      : null,
+    currentYear && Number(setupNominalSummary?.activeBankCodes ?? 0) === 0
+      ? {
+          label: 'No active cash/bank nominal code exists for manual entries.',
+          href: '/settings/nominal-codes'
+        }
+      : null,
+    Number(vatRateSummary?.activeVatRates ?? 0) === 0
+      ? {
+          label: 'No active VAT rates are configured.',
+          href: '/settings/vat-rates'
+        }
+      : null
+  ].filter((warning): warning is { label: string; href: string } =>
+    Boolean(warning)
+  )
+
+  const nextActions = [
+    ...setupWarnings,
     stagedCount > 0
       ? {
           label: `Review ${stagedCount} staged bank transaction${
@@ -267,6 +321,23 @@ export default async function DashboardPage() {
             New payment or receipt
           </Link>
         </div>
+
+        {setupWarnings.length > 0 ? (
+          <section className='rounded-lg border border-amber-200 bg-amber-50 px-5 py-4 text-sm text-amber-900'>
+            <h2 className='font-semibold'>Setup needs attention</h2>
+            <div className='mt-2 flex flex-col gap-2'>
+              {setupWarnings.map(warning => (
+                <Link
+                  key={`${warning.href}:${warning.label}`}
+                  href={warning.href}
+                  className='font-medium hover:underline'
+                >
+                  {warning.label}
+                </Link>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         <div className='grid gap-4 md:grid-cols-2 xl:grid-cols-3'>
           <StatusCard
@@ -402,7 +473,7 @@ export default async function DashboardPage() {
             <div className='divide-y'>
               {nextActions.map(action => (
                 <Link
-                  key={action.href}
+                  key={`${action.href}:${action.label}`}
                   href={action.href}
                   className='block px-5 py-4 text-sm font-medium text-slate-900 hover:bg-emerald-50/30'
                 >

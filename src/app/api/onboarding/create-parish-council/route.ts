@@ -8,6 +8,7 @@ import { db } from '@/db'
 import { parishCouncils, user } from '@/db/schema/authSchema'
 import { seedDefaultChart } from '@/lib/nominal-codes/seedDefaultChart'
 import { ensureDefaultReserve } from '@/lib/reserves/ensure-default-reserves'
+import { seedVatRatesForCouncil } from '@/server/seeds/seedVatRates'
 
 export async function POST(request: NextRequest) {
   const session = await auth.api.getSession({
@@ -60,6 +61,7 @@ export async function POST(request: NextRequest) {
 
   await seedDefaultChart({ parishCouncilId })
   await ensureDefaultReserve(parishCouncilId)
+  await seedVatRatesForCouncil(parishCouncilId)
 
   return NextResponse.json({
     ok: true,

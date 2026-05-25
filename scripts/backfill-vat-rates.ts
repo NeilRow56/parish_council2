@@ -16,11 +16,11 @@ async function run() {
   const councils = await db.select().from(parishCouncils)
 
   for (const council of councils) {
-    console.log(`Seeding VAT rates for ${council.id}`)
+    console.log(`Ensuring default VAT rates for ${council.id}`)
     await seedVatRatesForCouncil(council.id)
   }
 
-  console.log('Done')
+  console.log(`Done. Checked ${councils.length} council(s).`)
   process.exit(0)
 }
 

@@ -64,7 +64,8 @@ export default async function NewBankEntryPage({
   }
 
   const [
-    bankAccounts,
+    bankNominalCodes,
+    linkedBankAccounts,
     analysisCodes,
     supplierOptions,
     reserveOptions,
@@ -72,18 +73,29 @@ export default async function NewBankEntryPage({
   ] = await Promise.all([
     db
       .select({
-        connectionId: bankConnections.id,
-        accountName: bankConnections.accountName,
-        accountLast4: bankConnections.accountLast4,
-        nominalCodeId: bankConnections.nominalCodeId,
+        nominalCodeId: nominalCodes.id,
         nominalCode: nominalCodes.code,
         nominalName: nominalCodes.name
       })
-      .from(bankConnections)
-      .innerJoin(
-        nominalCodes,
-        eq(bankConnections.nominalCodeId, nominalCodes.id)
+      .from(nominalCodes)
+      .where(
+        and(
+          eq(nominalCodes.parishCouncilId, parishCouncilId),
+          eq(nominalCodes.financialYearId, financialYear.id),
+          eq(nominalCodes.isBank, true),
+          eq(nominalCodes.isActive, true)
+        )
       )
+      .orderBy(asc(nominalCodes.code), asc(nominalCodes.name)),
+
+    db
+      .select({
+        nominalCodeId: bankConnections.nominalCodeId,
+        accountName: bankConnections.accountName,
+        accountLast4: bankConnections.accountLast4
+      })
+      .from(bankConnections)
+      .innerJoin(nominalCodes, eq(bankConnections.nominalCodeId, nominalCodes.id))
       .where(
         and(
           eq(bankConnections.parishCouncilId, parishCouncilId),
@@ -216,9 +228,14 @@ export default async function NewBankEntryPage({
           startDate: financialYear.startDate,
           endDate: financialYear.endDate
         }}
-        bankAccounts={bankAccounts.map(account => ({
+        bankAccounts={bankNominalCodes.map(account => ({
           ...account,
-          nominalCodeId: account.nominalCodeId ?? ''
+          linkedAccounts: linkedBankAccounts
+            .filter(link => link.nominalCodeId === account.nominalCodeId)
+            .map(link => ({
+              accountName: link.accountName,
+              accountLast4: link.accountLast4
+            }))
         }))}
         nominalCodes={analysisCodes}
         suppliers={supplierOptions}

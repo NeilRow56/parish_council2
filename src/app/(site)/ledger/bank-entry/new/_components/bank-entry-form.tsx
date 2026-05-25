@@ -32,12 +32,13 @@ type BankEntryType = 'PAYMENT' | 'RECEIPT'
 type VatTreatment = 'RECOVERABLE' | 'IRRECOVERABLE' | 'OUTPUT' | 'OUTSIDE_SCOPE'
 
 type BankAccountOption = {
-  connectionId: string
-  accountName: string
-  accountLast4: string | null
   nominalCodeId: string
   nominalCode: string
   nominalName: string
+  linkedAccounts: {
+    accountName: string
+    accountLast4: string | null
+  }[]
 }
 
 type NominalCodeOption = {
@@ -111,7 +112,7 @@ type BankEntryLine = {
 
 const bankEntrySchema = z.object({
   date: z.string().min(1, 'Date is required.'),
-  bankConnectionId: z.string().min(1, 'Cash/bank account is required.'),
+  bankNominalCodeId: z.string().min(1, 'Cash/bank account is required.'),
   entryType: z.enum(['PAYMENT', 'RECEIPT']),
   lines: z
     .array(
@@ -303,8 +304,8 @@ export function BankEntryForm({
 
   const [date, setDate] = useState(() => new Date().toISOString().split('T')[0])
   const [entryType, setEntryType] = useState<BankEntryType>(initialEntryType)
-  const [bankConnectionId, setBankConnectionId] = useState(
-    bankAccounts[0]?.connectionId ?? ''
+  const [bankNominalCodeId, setBankNominalCodeId] = useState(
+    bankAccounts[0]?.nominalCodeId ?? ''
   )
   const [reference, setReference] = useState('')
 
@@ -557,7 +558,7 @@ export function BankEntryForm({
 
     const validation = bankEntrySchema.safeParse({
       date,
-      bankConnectionId,
+      bankNominalCodeId,
       entryType,
       lines: activeLines.map(line => ({
         nominalCodeId: line.nominalCodeId,
@@ -605,7 +606,7 @@ export function BankEntryForm({
       const result = await createBankEntryAction({
         financialYearId,
         date,
-        bankConnectionId,
+        bankNominalCodeId,
         entryType,
         reference,
         lines: activeLines.map(line => ({
@@ -675,7 +676,7 @@ export function BankEntryForm({
     !isPosting &&
     postedJournalEntryIds.length === 0 &&
     !dateWarning &&
-    Boolean(bankConnectionId) &&
+    Boolean(bankNominalCodeId) &&
     totals.gross > 0 &&
     lines.some(
       line =>
@@ -702,8 +703,8 @@ export function BankEntryForm({
 
         {bankAccounts.length === 0 && (
           <p className='rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700'>
-            No linked cash/bank accounts found. Link a cash/bank nominal code
-            first.
+            No cash/bank nominal codes found. Add an active cash/bank nominal
+            code before posting manual entries.
           </p>
         )}
 
@@ -742,17 +743,26 @@ export function BankEntryForm({
           <div>
             <label className='text-sm font-medium'>Cash/bank account</label>
             <select
-              value={bankConnectionId}
-              onChange={event => setBankConnectionId(event.target.value)}
+              value={bankNominalCodeId}
+              onChange={event => setBankNominalCodeId(event.target.value)}
               className='mt-1 w-full rounded-md border px-3 py-2 text-sm'
             >
               <option value=''>Select cash/bank account</option>
               {bankAccounts.map(account => (
-                <option key={account.connectionId} value={account.connectionId}>
-                  {account.accountName}
-                  {account.accountLast4
-                    ? ` ****${account.accountLast4}`
-                    : ''} — {account.nominalCode}
+                <option
+                  key={account.nominalCodeId}
+                  value={account.nominalCodeId}
+                >
+                  {account.nominalCode} — {account.nominalName}
+                  {account.linkedAccounts.length > 0
+                    ? ` (${account.linkedAccounts
+                        .map(link =>
+                          link.accountLast4
+                            ? `${link.accountName} ****${link.accountLast4}`
+                            : link.accountName
+                        )
+                        .join(', ')})`
+                    : ''}
                 </option>
               ))}
             </select>

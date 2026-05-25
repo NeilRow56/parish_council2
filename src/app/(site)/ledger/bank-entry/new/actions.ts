@@ -8,7 +8,6 @@ import { and, eq, inArray } from 'drizzle-orm'
 
 import { db } from '@/db'
 import { auth } from '@/lib/auth'
-import { bankConnections } from '@/db/schema/bankConnection'
 import {
   financialYears,
   journalEntries,
@@ -45,7 +44,7 @@ type BankEntryLineInput = {
 type CreateBankEntryInput = {
   financialYearId: string
   date: string
-  bankConnectionId: string
+  bankNominalCodeId: string
   entryType: BankEntryType
   reference: string
   attachmentUrl?: string
@@ -185,24 +184,27 @@ async function createBankEntry(
     return expectedError(dateWarning)
   }
 
-  const [bankAccount] = await db
+  const [bankNominalCode] = await db
     .select({
-      connectionId: bankConnections.id,
-      nominalCodeId: bankConnections.nominalCodeId,
-      accountName: bankConnections.accountName
+      id: nominalCodes.id,
+      code: nominalCodes.code,
+      name: nominalCodes.name
     })
-    .from(bankConnections)
+    .from(nominalCodes)
     .where(
       and(
-        eq(bankConnections.id, input.bankConnectionId),
-        eq(bankConnections.parishCouncilId, parishCouncilId)
+        eq(nominalCodes.id, input.bankNominalCodeId),
+        eq(nominalCodes.parishCouncilId, parishCouncilId),
+        eq(nominalCodes.financialYearId, input.financialYearId),
+        eq(nominalCodes.isBank, true),
+        eq(nominalCodes.isActive, true)
       )
     )
     .limit(1)
 
-  if (!bankAccount?.nominalCodeId) {
+  if (!bankNominalCode) {
     throw new Error(
-      'Selected bank account is not linked to a bank nominal code.'
+      'Selected cash/bank nominal code is not available for this financial year.'
     )
   }
 
@@ -222,7 +224,7 @@ async function createBankEntry(
     throw new Error('No active default reserve has been configured.')
   }
 
-  const bankNominalCodeId = bankAccount.nominalCodeId
+  const bankNominalCodeId = bankNominalCode.id
 
   const enteredLines = input.lines.filter(
     line =>
@@ -507,9 +509,7 @@ async function createBankEntry(
 
       const description =
         line.description ||
-        `${input.entryType === 'PAYMENT' ? 'Payment' : 'Receipt'} - ${
-          bankAccount.accountName
-        }`
+        `${input.entryType === 'PAYMENT' ? 'Payment' : 'Receipt'} - ${bankNominalCode.code} ${bankNominalCode.name}`
       const isVatSettlement =
         vatControlCodeIds.has(line.nominalCodeId) && line.vatPence === 0
 

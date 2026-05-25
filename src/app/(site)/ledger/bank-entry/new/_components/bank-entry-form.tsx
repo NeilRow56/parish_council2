@@ -3,6 +3,7 @@
 'use client'
 
 import { Fragment, useMemo, useState, useTransition } from 'react'
+import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { ChevronDown, ChevronRight, Plus, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
@@ -709,10 +710,18 @@ export function BankEntryForm({
         )}
 
         {vatRates.length === 0 && (
-          <p className='rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700'>
-            No active VAT rates found. Add VAT rates before posting bank
-            entries.
-          </p>
+          <div className='flex flex-wrap items-center justify-between gap-3 rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-700'>
+            <span>
+              No active VAT rates found. Check VAT settings before posting bank
+              entries.
+            </span>
+            <Link
+              href='/settings/vat-rates'
+              className='font-medium underline underline-offset-2'
+            >
+              Open VAT settings
+            </Link>
+          </div>
         )}
 
         <div className='grid gap-4 border-b p-4 md:grid-cols-[260px_220px_minmax(360px,1fr)_260px]'>

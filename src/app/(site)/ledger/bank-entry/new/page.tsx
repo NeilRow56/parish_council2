@@ -9,6 +9,7 @@ import { auth } from '@/lib/auth'
 import { bankConnections } from '@/db/schema/bankConnection'
 import { nominalCodes } from '@/db/schema/nominalLedger'
 import { getSelectedFinancialYear } from '@/lib/financial-years/selected-year'
+import { ensureDefaultVatRatesForCouncil } from '@/server/seeds/seedVatRates'
 
 import { BankEntryForm } from './_components/bank-entry-form'
 import { projects, reserves, suppliers, vatRates } from '@/db/schema'
@@ -39,6 +40,8 @@ export default async function NewBankEntryPage({
   }
 
   const parishCouncilId = session.user.parishCouncilId
+
+  await ensureDefaultVatRatesForCouncil(parishCouncilId)
 
   const { financialYear } = await getSelectedFinancialYear(parishCouncilId)
 

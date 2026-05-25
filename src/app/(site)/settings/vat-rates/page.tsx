@@ -5,10 +5,13 @@ import { asc, eq } from 'drizzle-orm'
 import { db } from '@/db'
 import { vatRates } from '@/db/schema'
 import { requireParishCouncil } from '@/lib/auth/require-parish-council'
+import { ensureDefaultVatRatesForCouncil } from '@/server/seeds/seedVatRates'
 import { VatRateRowForm } from './_components/vat-rate-row-form'
 
 export default async function VatRatesSettingsPage() {
   const { parishCouncilId } = await requireParishCouncil()
+
+  await ensureDefaultVatRatesForCouncil(parishCouncilId)
 
   const vatRateRows = await db
     .select()
